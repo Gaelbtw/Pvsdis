@@ -1,0 +1,799 @@
+import 'package:flutter/material.dart';
+import '../controllers/pedidos_controller.dart';
+import '../models/pedidos_model.dart';
+import '../models/producto_model.dart';
+import '../widgets/nav_bar.dart';
+import '../widgets/custom_alert.dart';
+import '../services/producto_services.dart';
+
+class CrearPedidoView extends StatefulWidget {
+  final int? idCliente;
+  final String? nombreCliente;
+
+  const CrearPedidoView({
+    super.key,
+    this.idCliente,
+    this.nombreCliente,
+  });
+
+  @override
+  State<CrearPedidoView> createState() => _CrearPedidoViewState();
+}
+
+class _CrearPedidoViewState extends State<CrearPedidoView> {
+  final controller = PedidosController();
+  final productoService = ProductoService();
+
+  final direccionCtrl = TextEditingController();
+
+  List<Producto> productos = [];
+  Map<int, int> _stock = {};
+  List<Map<String, dynamic>> carrito = [];
+
+  String tipoEntrega = "Domicilio";
+  DateTime? _fechaEntrega;
+  double total = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    cargarProductos();
+  }
+
+  Future<void> cargarProductos() async {
+    final prods = await productoService.obtenerTodos();
+    final stock = await productoService.obtenerStockMap();
+    setState(() {
+      productos = prods;
+      _stock = stock;
+    });
+  }
+
+  void agregarProducto(Producto producto) {
+    final stockDisponible = _stock[producto.idProducto] ?? 0;
+
+    final indexEnCarrito = carrito.indexWhere(
+      (e) => (e['producto'] as Producto).idProducto == producto.idProducto,
+    );
+    final cantidadEnCarrito =
+        indexEnCarrito >= 0 ? carrito[indexEnCarrito]['cantidad'] as int : 0;
+
+    if (stockDisponible == 0) {
+      showDialog(
+        context: context,
+        builder: (_) => CustomAlert(
+          titulo: 'Sin stock disponible',
+          mensaje:
+              '${producto.nombre} no tiene unidades en inventario.\nContacta a tu proveedor.',
+          icono: Icons.inventory_2_outlined,
+          textoConfirmar: 'Entendido',
+          color: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (cantidadEnCarrito >= stockDisponible) {
+      showDialog(
+        context: context,
+        builder: (_) => CustomAlert(
+          titulo: 'Stock insuficiente',
+          mensaje:
+              'Solo hay $stockDisponible unidad(es) de ${producto.nombre} en inventario y ya las tienes en el pedido.',
+          icono: Icons.warning_rounded,
+          textoConfirmar: 'Entendido',
+          color: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      if (indexEnCarrito >= 0) {
+        carrito[indexEnCarrito]['cantidad'] += 1;
+      } else {
+        carrito.add({'producto': producto, 'cantidad': 1});
+      }
+    });
+
+    calcularTotal();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${producto.nombre} agregado al pedido'),
+        duration: const Duration(seconds: 1),
+        backgroundColor: Colors.green.shade600,
+      ),
+    );
+  }
+
+  void calcularTotal() {
+    double nuevo = 0;
+    for (var item in carrito) {
+      final producto = item['producto'] as Producto;
+      final cantidad = item['cantidad'] as int;
+      nuevo += producto.precio * cantidad;
+    }
+    setState(() => total = nuevo);
+  }
+
+  void aumentar(int index) {
+    final producto = carrito[index]['producto'] as Producto;
+    final cantidadActual = carrito[index]['cantidad'] as int;
+    final stockDisponible = _stock[producto.idProducto] ?? 0;
+
+    if (cantidadActual >= stockDisponible) {
+      showDialog(
+        context: context,
+        builder: (_) => CustomAlert(
+          titulo: 'Stock insuficiente',
+          mensaje:
+              'Ya tienes todas las unidades disponibles de ${producto.nombre} ($stockDisponible) en el pedido.',
+          icono: Icons.warning_rounded,
+          textoConfirmar: 'Entendido',
+          color: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    setState(() => carrito[index]['cantidad']++);
+    calcularTotal();
+  }
+
+  void disminuir(int index) {
+    setState(() {
+      if (carrito[index]['cantidad'] > 1) {
+        carrito[index]['cantidad']--;
+      } else {
+        carrito.removeAt(index);
+      }
+    });
+    calcularTotal();
+  }
+
+  Future<void> guardarPedido() async {
+    if (widget.idCliente == null) {
+      showDialog(
+        context: context,
+        builder: (_) => const CustomAlert(
+          titulo: 'Cliente requerido',
+          mensaje: 'Selecciona un cliente.',
+          icono: Icons.person_outline,
+          textoConfirmar: 'Aceptar',
+        ),
+      );
+      return;
+    }
+
+    if (carrito.isEmpty) {
+      showDialog(
+        context: context,
+        builder: (_) => const CustomAlert(
+          titulo: 'Pedido vacío',
+          mensaje: 'Agrega productos al pedido.',
+          icono: Icons.shopping_cart_outlined,
+          textoConfirmar: 'Aceptar',
+        ),
+      );
+      return;
+    }
+
+    if (_fechaEntrega == null) {
+      showDialog(
+        context: context,
+        builder: (_) => const CustomAlert(
+          titulo: 'Fecha requerida',
+          mensaje: 'Selecciona una fecha de entrega.',
+          icono: Icons.calendar_month_outlined,
+          textoConfirmar: 'Aceptar',
+        ),
+      );
+      return;
+    }
+
+    if (tipoEntrega == 'Domicilio' && direccionCtrl.text.trim().isEmpty) {
+      showDialog(
+        context: context,
+        builder: (_) => const CustomAlert(
+          titulo: 'Dirección requerida',
+          mensaje: 'Ingresa la dirección de entrega.',
+          icono: Icons.location_on_outlined,
+          textoConfirmar: 'Aceptar',
+        ),
+      );
+      return;
+    }
+
+    final fechaStr =
+        '${_fechaEntrega!.day}/${_fechaEntrega!.month}/${_fechaEntrega!.year}';
+
+    final pedido = Pedidos(
+      idCliente: widget.idCliente!,
+      fecha: DateTime.now().toIso8601String(),
+      fechaEntrega: fechaStr,
+      tipoEntrega: tipoEntrega,
+      estado: 'Pendiente',
+      total: total,
+      direccion:
+          tipoEntrega == 'Domicilio' ? direccionCtrl.text.trim() : null,
+    );
+
+    final idPedido = await controller.crearPedido(pedido);
+
+    for (var item in carrito) {
+      final producto = item['producto'] as Producto;
+      final cantidad = item['cantidad'] as int;
+      await controller.insertarDetalle(
+        idPedido,
+        producto.idProducto!,
+        cantidad,
+        producto.precio,
+      );
+    }
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (_) => CustomAlert(
+        titulo: 'Transacción exitosa',
+        mensaje: 'El pedido se guardó correctamente.',
+        icono: Icons.check_circle_outline,
+        textoConfirmar: 'Aceptar',
+        onConfirm: () {
+          Navigator.pop(context);
+          Navigator.pop(context);
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F7F7),
+      appBar: const CustomHeader(
+        titulo: 'Crear Pedido',
+        mostrarVolver: true,
+      ),
+      body: SafeArea(
+        child: Row(
+          children: [
+            /// FORMULARIO
+            Expanded(
+              flex: 6,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header card
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFFFBEA),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE5C100),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(Icons.add),
+                          ),
+                          const SizedBox(width: 18),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Nuevo Pedido',
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Text(
+                                  widget.nombreCliente ?? '',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade700,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 30),
+
+                    // Tipo de entrega
+                    const Text(
+                      'Tipo de entrega',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        tipoCard('Domicilio'),
+                        const SizedBox(width: 16),
+                        tipoCard('Recoger'),
+                      ],
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // Fecha de entrega (siempre visible)
+                    _buildFechaPicker(),
+
+                    // Dirección (solo domicilio)
+                    if (tipoEntrega == 'Domicilio') ...[
+                      const SizedBox(height: 20),
+                      campo(
+                        controller: direccionCtrl,
+                        titulo: 'Dirección',
+                        icon: Icons.location_on_outlined,
+                        hint: 'Calle, colonia, ciudad',
+                      ),
+                    ],
+
+                    const SizedBox(height: 35),
+
+                    const Text(
+                      'Productos',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    const SizedBox(height: 20),
+
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: productos.length,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 3,
+                        crossAxisSpacing: 18,
+                        mainAxisSpacing: 18,
+                        childAspectRatio: 0.95,
+                      ),
+                      itemBuilder: (context, index) {
+                        final producto = productos[index];
+                        final stockActual =
+                            _stock[producto.idProducto] ?? 0;
+                        final sinStock = stockActual == 0;
+
+                        return Opacity(
+                          opacity: sinStock ? 0.55 : 1.0,
+                          child: Container(
+                            padding: const EdgeInsets.all(18),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(22),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Colors.black12,
+                                  blurRadius: 8,
+                                  offset: Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFE5C100),
+                                        borderRadius:
+                                            BorderRadius.circular(30),
+                                      ),
+                                      child: Text(
+                                        '\$${producto.precio.toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: sinStock
+                                            ? Colors.red.withValues(alpha: 0.12)
+                                            : stockActual <=
+                                                    producto.stockMinimo
+                                                ? Colors.orange
+                                                    .withValues(alpha: 0.12)
+                                                : Colors.green
+                                                    .withValues(alpha: 0.12),
+                                        borderRadius:
+                                            BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        sinStock
+                                            ? 'Sin stock'
+                                            : 'Stock: $stockActual',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: sinStock
+                                              ? Colors.red.shade700
+                                              : stockActual <=
+                                                      producto.stockMinimo
+                                                  ? Colors.orange.shade800
+                                                  : Colors.green.shade700,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                const Spacer(),
+
+                                Text(
+                                  producto.nombre,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+
+                                const SizedBox(height: 6),
+
+                                Text(
+                                  producto.descripcion,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 12,
+                                  ),
+                                ),
+
+                                const SizedBox(height: 14),
+
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: sinStock
+                                          ? Colors.grey.shade300
+                                          : const Color(0xFFE5C100),
+                                      foregroundColor: Colors.black,
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 12,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                    onPressed: sinStock
+                                        ? null
+                                        : () => agregarProducto(producto),
+                                    icon: const Icon(Icons.add, size: 18),
+                                    label: const Text('Agregar'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            /// PANEL DERECHO
+            Container(
+              width: 360,
+              margin: const EdgeInsets.all(24),
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(28),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Detalle del Pedido',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 30),
+
+                  Expanded(
+                    child: carrito.isEmpty
+                        ? const Center(
+                            child: Text('No hay productos agregados'),
+                          )
+                        : ListView.builder(
+                            itemCount: carrito.length,
+                            itemBuilder: (context, index) {
+                              final item = carrito[index];
+                              final producto =
+                                  item['producto'] as Producto;
+                              final cantidad = item['cantidad'] as int;
+
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 16),
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF8F8F8),
+                                  borderRadius:
+                                      BorderRadius.circular(18),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      producto.nombre,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      children: [
+                                        cantidadBtn(
+                                          Icons.remove,
+                                          () => disminuir(index),
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                          ),
+                                          child: Text(
+                                            cantidad.toString(),
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                        cantidadBtn(
+                                          Icons.add,
+                                          () => aumentar(index),
+                                        ),
+                                        const Spacer(),
+                                        Text(
+                                          '\$${(producto.precio * cantidad).toStringAsFixed(2)}',
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  Row(
+                    children: [
+                      const Text(
+                        'Total',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '\$${total.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFE5C100),
+                        foregroundColor: Colors.black,
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
+                      onPressed: guardarPedido,
+                      child: const Text(
+                        'Guardar Pedido',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFechaPicker() {
+    return SizedBox(
+      width: 320,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Fecha de entrega',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 10),
+          InkWell(
+            onTap: () async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: _fechaEntrega ??
+                    DateTime.now().add(const Duration(days: 1)),
+                firstDate: DateTime.now(),
+                lastDate: DateTime(DateTime.now().year + 2),
+              );
+              if (picked != null) setState(() => _fechaEntrega = picked);
+            },
+            borderRadius: BorderRadius.circular(14),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 18,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.calendar_month, color: Colors.grey),
+                  const SizedBox(width: 12),
+                  Text(
+                    _fechaEntrega != null
+                        ? '${_fechaEntrega!.day}/${_fechaEntrega!.month}/${_fechaEntrega!.year}'
+                        : 'Seleccionar fecha',
+                    style: TextStyle(
+                      color: _fechaEntrega != null
+                          ? Colors.black87
+                          : Colors.grey,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget campo({
+    required TextEditingController controller,
+    required String titulo,
+    required IconData icon,
+    required String hint,
+  }) {
+    return SizedBox(
+      width: 320,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(titulo,
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          TextField(
+            controller: controller,
+            decoration: InputDecoration(
+              hintText: hint,
+              prefixIcon: Icon(icon),
+              filled: true,
+              fillColor: Colors.white,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget tipoCard(String tipo) {
+    final activo = tipoEntrega == tipo;
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => setState(() => tipoEntrega = tipo),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
+        decoration: BoxDecoration(
+          color: activo ? const Color(0xFFE5C100) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              tipo == 'Domicilio'
+                  ? Icons.delivery_dining
+                  : Icons.store_outlined,
+              size: 18,
+              color: activo ? Colors.black : Colors.grey.shade600,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              tipo,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: activo ? Colors.black : Colors.grey.shade700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget cantidadBtn(IconData icon, VoidCallback onTap) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE5C100),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon, size: 18),
+      ),
+    );
+  }
+}
