@@ -1,6 +1,8 @@
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../core/config/app_config.dart';
+
 class TicketCorteCajaService {
 
   static Future<pw.Document> generarCorte({
@@ -16,6 +18,7 @@ class TicketCorteCajaService {
 
     required double fondo,
     required double salidas,
+    required double devoluciones,
     required double contado,
 
     required double esperado,
@@ -23,21 +26,22 @@ class TicketCorteCajaService {
   }) async {
 
     final pdf = pw.Document();
+    final config = AppConfig.actual;
 
     pdf.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat.roll80, // 🧾 térmico
+        pageFormat: PdfPageFormat.roll80, // térmico
         build: (context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
 
-              // 🏪 ENCABEZADO
+              // ENCABEZADO
               pw.Center(
                 child: pw.Column(
                   children: [
                     pw.Text(
-                      "Tortilleria la Lomita",
+                      config.nombreNegocio,
                       style: pw.TextStyle(
                         fontSize: 16,
                         fontWeight: pw.FontWeight.bold,
@@ -51,7 +55,7 @@ class TicketCorteCajaService {
 
               pw.Divider(),
 
-              // 📅 INFO GENERAL
+              // INFO GENERAL
               pw.Text("Fecha: $fecha"),
               pw.Text("Turno: $turno"),
               pw.Text("Cajero: $cajero"),
@@ -63,17 +67,18 @@ class TicketCorteCajaService {
 
               pw.Divider(),
 
-              // 💰 VENTAS
+              // VENTAS
               pw.Text("VENTAS", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 5),
 
               _row("Total", total),
               _row("Efectivo", efectivo),
               _row("Tarjeta", tarjeta),
+              if (devoluciones > 0) _row("Devoluciones del día", -devoluciones),
 
               pw.Divider(),
 
-              // 🏦 CAJA
+              // CAJA
               pw.Text("CAJA", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 5),
 
@@ -83,7 +88,7 @@ class TicketCorteCajaService {
 
               pw.Divider(),
 
-              // 📊 RESULTADO
+              // RESULTADO
               pw.Text("RESULTADO", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 5),
 
@@ -94,7 +99,7 @@ class TicketCorteCajaService {
                 children: [
                   pw.Text("Diferencia"),
                   pw.Text(
-                    "\$${diferencia.toStringAsFixed(2)}",
+                    AppConfig.formatoMoneda(diferencia),
                     style: pw.TextStyle(
                       fontWeight: pw.FontWeight.bold,
                       color: diferencia >= 0 ? PdfColors.green : PdfColors.red,
@@ -119,13 +124,13 @@ class TicketCorteCajaService {
     return pdf;
   }
 
-  // 🔧 Helper para filas
+  // Helper para filas
   static pw.Widget _row(String label, double value) {
     return pw.Row(
       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
       children: [
         pw.Text(label),
-        pw.Text("\$${value.toStringAsFixed(2)}"),
+        pw.Text(AppConfig.formatoMoneda(value)),
       ],
     );
   }

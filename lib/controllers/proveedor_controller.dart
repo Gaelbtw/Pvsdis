@@ -1,5 +1,6 @@
 import 'package:sqflite/sqflite.dart';
 import '../core/database/database_helper.dart';
+import '../core/database/db_exceptions.dart';
 import '../models/proveedores_model.dart';
 
 class ProveedorController {
@@ -42,10 +43,13 @@ class ProveedorController {
   Future<int> eliminar(int id) async {
     final db = await DatabaseHelper().database;
 
-    return await db.delete(
-      'Proveedores',
-      where: 'id_proveedor = ?',
-      whereArgs: [id],
+    return await ejecutarConMensajeDeIntegridad(
+      () => db.delete(
+        'Proveedores',
+        where: 'id_proveedor = ?',
+        whereArgs: [id],
+      ),
+      'No se puede eliminar: el proveedor tiene compras registradas.',
     );
   }
 }

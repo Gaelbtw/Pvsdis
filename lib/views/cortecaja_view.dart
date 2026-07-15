@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../core/database/database_helper.dart';
+import '../core/theme/app_colors.dart';
+import '../controllers/cortecaja_controller.dart';
 import '../core/session/session_manager.dart';
 import '../widgets/nav_bar.dart';
 import '../services/ticket_corte_caja_service.dart';
@@ -18,11 +19,14 @@ class CorteCajaView extends StatefulWidget {
 }
 
 class _CorteCajaViewState extends State<CorteCajaView> {
+  final _corteCajaController = CorteCajaController();
+
   // Datos
   double total = 0;
   double efectivo = 0;
   double tarjeta = 0;
   double salidasDB = 0;
+  double devolucionesDB = 0;
 
   // Input
   final contadoCtrl = TextEditingController();
@@ -153,36 +157,13 @@ class _CorteCajaViewState extends State<CorteCajaView> {
 
   //  BD
   Future<void> calcular() async {
-    final db = await DatabaseHelper().database;
-    final hoy = "${ahora.year}-${_2(ahora.month)}-${_2(ahora.day)}";
+    final resumen = await _corteCajaController.calcularResumenDelDia(ahora);
 
-    final totalRes = await db.rawQuery(
-      "SELECT SUM(total) as total FROM Ventas WHERE fecha LIKE ?",
-      ['$hoy%'],
-    );
-
-    final efectivoRes = await db.rawQuery(
-      "SELECT SUM(total) as total FROM Ventas WHERE metodo_pago = 'efectivo' AND fecha LIKE ?",
-      ['$hoy%'],
-    );
-
-    final tarjetaRes = await db.rawQuery(
-      "SELECT SUM(total) as total FROM Ventas WHERE metodo_pago = 'tarjeta' AND fecha LIKE ?",
-      ['$hoy%'],
-    );
-
-    final salidasRes = await db.rawQuery(
-      "SELECT SUM(total) as total FROM Compras WHERE fecha LIKE ?",
-      ['$hoy%'],
-    );
-
-    total = (totalRes.first["total"] as num?)?.toDouble() ?? 0;
-
-    efectivo = (efectivoRes.first["total"] as num?)?.toDouble() ?? 0;
-
-    tarjeta = (tarjetaRes.first["total"] as num?)?.toDouble() ?? 0;
-
-    salidasDB = (salidasRes.first["total"] as num?)?.toDouble() ?? 0;
+    total = resumen.total;
+    efectivo = resumen.efectivo;
+    tarjeta = resumen.tarjeta;
+    salidasDB = resumen.salidas;
+    devolucionesDB = resumen.devoluciones;
   }
 
   //  CÁLCULOS
@@ -222,8 +203,9 @@ class _CorteCajaViewState extends State<CorteCajaView> {
           "Se generará el corte de caja del turno $turno.\n\n"
           "Total ventas: \$${total.toStringAsFixed(2)}\n"
           "Efectivo: \$${efectivo.toStringAsFixed(2)}\n"
-          "Tarjeta: \$${tarjeta.toStringAsFixed(2)}\n\n"
-          "¿Deseas continuar?",
+          "Tarjeta: \$${tarjeta.toStringAsFixed(2)}\n"
+          "${devolucionesDB > 0 ? 'Devoluciones del día: \$${devolucionesDB.toStringAsFixed(2)}\n' : ''}"
+          "\n¿Deseas continuar?",
       icono: Icons.point_of_sale,
       textoCancelar: "Cancelar",
       textoConfirmar: "Generar",
@@ -241,6 +223,7 @@ class _CorteCajaViewState extends State<CorteCajaView> {
             tarjeta: tarjeta,
             fondo: fondoInicial,
             salidas: salidasDB,
+            devoluciones: devolucionesDB,
             contado: contado,
             esperado: esperadoEnCaja,
             diferencia: diferencia,
@@ -282,7 +265,7 @@ class _CorteCajaViewState extends State<CorteCajaView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFAF8F4),
+      backgroundColor: AppColors.background,
 
       appBar: const CustomHeader(titulo: "Corte de Caja", mostrarVolver: true),
 
@@ -316,8 +299,8 @@ class _CorteCajaViewState extends State<CorteCajaView> {
                         Container(
                           width: 16,
                           height: 16,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFF2C500),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary,
                             shape: BoxShape.circle,
                           ),
                         ),
@@ -329,7 +312,7 @@ class _CorteCajaViewState extends State<CorteCajaView> {
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.w800,
-                            color: Color(0xFF2B2B2B),
+                            color: AppColors.textMuted,
                           ),
                         ),
                       ],
@@ -339,7 +322,7 @@ class _CorteCajaViewState extends State<CorteCajaView> {
 
                     const Text(
                       "Consulta el efectivo esperado y genera el cierre de caja del turno actual.",
-                      style: TextStyle(color: Color(0xFF6E6A64), fontSize: 13),
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                     ),
 
                     const SizedBox(height: 24),
@@ -384,6 +367,16 @@ class _CorteCajaViewState extends State<CorteCajaView> {
                             Icons.shopping_bag_outlined,
                           ),
                         ),
+
+                        const SizedBox(width: 14),
+
+                        Expanded(
+                          child: _statCard(
+                            "Devoluciones",
+                            "\$${devolucionesDB.toStringAsFixed(2)}",
+                            Icons.assignment_return_outlined,
+                          ),
+                        ),
                       ],
                     ),
 
@@ -399,7 +392,7 @@ class _CorteCajaViewState extends State<CorteCajaView> {
                               padding: const EdgeInsets.all(22),
 
                               decoration: BoxDecoration(
-                                color: const Color(0xFFF8F6F2),
+                                color: AppColors.surface,
                                 borderRadius: BorderRadius.circular(22),
                               ),
 
@@ -412,7 +405,7 @@ class _CorteCajaViewState extends State<CorteCajaView> {
                                     style: TextStyle(
                                       fontWeight: FontWeight.w800,
                                       fontSize: 18,
-                                      color: Color(0xFF3C3935),
+                                      color: AppColors.textMuted,
                                     ),
                                   ),
 
@@ -460,7 +453,7 @@ class _CorteCajaViewState extends State<CorteCajaView> {
                                 color: Colors.white,
                                 borderRadius: BorderRadius.circular(22),
                                 border: Border.all(
-                                  color: const Color(0xFFE8E2D9),
+                                  color: AppColors.border,
                                 ),
                               ),
 
@@ -473,7 +466,7 @@ class _CorteCajaViewState extends State<CorteCajaView> {
                                     style: TextStyle(
                                       fontWeight: FontWeight.w800,
                                       fontSize: 18,
-                                      color: Color(0xFF3C3935),
+                                      color: AppColors.textMuted,
                                     ),
                                   ),
 
@@ -482,7 +475,7 @@ class _CorteCajaViewState extends State<CorteCajaView> {
                                   const Text(
                                     "Ingresa el efectivo contado para calcular la diferencia.",
                                     style: TextStyle(
-                                      color: Color(0xFF6E6A64),
+                                      color: AppColors.textSecondary,
                                       fontSize: 13,
                                     ),
                                   ),
@@ -516,7 +509,7 @@ class _CorteCajaViewState extends State<CorteCajaView> {
                                         const Text(
                                           "Conteo",
                                           style: TextStyle(
-                                            color: Color(0xFF6E6A64),
+                                            color: AppColors.textSecondary,
                                             fontSize: 13,
                                           ),
                                         ),
@@ -590,7 +583,7 @@ class _CorteCajaViewState extends State<CorteCajaView> {
       padding: const EdgeInsets.all(18),
 
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F6F2),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(20),
       ),
 
@@ -598,14 +591,14 @@ class _CorteCajaViewState extends State<CorteCajaView> {
         crossAxisAlignment: CrossAxisAlignment.start,
 
         children: [
-          Icon(icon, color: const Color(0xFFDA9B00), size: 24),
+          Icon(icon, color: AppColors.primaryDark, size: 24),
 
           const SizedBox(height: 16),
 
           Text(
             title,
             style: const TextStyle(
-              color: Color(0xFF6E6A64),
+              color: AppColors.textSecondary,
               fontSize: 13,
               fontWeight: FontWeight.w600,
             ),
@@ -618,7 +611,7 @@ class _CorteCajaViewState extends State<CorteCajaView> {
             style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF2B2B2B),
+              color: AppColors.textMuted,
             ),
           ),
         ],
@@ -638,7 +631,7 @@ class _CorteCajaViewState extends State<CorteCajaView> {
           Text(
             label,
             style: const TextStyle(
-              color: Color(0xFF6E6A64),
+              color: AppColors.textSecondary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -647,7 +640,7 @@ class _CorteCajaViewState extends State<CorteCajaView> {
             value,
             style: const TextStyle(
               fontWeight: FontWeight.w700,
-              color: Color(0xFF2B2B2B),
+              color: AppColors.textMuted,
             ),
           ),
         ],
@@ -666,10 +659,10 @@ class _CorteCajaViewState extends State<CorteCajaView> {
       decoration: InputDecoration(
         hintText: hint,
 
-        prefixIcon: Icon(icon, color: const Color(0xFFDA9B00)),
+        prefixIcon: Icon(icon, color: AppColors.primaryDark),
 
         filled: true,
-        fillColor: const Color(0xFFF8F6F2),
+        fillColor: AppColors.surface,
 
         contentPadding: const EdgeInsets.symmetric(
           vertical: 18,

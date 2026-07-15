@@ -1,5 +1,5 @@
-name: punto_de_venta_lomita
-description: "A new Flutter project."
+name: pvapp
+description: "POS multi-negocio: punto de venta configurable para cualquier tipo de comercio."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -40,6 +40,8 @@ dependencies:
   path: ^1.9.1
   pdf: ^3.11.0
   printing: ^5.13.0
+  bcrypt: ^1.2.0
+  file_picker: ^11.0.2
 
 dev_dependencies:
   flutter_test:

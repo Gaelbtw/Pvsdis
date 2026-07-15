@@ -1,6 +1,8 @@
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../core/config/app_config.dart';
+
 class TicketComprasService {
   static Future<pw.Document> generarTicket({
     required List<Map<String, dynamic>> carrito,
@@ -8,10 +10,11 @@ class TicketComprasService {
     required String proveedor
   }) async {
     final pdf = pw.Document();
+    final config = AppConfig.actual;
 
     pdf.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat.roll80, 
+        pageFormat: PdfPageFormat.roll80,
         build: (context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -21,14 +24,14 @@ class TicketComprasService {
                 child: pw.Column(
                   children: [
                     pw.Text(
-                      "Tortilleria la Lomita",
+                      config.nombreNegocio,
                       style: pw.TextStyle(
                         fontSize: 16,
                         fontWeight: pw.FontWeight.bold,
                       ),
                     ),
-                    pw.Text("Direccion: Calle 25 Avenida 22"),
-                    pw.Text("Telefono: 633 112 4931"),
+                    if (config.direccion != null) pw.Text(config.direccion!),
+                    if (config.telefono != null) pw.Text("Tel: ${config.telefono}"),
                     pw.SizedBox(height: 5),
                     pw.Text("Ticket de compra"),
                   ],
@@ -49,7 +52,7 @@ class TicketComprasService {
                         child: pw.Text(item['nombre']),
                       ),
                       pw.Text("${item['cantidad']}"),
-                      pw.Text("\$${item['precio_compra']}"),
+                      pw.Text(AppConfig.formatoMoneda(item['precio_compra'] as num? ?? 0)),
                     ],
                   ),
                 );
@@ -57,13 +60,12 @@ class TicketComprasService {
 
               pw.Divider(),
 
-        
               pw.SizedBox(height: 5),
 
               //  TOTAL GRANDE
               pw.Center(
                 child: pw.Text(
-                  "TOTAL: \$${total.toStringAsFixed(2)}",
+                  "TOTAL: ${AppConfig.formatoMoneda(total)}",
                   style: pw.TextStyle(
                     fontSize: 18,
                     fontWeight: pw.FontWeight.bold,
@@ -71,7 +73,6 @@ class TicketComprasService {
                 ),
               ),
               pw.SizedBox(height: 20),
-
             ],
           );
         },

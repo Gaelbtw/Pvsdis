@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
+import '../core/config/app_config.dart';
+import '../core/session/session_manager.dart';
+import '../core/theme/app_colors.dart';
+import '../core/utils/descuento_utils.dart';
+import '../core/utils/escaneo_utils.dart';
 import '../controllers/ventas_controller.dart';
 import '../controllers/producto_controller.dart';
+import '../models/carrito_venta.dart';
 import '../models/producto_model.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/ventas/autorizacion_descuento_dialog.dart';
+import '../widgets/ventas/descuento_dialog.dart';
 import '../models/cliente_model.dart';
 import '../widgets/nav_bar.dart';
 
@@ -24,23 +32,42 @@ class VentasView extends StatefulWidget {
 
 class _VentasViewState extends State<VentasView> {
   final ventasController = VentasController();
-  final productoController = ProductoService();
+  final productoController = ProductoController();
 
   Cliente? clienteSeleccionado;
 
   List<Producto> productos = [];
   Map<int, int> stockProductos = {};
-  List<Map<String, dynamic>> carrito = [];
+  final _carrito = CarritoVenta();
+  List<Map<String, dynamic>> get carrito => _carrito.items;
 
   final Map<int, TextEditingController> controllers = {};
 
   final pagoCtrl = TextEditingController();
+  final busquedaCtrl = TextEditingController();
+  final busquedaFocus = FocusNode();
 
   String metodoPago = "efectivo";
   String busqueda = "";
 
   double cambio = 0;
   bool cargando = true;
+
+  bool get esCajero => SessionManager.currentUserRole == "Cajero";
+
+  bool get puedeAplicarDescuentos =>
+      !esCajero || AppConfig.actual.descuentoCajeroPuedeAplicar;
+
+  /// Única fuente de verdad del desglose financiero de la venta en curso
+  /// (subtotal, descuentos, total). Se recalcula en cada build a partir del
+  /// carrito y del descuento global — nunca se guarda un total aparte que
+  /// se pueda desincronizar.
+  VentaCalculada get calculo => calcularVenta(
+        carrito: carrito,
+        descuentoGlobalTipo: _carrito.descuentoGlobalTipo,
+        descuentoGlobalValor: _carrito.descuentoGlobalValor,
+        descuentoMaximoPorcentaje: AppConfig.actual.descuentoMaximoPorcentaje,
+      );
 
   @override
   void initState() {
@@ -77,66 +104,81 @@ class _VentasViewState extends State<VentasView> {
 
   // 🔍 FILTRO
   List<Producto> get productosFiltrados {
+    final consulta = busqueda.toLowerCase();
     return productos.where((p) {
-      return p.nombre.toLowerCase().contains(
-            busqueda.toLowerCase(),
-          );
+      return p.nombre.toLowerCase().contains(consulta) ||
+          (p.codigoBarras?.toLowerCase().contains(consulta) ?? false);
     }).toList();
   }
 
   // 🛒 AGREGAR PRODUCTO
   void agregarProducto(Producto p) {
-    final index = carrito.indexWhere(
-      (i) => i['id_producto'] == p.idProducto,
-    );
+    final yaExistia = _carrito.contieneProducto(p.idProducto);
 
     setState(() {
-      if (index >= 0) {
-        carrito[index]['cantidad']++;
-      } else {
-        carrito.add({
-          "id_producto": p.idProducto,
-          "nombre": p.nombre,
-          "precio": p.precio,
-          "cantidad": 1,
-        });
+      _carrito.agregar(p);
 
-        controllers[p.idProducto!] = TextEditingController(
-          text: "1",
-        );
+      if (!yaExistia) {
+        controllers[p.idProducto!] = TextEditingController(text: "1");
       }
     });
+  }
+
+  // 🔫 ESCANEO DE CÓDIGO DE BARRAS
+  // Los lectores USB emulan un teclado: "escriben" el código y envían
+  // Enter, por lo que basta con onSubmitted de un TextField normal (sin
+  // listeners de teclado en bruto) para capturar el evento.
+  void procesarEscaneo(String codigo) {
+    if (codigo.trim().isEmpty) return;
+
+    final resultado = resolverEscaneo(
+      codigo: codigo,
+      productos: productos,
+      stockDisponible: stockProductos,
+      cantidadEnCarrito: _carrito.cantidadEnCarrito,
+    );
+
+    switch (resultado.tipo) {
+      case TipoResultadoEscaneo.agregado:
+        agregarProducto(resultado.producto!);
+        break;
+      case TipoResultadoEscaneo.noEncontrado:
+      case TipoResultadoEscaneo.inactivo:
+      case TipoResultadoEscaneo.stockInsuficiente:
+        showDialog(
+          context: context,
+          builder: (_) => CustomAlert(
+            titulo: 'Escaneo',
+            mensaje: resultado.mensaje,
+            icono: Icons.error_outline,
+          ),
+        );
+        break;
+    }
+
+    busquedaCtrl.clear();
+    setState(() => busqueda = "");
+    busquedaFocus.requestFocus();
   }
 
   // ➕➖ CAMBIAR CANTIDAD
   void cambiarCantidad(int index, int delta) {
+    final id = carrito[index]['id_producto'];
+
     setState(() {
-      carrito[index]['cantidad'] += delta;
+      final eliminado = _carrito.cambiarCantidad(index, delta);
 
-      final id = carrito[index]['id_producto'];
-
-      if (controllers.containsKey(id)) {
-        controllers[id]!.text =
-            carrito[index]['cantidad'].toString();
-      }
-
-      if (carrito[index]['cantidad'] <= 0) {
+      if (eliminado) {
         controllers[id]?.dispose();
         controllers.remove(id);
-
-        carrito.removeAt(index);
+      } else if (controllers.containsKey(id)) {
+        controllers[id]!.text = carrito[index]['cantidad'].toString();
       }
     });
   }
 
-  // 💰 TOTAL
-  double get total {
-    return carrito.fold(
-      0,
-      (sum, item) =>
-          sum + (item['precio'] * item['cantidad']),
-    );
-  }
+  // 💰 TOTAL (ya con descuentos aplicados)
+  double get total => calculo.total;
 
   // 💵 CAMBIO
   void calcularCambio() {
@@ -147,8 +189,102 @@ class _VentasViewState extends State<VentasView> {
     });
   }
 
+  // 🏷 DESCUENTO POR PRODUCTO
+  void editarDescuentoLinea(int index) {
+    final item = carrito[index];
+    final base = (item['precio'] as num) * (item['cantidad'] as int);
+    final tipoActual = item['descuento_tipo'] as TipoDescuento?;
+    final valorActual = (item['descuento_valor'] as num?)?.toDouble() ?? 0;
+
+    mostrarDescuentoDialog(
+      context,
+      titulo: 'Descuento a "${item['nombre']}"',
+      base: base.toDouble(),
+      tipoActual: tipoActual,
+      valorActual: valorActual,
+      onAplicar: (tipo, valor) {
+        setState(() => _carrito.aplicarDescuentoLinea(index, tipo, valor));
+      },
+      onQuitar: tipoActual != null
+          ? () => setState(() => _carrito.quitarDescuentoLinea(index))
+          : null,
+    );
+  }
+
+  // 🏷 DESCUENTO GLOBAL
+  void editarDescuentoGlobal() {
+    if (carrito.isEmpty) return;
+
+    // Base real del descuento global: el subtotal ya después de los
+    // descuentos de línea (sin el propio descuento global todavía).
+    final baseGlobal = calcularVenta(
+      carrito: carrito,
+      descuentoMaximoPorcentaje: AppConfig.actual.descuentoMaximoPorcentaje,
+    ).total;
+
+    mostrarDescuentoDialog(
+      context,
+      titulo: 'Descuento global de la venta',
+      base: baseGlobal,
+      tipoActual: _carrito.descuentoGlobalTipo,
+      valorActual: _carrito.descuentoGlobalValor,
+      onAplicar: (tipo, valor) {
+        setState(() => _carrito.aplicarDescuentoGlobal(tipo, valor));
+      },
+      onQuitar: _carrito.descuentoGlobalTipo != null
+          ? () => setState(() => _carrito.quitarDescuentoGlobal())
+          : null,
+    );
+  }
+
+  // 🧾 INICIAR CONFIRMACIÓN (pide motivo/autorización si el descuento lo amerita)
+  void iniciarConfirmacionVenta() {
+    if (carrito.isEmpty) return;
+
+    if (calculo.descuentoTotal > 0 && !puedeAplicarDescuentos) {
+      showDialog(
+        context: context,
+        builder: (_) => const CustomAlert(
+          titulo: 'Descuento no permitido',
+          mensaje: 'No tienes permiso para aplicar descuentos. Contacta a un administrador.',
+          icono: Icons.block,
+        ),
+      );
+      return;
+    }
+
+    if (calculo.requiereAutorizacion) {
+      mostrarAutorizacionDescuentoDialog(
+        context,
+        requiereCredencialesAdmin: esCajero && AppConfig.actual.descuentoCajeroRequiereAutorizacion,
+        onConfirmar: (motivo, autorizadoPor) {
+          confirmarVenta(descuentoMotivo: motivo, descuentoAutorizadoPor: autorizadoPor);
+        },
+      );
+      return;
+    }
+
+    confirmarVenta();
+  }
+
+  void confirmarVenta({String? descuentoMotivo, int? descuentoAutorizadoPor}) {
+    showDialog(
+      context: context,
+      builder: (_) => CustomAlert(
+        titulo: "VENTA",
+        mensaje: "¿Deseas confirmar la venta?",
+        icono: Icons.point_of_sale,
+        textoCancelar: "Cancelar",
+        textoConfirmar: "Confirmar",
+        onConfirm: () {
+          vender(descuentoMotivo: descuentoMotivo, descuentoAutorizadoPor: descuentoAutorizadoPor);
+        },
+      ),
+    );
+  }
+
   // 🧾 VENDER
-  Future<void> vender() async {
+  Future<void> vender({String? descuentoMotivo, int? descuentoAutorizadoPor}) async {
     if (carrito.isEmpty) return;
 
     if (metodoPago == "efectivo") {
@@ -172,17 +308,22 @@ class _VentasViewState extends State<VentasView> {
     }
 
     try {
+      final ventaCalculada = calculo;
+
       await ventasController.insertarVentaCompleta(
-        carrito,
-        total,
-        metodoPago,
+        carrito: carrito,
+        metodoPago: metodoPago,
         idCliente: clienteSeleccionado?.idCliente,
+        descuentoGlobalTipo: _carrito.descuentoGlobalTipo,
+        descuentoGlobalValor: _carrito.descuentoGlobalValor,
+        descuentoMotivo: descuentoMotivo,
+        descuentoAutorizadoPor: descuentoAutorizadoPor,
       );
 
-      await imprimirTicket();
+      await imprimirTicket(ventaCalculada);
 
       setState(() {
-        carrito.clear();
+        _carrito.limpiar();
 
         pagoCtrl.clear();
 
@@ -211,7 +352,7 @@ class _VentasViewState extends State<VentasView> {
       showDialog(
         context: context,
         builder: (_) => CustomAlert(
-          titulo: 'Stock Insuficiente',
+          titulo: 'No se pudo completar la venta',
           mensaje: mensaje,
           icono: Icons.inventory_2_outlined,
         ),
@@ -221,10 +362,21 @@ class _VentasViewState extends State<VentasView> {
   }
 
   // 🖨 IMPRIMIR
-  Future<void> imprimirTicket() async {
+  Future<void> imprimirTicket(VentaCalculada ventaCalculada) async {
+    final carritoParaTicket = ventaCalculada.lineas
+        .map((l) => {
+              'nombre': l.nombre,
+              'precio': l.precioOriginal,
+              'cantidad': l.cantidad,
+              'descuento_monto': l.descuentoMonto,
+            })
+        .toList();
+
     final pdf = await TicketService.generarTicket(
-      carrito: carrito,
-      total: total,
+      carrito: carritoParaTicket,
+      total: ventaCalculada.total,
+      subtotal: ventaCalculada.subtotal,
+      descuento: ventaCalculada.descuentoTotal,
       metodoPago: metodoPago,
       recibido: double.tryParse(
             pagoCtrl.text,
@@ -283,21 +435,25 @@ class _VentasViewState extends State<VentasView> {
                       child: Column(
                         children: [
 
-                          // 🔍 BUSCADOR
+                          // 🔍 BUSCADOR / ESCÁNER
                           TextField(
+                            controller: busquedaCtrl,
+                            focusNode: busquedaFocus,
+                            autofocus: true,
                             onChanged: (v) {
                               setState(() {
                                 busqueda = v;
                               });
                             },
+                            onSubmitted: procesarEscaneo,
                             decoration: InputDecoration(
-                              hintText: "Buscar producto...",
+                              hintText: "Buscar o escanear código...",
                               prefixIcon: const Icon(
                                 Icons.search,
                               ),
                               filled: true,
                               fillColor:
-                                  const Color(0xFFF8F6F2),
+                                  AppColors.surface,
                               contentPadding:
                                   const EdgeInsets.symmetric(
                                 vertical: 14,
@@ -595,22 +751,47 @@ class _VentasViewState extends State<VentasView> {
                                                   .start,
                                           children: [
 
-                                            // 🏷 NOMBRE
-                                            Text(
-                                              item['nombre'],
-                                              style:
-                                                  const TextStyle(
-                                                fontWeight:
-                                                    FontWeight
-                                                        .bold,
-                                              ),
+                                            // 🏷 NOMBRE + DESCUENTO
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    item['nombre'],
+                                                    style: const TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (puedeAplicarDescuentos)
+                                                  InkWell(
+                                                    onTap: () => editarDescuentoLinea(i),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                    child: Padding(
+                                                      padding: const EdgeInsets.all(4),
+                                                      child: Icon(
+                                                        Icons.sell_outlined,
+                                                        size: 18,
+                                                        color: item['descuento_tipo'] != null
+                                                            ? AppColors.primaryDark
+                                                            : Colors.grey.shade400,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
                                             ),
 
                                             const SizedBox(
                                                 height: 6),
 
                                             Text(
-                                              "\$${item['precio']}",
+                                              item['descuento_tipo'] != null
+                                                  ? "\$${item['precio']}  ·  descuento aplicado"
+                                                  : "\$${item['precio']}",
+                                              style: TextStyle(
+                                                color: item['descuento_tipo'] != null
+                                                    ? AppColors.primaryDark
+                                                    : null,
+                                              ),
                                             ),
 
                                             const SizedBox(
@@ -708,15 +889,18 @@ class _VentasViewState extends State<VentasView> {
 
                                                 const Spacer(),
 
-                                                // 💰 SUBTOTAL
-                                                Text(
-                                                  "\$${(item['precio'] * item['cantidad']).toStringAsFixed(2)}",
-                                                  style:
-                                                      const TextStyle(
-                                                    fontWeight:
-                                                        FontWeight.bold,
-                                                  ),
-                                                ),
+                                                // 💰 SUBTOTAL (con su descuento de línea, sin el global)
+                                                Builder(builder: (_) {
+                                                  final lineaCalculada = calculo.lineas[i];
+                                                  final montoLinea = lineaCalculada.subtotalLinea -
+                                                      lineaCalculada.descuentoMonto;
+                                                  return Text(
+                                                    "\$${montoLinea.toStringAsFixed(2)}",
+                                                    style: const TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                    ),
+                                                  );
+                                                }),
                                               ],
                                             ),
                                           ],
@@ -728,30 +912,80 @@ class _VentasViewState extends State<VentasView> {
 
                           const Divider(height: 30),
 
-                          // 💰 TOTAL
-                          Row(
-                            mainAxisAlignment:
-                                MainAxisAlignment
-                                    .spaceBetween,
-                            children: [
-                              const Text(
-                                "TOTAL",
-                                style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight:
-                                      FontWeight.bold,
+                          // 🏷 DESCUENTO GLOBAL
+                          if (puedeAplicarDescuentos)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: carrito.isEmpty ? null : editarDescuentoGlobal,
+                                  icon: const Icon(Icons.sell_outlined, size: 18),
+                                  label: Text(
+                                    _carrito.descuentoGlobalTipo != null
+                                        ? "Editar descuento global"
+                                        : "Aplicar descuento global",
+                                  ),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.primaryDark,
+                                    side: BorderSide(color: AppColors.primaryDark),
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
                                 ),
                               ),
-                              Text(
-                                "\$${total.toStringAsFixed(2)}",
-                                style: const TextStyle(
-                                  fontSize: 22,
-                                  fontWeight:
-                                      FontWeight.bold,
+                            ),
+
+                          // 💰 SUBTOTAL / DESCUENTO / TOTAL
+                          Builder(builder: (_) {
+                            final c = calculo;
+                            return Column(
+                              children: [
+                                if (c.descuentoTotal > 0) ...[
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text("Subtotal", style: TextStyle(color: Colors.grey.shade700)),
+                                      Text("\$${c.subtotal.toStringAsFixed(2)}"),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text("Descuento", style: TextStyle(color: Colors.grey.shade700)),
+                                      Text(
+                                        "-\$${c.descuentoTotal.toStringAsFixed(2)}",
+                                        style: const TextStyle(color: Colors.red),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 10),
+                                ],
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      "TOTAL",
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      "\$${c.total.toStringAsFixed(2)}",
+                                      style: const TextStyle(
+                                        fontSize: 22,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                            ],
-                          ),
+                              ],
+                            );
+                          }),
 
                           const SizedBox(height: 20),
 
@@ -909,30 +1143,7 @@ class _VentasViewState extends State<VentasView> {
                             width: double.infinity,
                             height: 52,
                             child: ElevatedButton.icon(
-                              onPressed: () {
-                                if (carrito.isEmpty) {
-                                  return;
-                                }
-
-                                showDialog(
-                                  context: context,
-                                  builder: (_) =>
-                                      CustomAlert(
-                                    titulo: "VENTA",
-                                    mensaje:
-                                        "¿Deseas confirmar la venta?",
-                                    icono: Icons
-                                        .point_of_sale,
-                                    textoCancelar:
-                                        "Cancelar",
-                                    textoConfirmar:
-                                        "Confirmar",
-                                    onConfirm: () {
-                                      vender();
-                                    },
-                                  ),
-                                );
-                              },
+                              onPressed: iniciarConfirmacionVenta,
                               icon: const Icon(
                                 Icons.check_circle,
                               ),
@@ -971,6 +1182,8 @@ class _VentasViewState extends State<VentasView> {
   @override
   void dispose() {
     pagoCtrl.dispose();
+    busquedaCtrl.dispose();
+    busquedaFocus.dispose();
 
     for (var c in controllers.values) {
       c.dispose();

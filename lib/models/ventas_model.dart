@@ -5,6 +5,7 @@ class Ventas {
   final String fecha;
   final double total;
   final String metodoPago;
+  final String estado;
 
   Ventas({
     required this.idVenta,
@@ -13,6 +14,7 @@ class Ventas {
     required this.fecha,
     required this.total,
     this.metodoPago = 'efectivo',
+    this.estado = 'Activa',
   });
 
   Map<String, dynamic> toMap() {
@@ -23,6 +25,7 @@ class Ventas {
       "fecha": fecha,
       "total": total,
       "metodo_pago": metodoPago,
+      "estado": estado,
     };
   }
 
@@ -34,6 +37,7 @@ class Ventas {
       fecha: map["fecha"],
       total: (map["total"] as num).toDouble(),
       metodoPago: map["metodo_pago"] ?? 'efectivo',
+      estado: map["estado"] ?? 'Activa',
     );
   }
 }

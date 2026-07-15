@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
+import '../core/theme/app_colors.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../controllers/auditoria_controller.dart';
+import '../core/utils/auditoria_helpers.dart';
 import '../models/auditoria_model.dart';
 import '../widgets/nav_bar.dart';
-
-const _headerStyle = TextStyle(
-  fontSize: 11,
-  fontWeight: FontWeight.w800,
-  color: Color(0xFF3C3935),
-);
 
 class AuditoriasView extends StatefulWidget {
   const AuditoriasView({super.key});
@@ -58,7 +54,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
+      backgroundColor: AppColors.background,
       appBar: CustomHeader(
         titulo: "Auditorias",
         mostrarVolver: true,
@@ -123,7 +119,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
               hintText: "Buscar por usuario, tabla o descripcion...",
               prefixIcon: const Icon(Icons.search),
               filled: true,
-              fillColor: const Color(0xFFF8F6F2),
+              fillColor: AppColors.surface,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -136,7 +132,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
-            color: const Color(0xFFF8F6F2),
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(16),
           ),
           child: DropdownButtonHideUnderline(
@@ -163,7 +159,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
           label: const Text("Exportar PDF"),
           style: ElevatedButton.styleFrom(
             elevation: 0,
-            backgroundColor: const Color(0xFFF2C500),
+            backgroundColor: AppColors.primary,
             foregroundColor: Colors.black,
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             shape: RoundedRectangleBorder(
@@ -182,7 +178,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
           icon: Icons.fact_check_outlined,
           label: "Registros",
           value: "${auditoriasFiltradas.length}",
-          color: const Color(0xFFFFF3C4),
+          color: AppColors.primaryLight,
         ),
         const SizedBox(width: 16),
         _summaryCard(
@@ -196,7 +192,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
           icon: Icons.edit_outlined,
           label: "Ediciones",
           value: "${_contarAccion('EDIT')}",
-          color: const Color(0xFFF3E1C7),
+          color: AppColors.primaryLighter,
         ),
         const SizedBox(width: 16),
         _summaryCard(
@@ -270,17 +266,17 @@ class _AuditoriasViewState extends State<AuditoriasView> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F6F2),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
       ),
       child: const Row(
         children: [
-          Expanded(flex: 22, child: Text("FECHA Y HORA", style: _headerStyle)),
-          Expanded(flex: 16, child: Text("USUARIO", style: _headerStyle)),
-          Expanded(flex: 14, child: Text("TABLA", style: _headerStyle)),
-          Expanded(flex: 12, child: Text("ACCION", style: _headerStyle)),
-          Expanded(flex: 12, child: Text("REGISTRO", style: _headerStyle)),
-          Expanded(flex: 24, child: Text("DESCRIPCION", style: _headerStyle)),
+          Expanded(flex: 22, child: Text("FECHA Y HORA", style: auditoriaHeaderStyle)),
+          Expanded(flex: 16, child: Text("USUARIO", style: auditoriaHeaderStyle)),
+          Expanded(flex: 14, child: Text("TABLA", style: auditoriaHeaderStyle)),
+          Expanded(flex: 12, child: Text("ACCION", style: auditoriaHeaderStyle)),
+          Expanded(flex: 12, child: Text("REGISTRO", style: auditoriaHeaderStyle)),
+          Expanded(flex: 24, child: Text("DESCRIPCION", style: auditoriaHeaderStyle)),
         ],
       ),
     );
@@ -290,13 +286,13 @@ class _AuditoriasViewState extends State<AuditoriasView> {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
       decoration: BoxDecoration(
-        color: const Color(0xFFF9FAFC),
+        color: AppColors.surfaceSubtle,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFEDEDED)),
       ),
       child: Row(
         children: [
-          Expanded(flex: 22, child: Text(_fechaHora(auditoria.fechaHora))),
+          Expanded(flex: 22, child: Text(formatearFechaHora(auditoria.fechaHora))),
           Expanded(flex: 16, child: Text(auditoria.usuario)),
           Expanded(flex: 14, child: Text(auditoria.tabla)),
           Expanded(
@@ -309,7 +305,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: _colorAccion(auditoria.accion).withOpacity(0.12),
+                  color: colorPorAccionAuditoria(auditoria.accion).withOpacity(0.12),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
@@ -317,7 +313,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w800,
-                    color: _colorAccion(auditoria.accion),
+                    color: colorPorAccionAuditoria(auditoria.accion),
                   ),
                 ),
               ),
@@ -389,7 +385,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
               ],
               data: datos.map((auditoria) {
                 return [
-                  _fechaHora(auditoria.fechaHora),
+                  formatearFechaHora(auditoria.fechaHora),
                   auditoria.usuario,
                   auditoria.tabla,
                   auditoria.accion,
@@ -414,29 +410,4 @@ class _AuditoriasViewState extends State<AuditoriasView> {
     );
   }
 
-  Color _colorAccion(String accion) {
-    switch (accion) {
-      case "CREATE":
-        return Colors.green.shade700;
-      case "EDIT":
-        return Colors.orange.shade800;
-      case "DELETE":
-        return Colors.red.shade700;
-      default:
-        return Colors.black87;
-    }
-  }
-
-  String _fechaHora(String value) {
-    final fecha = DateTime.tryParse(value);
-    if (fecha == null) return value;
-
-    final dd = fecha.day.toString().padLeft(2, '0');
-    final mm = fecha.month.toString().padLeft(2, '0');
-    final yyyy = fecha.year.toString();
-    final hh = fecha.hour.toString().padLeft(2, '0');
-    final min = fecha.minute.toString().padLeft(2, '0');
-
-    return "$dd/$mm/$yyyy $hh:$min";
-  }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/app_colors.dart';
 
 class MenuCard extends StatelessWidget {
   final String title;
@@ -62,7 +63,7 @@ class MenuCard extends StatelessWidget {
 
                 child: Icon(
                   icon,
-                  color: const Color(0xFF2D2B28),
+                  color: AppColors.textPrimary,
                   size: tablet ? 30 : 24,
                 ),
               ),
@@ -75,7 +76,7 @@ class MenuCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: tablet ? 20 : 16,
                   fontWeight: FontWeight.w800,
-                  color: const Color(0xFF2D2B28),
+                  color: AppColors.textPrimary,
                 ),
               ),
 

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import '../core/theme/app_colors.dart';
 import '../controllers/proveedor_controller.dart';
 import '../models/proveedores_model.dart';
+import '../widgets/app_text_field.dart';
+import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/form_dialog.dart';
 import '../widgets/nav_bar.dart';
 
 class ProveedorView extends StatefulWidget {
@@ -70,255 +74,110 @@ void abrirFormulario({Proveedores? proveedor}) {
 
   showDialog(
     context: context,
-
-    builder: (_) => Dialog(
-      backgroundColor: const Color(0xFFFAF8F4),
-
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(28),
-      ),
-
-      child: Container(
-        width: 520,
-
-        padding: const EdgeInsets.all(28),
-
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-
-            children: [
-              Text(
-                proveedor == null
-                    ? "Nuevo Proveedor"
-                    : "Editar Proveedor",
-
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF2D2B28),
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              const Text(
-                "Complete la información del proveedor",
-
-                style: TextStyle(
-                  color: Color(0xFF6E6A64),
-                  fontSize: 13,
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              _inputFormulario(
-                controller: nombreCtrl,
-                label: "Nombre",
-              ),
-
-              const SizedBox(height: 16),
-
-              _inputFormulario(
-                controller: rfcCtrl,
-                label: "RFC",
-              ),
-
-              const SizedBox(height: 16),
-
-              _inputFormulario(
-                controller: telefonoCtrl,
-                label: "Teléfono",
-                keyboard: TextInputType.phone,
-              ),
-
-              const SizedBox(height: 16),
-
-              _inputFormulario(
-                controller: direccionCtrl,
-                label: "Dirección",
-              ),
-
-              const SizedBox(height: 16),
-
-              _inputFormulario(
-                controller: direccionFiscalCtrl,
-                label: "Dirección Fiscal",
-                maxLines: 3,
-              ),
-
-              const SizedBox(height: 28),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-
-                    child: const Text(
-                      "Cancelar",
-
-                      style: TextStyle(
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  ElevatedButton(
-                    onPressed: () async {
-
-                      if (nombreCtrl.text.isEmpty ||
-                          rfcCtrl.text.isEmpty ||
-                          telefonoCtrl.text.isEmpty) {
-
-                        showDialog(
-                          context: context,
-                          builder: (_) => CustomAlert(
-                            titulo: "Campos incompletos",
-                            mensaje:
-                                "Completa los campos obligatorios.",
-                            icono: Icons.warning_amber_rounded,
-                            textoConfirmar: "Aceptar",
-
-                            onConfirm: () {
-                              Navigator.pop(context);
-                            },
-                          ),
-                        );
-
-                        return;
-                      }
-
-                      if (telefonoCtrl.text.length < 10) {
-
-                        showDialog(
-                          context: context,
-                          builder: (_) => CustomAlert(
-                            titulo: "Teléfono inválido",
-                            mensaje:
-                                "El número telefónico no es válido.",
-                            icono: Icons.warning_amber_rounded,
-                            textoConfirmar: "Aceptar",
-
-                            onConfirm: () {
-                              Navigator.pop(context);
-                            },
-                          ),
-                        );
-
-                        return;
-                      }
-
-                      final existentes =
-                          await controller.obtenerTodos();
-
-                      final duplicado = existentes.any(
-                        (p) =>
-                            p.nombre.toLowerCase() ==
-                                nombreCtrl.text.toLowerCase() &&
-                            p.idProveedor != proveedor?.idProveedor,
-                      );
-
-                      if (duplicado) {
-
-                        showDialog(
-                          context: context,
-                          builder: (_) => CustomAlert(
-                            titulo: "Proveedor duplicado",
-                            mensaje:
-                                "Ya existe un proveedor con ese nombre.",
-                            icono: Icons.warning_amber_rounded,
-                            textoConfirmar: "Aceptar",
-
-                            onConfirm: () {
-                              Navigator.pop(context);
-                            },
-                          ),
-                        );
-
-                        return;
-                      }
-
-                      final nuevo = Proveedores(
-                        idProveedor: proveedor?.idProveedor,
-
-                        nombre: nombreCtrl.text,
-
-                        rfc: rfcCtrl.text,
-
-                        direccion: direccionCtrl.text,
-
-                        direccionFiscal:
-                            direccionFiscalCtrl.text,
-
-                        telefono: telefonoCtrl.text,
-                      );
-
-                      if (proveedor == null) {
-                        await controller.insertar(nuevo);
-                      } else {
-                        await controller.actualizar(nuevo);
-                      }
-
-                      Navigator.pop(context);
-
-                      cargar();
-
-                      showDialog(
-                        context: context,
-                        builder: (_) => CustomAlert(
-                          titulo: proveedor == null
-                              ? "Proveedor agregado"
-                              : "Proveedor actualizado",
-
-                          mensaje: proveedor == null
-                              ? "El proveedor ha sido agregado exitosamente."
-                              : "El proveedor ha sido actualizado exitosamente.",
-
-                          icono: Icons.check_circle_outline,
-                          textoConfirmar: "Aceptar",
-
-                          onConfirm: () {
-                          },
-                        ),
-                      );
-                    },
-
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFF2C500),
-
-                      foregroundColor: Colors.black87,
-
-                      elevation: 0,
-
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 22,
-                        vertical: 16,
-                      ),
-
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-
-                    child: const Text(
-                      "Guardar",
-
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+    builder: (_) => FormDialog(
+      titulo: proveedor == null ? "Nuevo Proveedor" : "Editar Proveedor",
+      subtitulo: "Complete la información del proveedor",
+      campos: [
+        AppTextField(controller: nombreCtrl, hint: "Nombre"),
+        AppTextField(controller: rfcCtrl, hint: "RFC"),
+        AppTextField(
+          controller: telefonoCtrl,
+          hint: "Teléfono",
+          keyboardType: TextInputType.phone,
         ),
-      ),
+        AppTextField(controller: direccionCtrl, hint: "Dirección"),
+        AppTextField(
+          controller: direccionFiscalCtrl,
+          hint: "Dirección Fiscal",
+          maxLines: 3,
+        ),
+      ],
+      onGuardar: () async {
+        if (nombreCtrl.text.isEmpty ||
+            rfcCtrl.text.isEmpty ||
+            telefonoCtrl.text.isEmpty) {
+          showDialog(
+            context: context,
+            builder: (_) => CustomAlert(
+              titulo: "Campos incompletos",
+              mensaje: "Completa los campos obligatorios.",
+              icono: Icons.warning_amber_rounded,
+              textoConfirmar: "Aceptar",
+              onConfirm: () {},
+            ),
+          );
+          return;
+        }
+
+        if (telefonoCtrl.text.length < 10) {
+          showDialog(
+            context: context,
+            builder: (_) => CustomAlert(
+              titulo: "Teléfono inválido",
+              mensaje: "El número telefónico no es válido.",
+              icono: Icons.warning_amber_rounded,
+              textoConfirmar: "Aceptar",
+              onConfirm: () {},
+            ),
+          );
+          return;
+        }
+
+        final existentes = await controller.obtenerTodos();
+
+        final duplicado = existentes.any(
+          (p) =>
+              p.nombre.toLowerCase() == nombreCtrl.text.toLowerCase() &&
+              p.idProveedor != proveedor?.idProveedor,
+        );
+
+        if (duplicado) {
+          if (!context.mounted) return;
+          showDialog(
+            context: context,
+            builder: (_) => CustomAlert(
+              titulo: "Proveedor duplicado",
+              mensaje: "Ya existe un proveedor con ese nombre.",
+              icono: Icons.warning_amber_rounded,
+              textoConfirmar: "Aceptar",
+              onConfirm: () {},
+            ),
+          );
+          return;
+        }
+
+        final nuevo = Proveedores(
+          idProveedor: proveedor?.idProveedor,
+          nombre: nombreCtrl.text,
+          rfc: rfcCtrl.text,
+          direccion: direccionCtrl.text,
+          direccionFiscal: direccionFiscalCtrl.text,
+          telefono: telefonoCtrl.text,
+        );
+
+        if (proveedor == null) {
+          await controller.insertar(nuevo);
+        } else {
+          await controller.actualizar(nuevo);
+        }
+
+        if (!context.mounted) return;
+        Navigator.pop(context);
+        cargar();
+
+        showDialog(
+          context: context,
+          builder: (_) => CustomAlert(
+            titulo: proveedor == null ? "Proveedor agregado" : "Proveedor actualizado",
+            mensaje: proveedor == null
+                ? "El proveedor ha sido agregado exitosamente."
+                : "El proveedor ha sido actualizado exitosamente.",
+            icono: Icons.check_circle_outline,
+            textoConfirmar: "Aceptar",
+            onConfirm: () {},
+          ),
+        );
+      },
     ),
   );
 }
@@ -332,7 +191,7 @@ void abrirFormulario({Proveedores? proveedor}) {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFAF8F4),
+      backgroundColor: AppColors.background,
 
       appBar: CustomHeader(titulo: "Proveedores", mostrarVolver: true),
 
@@ -376,7 +235,7 @@ void abrirFormulario({Proveedores? proveedor}) {
 
                             fontWeight: FontWeight.w800,
 
-                            color: Color(0xFF2D2B28),
+                            color: AppColors.textPrimary,
                           ),
                         ),
 
@@ -386,7 +245,7 @@ void abrirFormulario({Proveedores? proveedor}) {
                           "Administre y controle todos los proveedores registrados",
 
                           style: TextStyle(
-                            color: Color(0xFF6E6A64),
+                            color: AppColors.textSecondary,
 
                             fontSize: 13,
                           ),
@@ -403,7 +262,7 @@ void abrirFormulario({Proveedores? proveedor}) {
                     label: const Text("Agregar Proveedor"),
 
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFF2C500),
+                      backgroundColor: AppColors.primary,
 
                       foregroundColor: Colors.black87,
 
@@ -438,7 +297,7 @@ void abrirFormulario({Proveedores? proveedor}) {
 
                     filled: true,
 
-                    fillColor: const Color(0xFFF8F6F2),
+                    fillColor: AppColors.surface,
 
                     contentPadding: const EdgeInsets.symmetric(vertical: 14),
 
@@ -487,7 +346,7 @@ void abrirFormulario({Proveedores? proveedor}) {
     const headerStyle = TextStyle(
       fontSize: 11,
       fontWeight: FontWeight.w800,
-      color: Color(0xFF3C3935),
+      color: AppColors.textMuted,
     );
 
     return Container(
@@ -526,15 +385,15 @@ void abrirFormulario({Proveedores? proveedor}) {
                   height: 48,
 
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFFF1BF),
+                    color: AppColors.primaryLight,
 
                     borderRadius: BorderRadius.circular(14),
                   ),
 
-                  child: const Icon(
+                  child: Icon(
                     Icons.local_shipping_outlined,
 
-                    color: Color(0xFFB88300),
+                    color: AppColors.primaryDarker,
                   ),
                 ),
 
@@ -579,42 +438,18 @@ void abrirFormulario({Proveedores? proveedor}) {
                 ),
 
                 IconButton(
-  onPressed: () {
-    showDialog(
-      context: context,
-      builder: (_) => CustomAlert(
-        titulo: "Eliminar proveedor",
-        mensaje:
-            "¿Seguro que deseas eliminar este proveedor?",
-
-        icono: Icons.warning_amber_rounded,
-
-        textoConfirmar: "Eliminar",
-
-        onConfirm: () async {
-          eliminar(p.idProveedor!);
-
-
-          showDialog(
-            context: context,
-            builder: (_) => CustomAlert(
-              titulo: "Proveedor eliminado",
-              mensaje:
-                  "El proveedor ha sido eliminado exitosamente.",
-
-              icono: Icons.check_circle_outline,
-
-              textoConfirmar: "Aceptar",
-
-              onConfirm: () {
-                
-              },
-            ),
-          );
-        },
-      ),
-    );
-  },
+  onPressed: () => confirmarAccion(
+    context: context,
+    tituloConfirmar: "Eliminar proveedor",
+    mensajeConfirmar: "¿Seguro que deseas eliminar este proveedor?",
+    iconoConfirmar: Icons.warning_amber_rounded,
+    textoConfirmar: "Eliminar",
+    accion: () async {
+      eliminar(p.idProveedor!);
+    },
+    tituloExito: "Proveedor eliminado",
+    mensajeExito: "El proveedor ha sido eliminado exitosamente.",
+  ),
 
   icon: const Icon(Icons.delete_outline),
 
@@ -628,38 +463,7 @@ void abrirFormulario({Proveedores? proveedor}) {
     );
   }
 
-  // INPUT
-  Widget _inputFormulario({
-  required TextEditingController controller,
-  required String label,
-  int maxLines = 1,
-  TextInputType keyboard = TextInputType.text,
-}) {
-  return TextField(
-    controller: controller,
-    maxLines: maxLines,
-    keyboardType: keyboard,
-
-    decoration: InputDecoration(
-      hintText: label,
-
-      filled: true,
-      fillColor: Colors.white,
-
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 18,
-        vertical: 18,
-      ),
-
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
-      ),
-    ),
-  );
 }
-    
-  }
 
   
 

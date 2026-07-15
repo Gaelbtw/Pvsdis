@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import '../core/theme/app_colors.dart';
 import '../views/ventas_view.dart';
-//import 'package:punto_de_venta_lomita/views/ventas_view.dart';
 import '../controllers/cliente_controller.dart';
 import '../models/cliente_model.dart';
 import '../widgets/nav_bar.dart';
 
+import '../widgets/app_text_field.dart';
+import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/form_dialog.dart';
+import '../widgets/stat_card.dart';
 
 class ClientesView extends StatefulWidget {
   const ClientesView({super.key});
@@ -61,381 +65,89 @@ class _ClientesViewState extends State<ClientesView> {
     cargar();
   }
 
-  // FORMULARIO MODAL
-  void _mostrarFormulario() {
-  final nombreCtrl = TextEditingController();
-  final direccionCtrl = TextEditingController();
-  final telefonoCtrl = TextEditingController();
-  final correoCtrl = TextEditingController();
+  // FORMULARIO MODAL (crear si [cliente] es null, editar si no)
+  void _mostrarFormulario({Cliente? cliente}) {
+    final nombreCtrl = TextEditingController(text: cliente?.nombre);
+    final direccionCtrl = TextEditingController(text: cliente?.direccion);
+    final telefonoCtrl = TextEditingController(text: cliente?.telefono?.toString());
+    final correoCtrl = TextEditingController(text: cliente?.correo);
 
-  showDialog(
-    context: context,
-    builder: (_) => Dialog(
-      backgroundColor: const Color(0xFFFAF8F4),
-
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(28),
-      ),
-
-      child: Container(
-        width: 520,
-
-        padding: const EdgeInsets.all(28),
-
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-
-            children: [
-              const Row(
-                children: [
-                  Icon(
-                    Icons.person_outline,
-                    color: Color(0xFFB27B00),
-                    size: 28,
-                  ),
-
-                  SizedBox(width: 10),
-
-                  Text(
-                    "Nuevo Cliente",
-
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF2D2B28),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 8),
-
-              const Text(
-                "Complete la información del cliente",
-
-                style: TextStyle(
-                  color: Color(0xFF6E6A64),
-                  fontSize: 13,
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              _input(nombreCtrl, "Nombre"),
-
-              const SizedBox(height: 16),
-
-              _input(direccionCtrl, "Dirección"),
-
-              const SizedBox(height: 16),
-
-              _input(
-                telefonoCtrl,
-                "Teléfono",
-                keyboard: TextInputType.phone,
-              ),
-
-              const SizedBox(height: 16),
-
-              _input(
-                correoCtrl,
-                "Correo",
-                keyboard: TextInputType.emailAddress,
-              ),
-
-              const SizedBox(height: 28),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-
-                    child: const Text(
-                      "Cancelar",
-
-                      style: TextStyle(
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  ElevatedButton(
-                    onPressed: () async {
-
-                      if (nombreCtrl.text.trim().isEmpty) {
-                        showDialog(
-                          context: context,
-                          builder: (_) => CustomAlert(
-                            titulo: "Error",
-                            mensaje: "El nombre es obligatorio.",
-                            icono: Icons.error_outline,
-                            textoConfirmar: "Aceptar",
-
-                            onConfirm: () {
-                            },
-                          )
-                        );
-                        return; 
-                      }
-
-                      await controller.insertar(
-                        Cliente(
-                          idCliente: null,
-                          nombre: nombreCtrl.text,
-                          direccion: direccionCtrl.text,
-                          telefono: int.tryParse(
-                            telefonoCtrl.text,
-                          ),
-                          correo: correoCtrl.text,
-                          fechaRegistro:
-                              DateTime.now().toIso8601String(),
-                        ),
-                      );
-
-                      Navigator.pop(context);
-
-                      cargar();
-
-                      showDialog(
-                        context: context,
-                        builder: (_) => CustomAlert(
-                          titulo: "Cliente agregado",
-                          mensaje:
-                              "El cliente ha sido agregado exitosamente.",
-                          icono: Icons.check_circle_outline,
-                          textoConfirmar: "Aceptar",
-
-                          onConfirm: () {
-                          },
-                        ),
-                      );
-                    },
-
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFF2C500),
-
-                      foregroundColor: Colors.black87,
-
-                      elevation: 0,
-
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 22,
-                        vertical: 16,
-                      ),
-
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-
-                    child: const Text(
-                      "Guardar",
-
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+    showDialog(
+      context: context,
+      builder: (_) => FormDialog(
+        titulo: cliente == null ? "Nuevo Cliente" : "Editar Cliente",
+        subtitulo: cliente == null
+            ? "Complete la información del cliente"
+            : "Actualice la información del cliente",
+        campos: [
+          AppTextField(controller: nombreCtrl, hint: "Nombre"),
+          AppTextField(controller: direccionCtrl, hint: "Dirección"),
+          AppTextField(
+            controller: telefonoCtrl,
+            hint: "Teléfono",
+            keyboardType: TextInputType.phone,
           ),
-        ),
-      ),
-    ),
-  );
-}
-
-  void _mostrarFormularioEditar(Cliente cliente) {
-  final nombreCtrl = TextEditingController(text: cliente.nombre);
-
-  final direccionCtrl = TextEditingController(
-    text: cliente.direccion,
-  );
-
-  final telefonoCtrl = TextEditingController(
-    text: cliente.telefono?.toString(),
-  );
-
-  final correoCtrl = TextEditingController(
-    text: cliente.correo,
-  );
-
-  showDialog(
-    context: context,
-    builder: (_) => Dialog(
-      backgroundColor: const Color(0xFFFAF8F4),
-
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(28),
-      ),
-
-      child: Container(
-        width: 520,
-
-        padding: const EdgeInsets.all(28),
-
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-
-            children: [
-              const Row(
-                children: [
-                  Icon(
-                    Icons.edit_outlined,
-                    color: Color(0xFFB27B00),
-                    size: 28,
-                  ),
-
-                  SizedBox(width: 10),
-
-                  Text(
-                    "Editar Cliente",
-
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF2D2B28),
-                    ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 8),
-
-              const Text(
-                "Actualice la información del cliente",
-
-                style: TextStyle(
-                  color: Color(0xFF6E6A64),
-                  fontSize: 13,
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              _input(nombreCtrl, "Nombre"),
-
-              const SizedBox(height: 16),
-
-              _input(direccionCtrl, "Dirección"),
-
-              const SizedBox(height: 16),
-
-              _input(
-                telefonoCtrl,
-                "Teléfono",
-                keyboard: TextInputType.phone,
-              ),
-
-              const SizedBox(height: 16),
-
-              _input(
-                correoCtrl,
-                "Correo",
-                keyboard: TextInputType.emailAddress,
-              ),
-
-              const SizedBox(height: 28),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-
-                    child: const Text(
-                      "Cancelar",
-
-                      style: TextStyle(
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  ElevatedButton(
-                    onPressed: () async {
-                      await controller.actualizar(
-                        Cliente(
-                          idCliente: cliente.idCliente,
-                          nombre: nombreCtrl.text,
-                          direccion: direccionCtrl.text,
-                          telefono: int.tryParse(
-                            telefonoCtrl.text,
-                          ),
-                          correo: correoCtrl.text,
-                          fechaRegistro:
-                              DateTime.now().toIso8601String(),
-                        ),
-                      );
-
-                      Navigator.pop(context);
-
-                      cargar();
-
-                      showDialog(
-                        context: context,
-                        builder: (_) => CustomAlert(
-                          titulo: "Cliente actualizado",
-                          mensaje:
-                              "El cliente ha sido actualizado exitosamente.",
-                          icono: Icons.check_circle_outline,
-                          textoConfirmar: "Aceptar",
-
-                          onConfirm: () {
-                          },
-                        ),
-                      );
-                    },
-
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFF2C500),
-
-                      foregroundColor: Colors.black87,
-
-                      elevation: 0,
-
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 22,
-                        vertical: 16,
-                      ),
-
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-
-                    child: const Text(
-                      "Guardar",
-
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+          AppTextField(
+            controller: correoCtrl,
+            hint: "Correo",
+            keyboardType: TextInputType.emailAddress,
           ),
-        ),
+        ],
+        onGuardar: () async {
+          if (cliente == null && nombreCtrl.text.trim().isEmpty) {
+            showDialog(
+              context: context,
+              builder: (_) => CustomAlert(
+                titulo: "Error",
+                mensaje: "El nombre es obligatorio.",
+                icono: Icons.error_outline,
+                textoConfirmar: "Aceptar",
+                onConfirm: () {},
+              ),
+            );
+            return;
+          }
+
+          final nuevo = Cliente(
+            idCliente: cliente?.idCliente,
+            nombre: nombreCtrl.text,
+            direccion: direccionCtrl.text,
+            telefono: int.tryParse(telefonoCtrl.text),
+            correo: correoCtrl.text,
+            fechaRegistro: DateTime.now().toIso8601String(),
+          );
+
+          if (cliente == null) {
+            await controller.insertar(nuevo);
+          } else {
+            await controller.actualizar(nuevo);
+          }
+
+          if (!context.mounted) return;
+          Navigator.pop(context);
+          cargar();
+
+          showDialog(
+            context: context,
+            builder: (_) => CustomAlert(
+              titulo: cliente == null ? "Cliente agregado" : "Cliente actualizado",
+              mensaje: cliente == null
+                  ? "El cliente ha sido agregado exitosamente."
+                  : "El cliente ha sido actualizado exitosamente.",
+              icono: Icons.check_circle_outline,
+              textoConfirmar: "Aceptar",
+              onConfirm: () {},
+            ),
+          );
+        },
       ),
-    ),
-  );
-}
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFAF8F4),
+      backgroundColor: AppColors.background,
 
       appBar: CustomHeader(titulo: "Clientes", mostrarVolver: true),
 
@@ -476,7 +188,7 @@ class _ClientesViewState extends State<ClientesView> {
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w800,
-                        color: Color(0xFF2D2B28),
+                        color: AppColors.textPrimary,
                       ),
                     ),
 
@@ -485,7 +197,7 @@ class _ClientesViewState extends State<ClientesView> {
                     const Text(
                       "Administre clientes registrados y genere ventas rápidamente",
 
-                      style: TextStyle(color: Color(0xFF6E6A64), fontSize: 13),
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                     ),
 
                     const SizedBox(height: 24),
@@ -493,32 +205,44 @@ class _ClientesViewState extends State<ClientesView> {
                     // 🔥 MÉTRICAS
                     Row(
                       children: [
-                        _statModern(
-                          "Clientes",
-                          clientes.length.toString(),
-                          Icons.people_alt_outlined,
+                        Expanded(
+                          child: StatCard(
+                            title: "Clientes",
+                            value: clientes.length.toString(),
+                            icon: Icons.people_alt_outlined,
+                            color: AppColors.primary,
+                            iconoArribaConFondoTenido: false,
+                          ),
                         ),
 
                         const SizedBox(width: 14),
 
-                        _statModern(
-                          "Con teléfono",
-                          clientes
-                              .where((c) => c.telefono != null)
-                              .length
-                              .toString(),
-                          Icons.phone_outlined,
+                        Expanded(
+                          child: StatCard(
+                            title: "Con teléfono",
+                            value: clientes
+                                .where((c) => c.telefono != null)
+                                .length
+                                .toString(),
+                            icon: Icons.phone_outlined,
+                            color: AppColors.primary,
+                            iconoArribaConFondoTenido: false,
+                          ),
                         ),
 
                         const SizedBox(width: 14),
 
-                        _statModern(
-                          "Con correo",
-                          clientes
-                              .where((c) => c.correo != null)
-                              .length
-                              .toString(),
-                          Icons.email_outlined,
+                        Expanded(
+                          child: StatCard(
+                            title: "Con correo",
+                            value: clientes
+                                .where((c) => c.correo != null)
+                                .length
+                                .toString(),
+                            icon: Icons.email_outlined,
+                            color: AppColors.primary,
+                            iconoArribaConFondoTenido: false,
+                          ),
                         ),
                       ],
                     ),
@@ -541,7 +265,7 @@ class _ClientesViewState extends State<ClientesView> {
 
                               filled: true,
 
-                              fillColor: const Color(0xFFF8F6F2),
+                              fillColor: AppColors.surface,
 
                               contentPadding: const EdgeInsets.symmetric(
                                 vertical: 14,
@@ -566,7 +290,7 @@ class _ClientesViewState extends State<ClientesView> {
                           label: const Text("Nuevo Cliente"),
 
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFF2C500),
+                            backgroundColor: AppColors.primary,
 
                             foregroundColor: Colors.black87,
 
@@ -621,14 +345,14 @@ class _ClientesViewState extends State<ClientesView> {
                                     decoration: BoxDecoration(
                                       color: selected
                                           ? const Color(0xFFFFF8DB)
-                                          : const Color(0xFFFCFBF9),
+                                          : AppColors.surfaceAlt,
 
                                       borderRadius: BorderRadius.circular(22),
 
                                       border: Border.all(
                                         color: selected
-                                            ? const Color(0xFFF2C500)
-                                            : const Color(0xFFF0EBE5),
+                                            ? AppColors.primary
+                                            : AppColors.border,
                                       ),
                                     ),
 
@@ -639,7 +363,7 @@ class _ClientesViewState extends State<ClientesView> {
                                           height: 52,
 
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFFFFF1BF),
+                                            color: AppColors.primaryLight,
 
                                             borderRadius: BorderRadius.circular(
                                               16,
@@ -652,10 +376,10 @@ class _ClientesViewState extends State<ClientesView> {
                                                   .substring(0, 1)
                                                   .toUpperCase(),
 
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 fontWeight: FontWeight.w800,
                                                 fontSize: 18,
-                                                color: Color(0xFFB27B00),
+                                                color: AppColors.primaryDarker,
                                               ),
                                             ),
                                           ),
@@ -675,7 +399,7 @@ class _ClientesViewState extends State<ClientesView> {
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.w800,
                                                   fontSize: 16,
-                                                  color: Color(0xFF2D2B28),
+                                                  color: AppColors.textPrimary,
                                                 ),
                                               ),
 
@@ -689,7 +413,7 @@ class _ClientesViewState extends State<ClientesView> {
                                                 overflow: TextOverflow.ellipsis,
 
                                                 style: const TextStyle(
-                                                  color: Color(0xFF6F6A63),
+                                                  color: AppColors.textSecondary,
                                                 ),
                                               ),
                                             ],
@@ -716,7 +440,7 @@ class _ClientesViewState extends State<ClientesView> {
 
                                               style: const TextStyle(
                                                 fontSize: 12,
-                                                color: Color(0xFF8A847D),
+                                                color: AppColors.textSecondary,
                                               ),
                                             ),
                                           ],
@@ -742,11 +466,11 @@ class _ClientesViewState extends State<ClientesView> {
                   padding: const EdgeInsets.all(24),
 
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFCFBF9),
+                    color: AppColors.surfaceAlt,
 
                     borderRadius: BorderRadius.circular(28),
 
-                    border: Border.all(color: const Color(0xFFF0EBE5)),
+                    border: Border.all(color: AppColors.border),
                   ),
 
                   child:
@@ -754,7 +478,7 @@ class _ClientesViewState extends State<ClientesView> {
                       ? const Center(
                           child: Text(
                             "Selecciona un cliente",
-                            style: TextStyle(color: Color(0xFF6E6A64)),
+                            style: TextStyle(color: AppColors.textSecondary),
                           ),
                         )
                       : _detalleClienteModern(clientes[selectedIndex!]),
@@ -780,7 +504,7 @@ class _ClientesViewState extends State<ClientesView> {
               height: 64,
 
               decoration: BoxDecoration(
-                color: const Color(0xFFFFF1BF),
+                color: AppColors.primaryLight,
 
                 borderRadius: BorderRadius.circular(20),
               ),
@@ -789,10 +513,10 @@ class _ClientesViewState extends State<ClientesView> {
                 child: Text(
                   c.nombre.substring(0, 1).toUpperCase(),
 
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.w800,
-                    color: Color(0xFFB27B00),
+                    color: AppColors.primaryDarker,
                   ),
                 ),
               ),
@@ -811,7 +535,7 @@ class _ClientesViewState extends State<ClientesView> {
                     style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.w800,
-                      color: Color(0xFF2D2B28),
+                      color: AppColors.textPrimary,
                     ),
                   ),
 
@@ -820,7 +544,7 @@ class _ClientesViewState extends State<ClientesView> {
                   Text(
                     c.correo ?? "Sin correo registrado",
 
-                    style: const TextStyle(color: Color(0xFF6F6A63)),
+                    style: const TextStyle(color: AppColors.textSecondary),
                   ),
                 ],
               ),
@@ -863,7 +587,7 @@ class _ClientesViewState extends State<ClientesView> {
             label: const Text("Nueva Venta"),
 
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF2C500),
+              backgroundColor: AppColors.primary,
 
               foregroundColor: Colors.black87,
 
@@ -883,7 +607,7 @@ class _ClientesViewState extends State<ClientesView> {
           height: 52,
 
           child: OutlinedButton.icon(
-            onPressed: () => _mostrarFormularioEditar(clientes[selectedIndex!]),
+            onPressed: () => _mostrarFormulario(cliente: clientes[selectedIndex!]),
 
             icon: const Icon(Icons.edit_outlined),
 
@@ -892,7 +616,7 @@ class _ClientesViewState extends State<ClientesView> {
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.black87,
 
-              side: const BorderSide(color: Color(0xFFE5DED3)),
+              side: const BorderSide(color: AppColors.border),
 
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
@@ -908,42 +632,18 @@ class _ClientesViewState extends State<ClientesView> {
           height: 52,
 
           child: ElevatedButton.icon(
-  onPressed: () {
-    showDialog(
-      context: context,
-      builder: (_) => CustomAlert(
-        titulo: "Eliminar cliente",
-
-        mensaje:
-            "¿Seguro que deseas eliminar este cliente?",
-
-        icono: Icons.warning_amber_rounded,
-
-        textoConfirmar: "Eliminar",
-
-        onConfirm: () async {
-          eliminar(c.idCliente!);
-
-          showDialog(
-            context: context,
-            builder: (_) => CustomAlert(
-              titulo: "Cliente eliminado",
-
-              mensaje:
-                  "El cliente ha sido eliminado exitosamente.",
-
-              icono: Icons.check_circle_outline,
-
-              textoConfirmar: "Aceptar",
-
-              onConfirm: () {
-              },
-            ),
-          );
-        },
-      ),
-    );
-  },
+  onPressed: () => confirmarAccion(
+    context: context,
+    tituloConfirmar: "Eliminar cliente",
+    mensajeConfirmar: "¿Seguro que deseas eliminar este cliente?",
+    iconoConfirmar: Icons.warning_amber_rounded,
+    textoConfirmar: "Eliminar",
+    accion: () async {
+      eliminar(c.idCliente!);
+    },
+    tituloExito: "Cliente eliminado",
+    mensajeExito: "El cliente ha sido eliminado exitosamente.",
+  ),
 
   icon: const Icon(Icons.delete),
 
@@ -981,7 +681,7 @@ class _ClientesViewState extends State<ClientesView> {
 
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFFCC9600), size: 20),
+          Icon(icon, color: AppColors.primaryDark, size: 20),
 
           const SizedBox(width: 14),
 
@@ -995,7 +695,7 @@ class _ClientesViewState extends State<ClientesView> {
 
                   style: const TextStyle(
                     fontSize: 12,
-                    color: Color(0xFF8A847D),
+                    color: AppColors.textSecondary,
                   ),
                 ),
 
@@ -1006,69 +706,13 @@ class _ClientesViewState extends State<ClientesView> {
 
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
-                    color: Color(0xFF2D2B28),
+                    color: AppColors.textPrimary,
                   ),
                 ),
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  // MÉTRICAS MODERNAS
-  Widget _statModern(String title, String value, IconData icon) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(20),
-
-        decoration: BoxDecoration(
-          color: const Color(0xFFFCFBF9),
-
-          borderRadius: BorderRadius.circular(24),
-
-          border: Border.all(color: const Color(0xFFF0EBE5)),
-        ),
-
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF4CC),
-
-                borderRadius: BorderRadius.circular(14),
-              ),
-
-              child: Icon(icon, color: const Color(0xFFB88300)),
-            ),
-
-            const SizedBox(height: 16),
-
-            Text(
-              title,
-
-              style: const TextStyle(color: Color(0xFF8A847D), fontSize: 13),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              value,
-
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w800,
-                color: Color(0xFF2D2B28),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -1082,35 +726,4 @@ class _ClientesViewState extends State<ClientesView> {
 
     return "${date.day}/${date.month}/${date.year}";
   }
-}
-
-// inputs 
-Widget _input(
-  TextEditingController controller,
-  String hint, {
-  int maxLines = 1,
-  TextInputType keyboard = TextInputType.text,
-}) {
-  return TextField(
-    controller: controller,
-    maxLines: maxLines,
-    keyboardType: keyboard,
-
-    decoration: InputDecoration(
-      hintText: hint,
-
-      filled: true,
-      fillColor: Colors.white,
-
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 18,
-        vertical: 18,
-      ),
-
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
-      ),
-    ),
-  );
 }

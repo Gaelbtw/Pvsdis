@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import '../core/theme/app_colors.dart';
 import '../models/cliente_model.dart';
-import '../models/pedidos_model.dart';
 import '../services/cliente_services.dart';
-import '../services/producto_services.dart';
 import '../controllers/pedidos_controller.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/pedidos/editar_pedido_dialog.dart';
 import 'crearPedido_view.dart';
 import '../widgets/nav_bar.dart';
 
@@ -18,7 +18,6 @@ class PedidosView extends StatefulWidget {
 class _PedidosViewState extends State<PedidosView> {
   final clienteService = ClienteService();
   final pedidosController = PedidosController();
-  final productoService = ProductoService();
 
   List<Cliente> clientes = [];
   List<Cliente> filtrados = [];
@@ -60,7 +59,7 @@ class _PedidosViewState extends State<PedidosView> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const CustomHeader(titulo: "Pedidos", mostrarVolver: true),
-      backgroundColor: const Color(0xFFF7F7F7),
+      backgroundColor: AppColors.surface,
       body: SafeArea(
         child: Column(
           children: [
@@ -101,7 +100,7 @@ class _PedidosViewState extends State<PedidosView> {
             const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(
           color:
-              activo ? const Color(0xFFE5C100) : const Color(0xFFF0F0F0),
+              activo ? AppColors.primary : AppColors.surface,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Row(
@@ -184,7 +183,7 @@ class _PedidosViewState extends State<PedidosView> {
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
                               color: isSelected
-                                  ? const Color(0xFFE5C100)
+                                  ? AppColors.primary
                                   : Colors.transparent,
                               width: 2,
                             ),
@@ -203,7 +202,7 @@ class _PedidosViewState extends State<PedidosView> {
                               CircleAvatar(
                                 radius: 24,
                                 backgroundColor:
-                                    const Color(0xFFFFF3B0),
+                                    AppColors.primaryLight,
                                 child: Text(
                                   cliente.nombre[0],
                                   style: const TextStyle(
@@ -308,7 +307,7 @@ class _PedidosViewState extends State<PedidosView> {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor:
-                              const Color(0xFFE5C100),
+                              AppColors.primary,
                           foregroundColor: Colors.black,
                           padding: const EdgeInsets.symmetric(
                               vertical: 18),
@@ -396,7 +395,7 @@ class _PedidosViewState extends State<PedidosView> {
                 width: 54,
                 height: 54,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE5C100).withValues(alpha: 0.2),
+                  color: AppColors.primary.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Column(
@@ -492,8 +491,8 @@ class _PedidosViewState extends State<PedidosView> {
                 children: [
                   IconButton(
                     tooltip: 'Editar',
-                    icon: const Icon(Icons.edit_outlined,
-                        color: Color(0xFFCC9A00)),
+                    icon: Icon(Icons.edit_outlined,
+                        color: AppColors.primaryDark),
                     onPressed: () => _editarPedido(p),
                   ),
                   IconButton(
@@ -544,255 +543,11 @@ class _PedidosViewState extends State<PedidosView> {
   }
 
   void _editarPedido(Map<String, dynamic> pedidoMap) {
-    String estado = pedidoMap['estado']?.toString() ?? 'Pendiente';
-    String tipo = pedidoMap['tipo_entrega']?.toString() ?? 'Domicilio';
-    String fechaEntregaStr =
-        pedidoMap['fecha_entrega']?.toString() ?? '';
-    String direccion = pedidoMap['direccion']?.toString() ?? '';
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialog) => AlertDialog(
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20)),
-          title:
-              Text('Editar Pedido #${pedidoMap["id_pedido"]}'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Estado',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  initialValue: estado,
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: const Color(0xFFF7F7F7),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                  items: [
-                    'Pendiente',
-                    'En Proceso',
-                    'Entregado',
-                    'Cancelado'
-                  ]
-                      .map((e) => DropdownMenuItem(
-                          value: e, child: Text(e)))
-                      .toList(),
-                  onChanged: (v) =>
-                      setDialog(() => estado = v!),
-                ),
-                const SizedBox(height: 16),
-                const Text('Tipo de entrega',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    _tipoChipDialog('Domicilio', tipo,
-                        (v) => setDialog(() => tipo = v)),
-                    const SizedBox(width: 12),
-                    _tipoChipDialog('Recoger', tipo,
-                        (v) => setDialog(() => tipo = v)),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Text('Fecha de entrega',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                InkWell(
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: ctx,
-                      initialDate: DateTime.now(),
-                      firstDate: DateTime.now()
-                          .subtract(const Duration(days: 365)),
-                      lastDate:
-                          DateTime(DateTime.now().year + 2),
-                    );
-                    if (picked != null) {
-                      setDialog(() {
-                        fechaEntregaStr =
-                            '${picked.day}/${picked.month}/${picked.year}';
-                      });
-                    }
-                  },
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 14),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF7F7F7),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.calendar_month,
-                            color: Colors.grey, size: 20),
-                        const SizedBox(width: 10),
-                        Text(
-                          fechaEntregaStr.isEmpty
-                              ? 'Seleccionar fecha'
-                              : fechaEntregaStr,
-                          style: TextStyle(
-                            color: fechaEntregaStr.isEmpty
-                                ? Colors.grey
-                                : Colors.black,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                if (tipo == 'Domicilio') ...[
-                  const SizedBox(height: 16),
-                  const Text('Dirección',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  TextFormField(
-                    initialValue: direccion,
-                    onChanged: (v) => direccion = v,
-                    decoration: InputDecoration(
-                      hintText: 'Calle, colonia, ciudad',
-                      filled: true,
-                      fillColor: const Color(0xFFF7F7F7),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                      prefixIcon: const Icon(
-                          Icons.location_on_outlined),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFE5C100),
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () async {
-                final idPedido =
-                    pedidoMap['id_pedido'] as int;
-                final estadoAnterior =
-                    pedidoMap['estado']?.toString() ??
-                        'Pendiente';
-
-                final actualizado = Pedidos(
-                  idPedido: idPedido,
-                  idCliente: pedidoMap['id_cliente'] as int,
-                  fecha: pedidoMap['fecha']?.toString() ?? '',
-                  fechaEntrega: fechaEntregaStr,
-                  tipoEntrega: tipo,
-                  estado: estado,
-                  total: (pedidoMap['total'] as num?)
-                          ?.toDouble() ??
-                      0,
-                  direccion:
-                      tipo == 'Domicilio' ? direccion : null,
-                );
-
-                final nav = Navigator.of(ctx);
-                final messenger = ScaffoldMessenger.of(context);
-
-                await pedidosController.actualizar(actualizado);
-
-                // Ajuste de inventario según cambio de estado
-                if (estado == 'Entregado' &&
-                    estadoAnterior != 'Entregado') {
-                  final detalle = await pedidosController
-                      .obtenerDetalle(idPedido);
-                  for (final item in detalle) {
-                    await productoService.deducirStockPedido(
-                      item['id_producto'] as int,
-                      item['cantidad'] as int,
-                    );
-                  }
-                } else if (estado == 'Cancelado' &&
-                    estadoAnterior == 'Entregado') {
-                  final detalle = await pedidosController
-                      .obtenerDetalle(idPedido);
-                  for (final item in detalle) {
-                    await productoService.restaurarStockPedido(
-                      item['id_producto'] as int,
-                      item['cantidad'] as int,
-                    );
-                  }
-                }
-
-                if (!mounted) return;
-                nav.pop();
-                cargarPedidos();
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      estado == 'Entregado' &&
-                              estadoAnterior != 'Entregado'
-                          ? 'Pedido entregado — inventario actualizado'
-                          : estado == 'Cancelado' &&
-                                  estadoAnterior == 'Entregado'
-                              ? 'Pedido cancelado — stock restaurado'
-                              : 'Pedido editado con éxito',
-                    ),
-                    backgroundColor: estado == 'Entregado'
-                        ? Colors.green
-                        : estado == 'Cancelado'
-                            ? Colors.red
-                            : Colors.blueGrey,
-                    duration: const Duration(seconds: 3),
-                  ),
-                );
-              },
-              child: const Text('Guardar',
-                  style:
-                      TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _tipoChipDialog(
-      String label, String selected, ValueChanged<String> onTap) {
-    final activo = selected == label;
-    return GestureDetector(
-      onTap: () => onTap(label),
-      child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: activo
-              ? const Color(0xFFE5C100)
-              : const Color(0xFFF0F0F0),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: activo ? Colors.black : Colors.grey.shade600,
-          ),
-        ),
-      ),
+    mostrarEditarPedidoDialog(
+      context,
+      pedidoMap: pedidoMap,
+      pedidosController: pedidosController,
+      onGuardado: cargarPedidos,
     );
   }
 

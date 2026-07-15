@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "punto_de_venta_lomita" "\0"
+            VALUE "FileDescription", "POS" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "punto_de_venta_lomita" "\0"
+            VALUE "InternalName", "POS" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "punto_de_venta_lomita.exe" "\0"
-            VALUE "ProductName", "punto_de_venta_lomita" "\0"
+            VALUE "OriginalFilename", "pvapp.exe" "\0"
+            VALUE "ProductName", "POS" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

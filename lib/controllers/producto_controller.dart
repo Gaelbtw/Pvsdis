@@ -1,51 +1,63 @@
-//import 'package:sqflite/sqflite.dart';
+import 'package:sqflite/sqflite.dart';
+
 import '../core/database/database_helper.dart';
+import '../core/database/db_exceptions.dart';
 import '../models/producto_model.dart';
 import 'auditoria_controller.dart';
 
-class ProductoService {
+/// Única fuente de verdad para operaciones sobre productos e inventario.
+/// (Antes existían dos clases distintas con el mismo nombre en archivos
+/// separados; se unificaron aquí.)
+class ProductoController {
   final _auditoriaController = AuditoriaController();
 
   Future<int> insertar(Producto producto, int stockInicial) async {
-  final db = await DatabaseHelper().database;
+    final db = await DatabaseHelper().database;
 
-  if (producto.precio <= 0) {
-    throw Exception("Precio inválido");
+    if (producto.precio <= 0) {
+      throw Exception("Precio inválido");
+    }
+
+    if (stockInicial < 0) {
+      throw Exception("Stock inválido");
+    }
+
+    final id = await ejecutarConMensajeDeDuplicado(
+      () => db.transaction((txn) async {
+        final nuevoId = await txn.insert('Producto', producto.toMap());
+
+        await txn.insert('Inventario', {
+          "id_producto": nuevoId,
+          "cantidad": stockInicial,
+        });
+
+        return nuevoId;
+      }),
+      'Ya existe un producto con ese código de barras.',
+    );
+
+    await _auditoriaController.registrar(
+      tabla: 'Productos',
+      accion: 'CREATE',
+      idRegistro: id,
+      descripcion: 'Producto ${producto.nombre} creado con stock $stockInicial',
+    );
+
+    return id;
   }
 
-  if (stockInicial < 0) {
-    throw Exception("Stock inválido");
-  }
-
-  int id = await db.insert('Producto', producto.toMap());
-
-  await db.insert('Inventario', {
-    "id_producto": id,
-    "cantidad": stockInicial,
-  });
-
-  await _auditoriaController.registrar(
-    tabla: 'Productos',
-    accion: 'CREATE',
-    idRegistro: id,
-    descripcion: 'Producto ${producto.nombre} creado con stock $stockInicial',
-  );
-
-  return id;
-}
-
-Future<List<Producto>> obtenerProductosConPrecioCompra() async {
+  Future<List<Producto>> obtenerProductosConPrecioCompra() async {
     final db = await DatabaseHelper().database;
     final result = await db.query('Producto');
 
     return result.map((e) => Producto.fromMap(e)).toList();
-}
+  }
 
   Future<List<Producto>> obtenerTodos() async {
     final db = await DatabaseHelper().database;
 
     final result = await db.rawQuery('''
-      SELECT 
+      SELECT
         p.*,
         c.nombre as categoria_nombre
       FROM Producto p
@@ -59,11 +71,14 @@ Future<List<Producto>> obtenerProductosConPrecioCompra() async {
   Future<int> actualizar(Producto producto) async {
     final db = await DatabaseHelper().database;
 
-    final rows = await db.update(
-      'Producto',
-      producto.toMap(),
-      where: 'id_producto = ?',
-      whereArgs: [producto.idProducto],
+    final rows = await ejecutarConMensajeDeDuplicado(
+      () => db.update(
+        'Producto',
+        producto.toMap(),
+        where: 'id_producto = ?',
+        whereArgs: [producto.idProducto],
+      ),
+      'Ya existe un producto con ese código de barras.',
     );
 
     if (rows > 0) {
@@ -104,16 +119,17 @@ Future<List<Producto>> obtenerProductosConPrecioCompra() async {
     );
   }
 
-  
-
   Future<int> eliminar(int id) async {
     final db = await DatabaseHelper().database;
     final producto = await _obtenerNombreProducto(db, id);
 
-    final rows = await db.delete(
-      'Producto',
-      where: 'id_producto = ?',
-      whereArgs: [id],
+    final rows = await ejecutarConMensajeDeIntegridad(
+      () => db.delete(
+        'Producto',
+        where: 'id_producto = ?',
+        whereArgs: [id],
+      ),
+      'No se puede eliminar: el producto tiene ventas, compras o pedidos registrados.',
     );
 
     if (rows > 0) {
@@ -140,6 +156,7 @@ Future<List<Producto>> obtenerProductosConPrecioCompra() async {
         p.estado,
         p.stock_minimo,
         p.id_categoria,
+        p.codigo_barras,
         IFNULL(i.cantidad, 0) as cantidad,
         c.nombre as categoria_nombre
       FROM Producto p
@@ -148,29 +165,67 @@ Future<List<Producto>> obtenerProductosConPrecioCompra() async {
     ''');
   }
 
+  /// Busca un producto por coincidencia exacta de código de barras (uso
+  /// típico: lector USB). Devuelve `null` si no hay ninguno con ese código.
+  Future<Producto?> buscarPorCodigoBarras(String codigo) async {
+    final normalizado = Producto.normalizarCodigoBarras(codigo);
+    if (normalizado == null) return null;
+
+    final db = await DatabaseHelper().database;
+    final result = await db.query(
+      'Producto',
+      where: 'codigo_barras = ?',
+      whereArgs: [normalizado],
+      limit: 1,
+    );
+
+    if (result.isEmpty) return null;
+    return Producto.fromMap(result.first);
+  }
+
+  /// Indica si ya existe un producto con ese código de barras. [excluirId]
+  /// se usa al editar, para no contar el propio producto como duplicado.
+  Future<bool> existeCodigoBarras(String codigo, {int? excluirId}) async {
+    final normalizado = Producto.normalizarCodigoBarras(codigo);
+    if (normalizado == null) return false;
+
+    final db = await DatabaseHelper().database;
+    final result = await db.query(
+      'Producto',
+      columns: ['id_producto'],
+      where: excluirId == null
+          ? 'codigo_barras = ?'
+          : 'codigo_barras = ? AND id_producto != ?',
+      whereArgs: excluirId == null ? [normalizado] : [normalizado, excluirId],
+      limit: 1,
+    );
+
+    return result.isNotEmpty;
+  }
+
   Future<void> agregarStock(int idProducto, int cantidadNueva) async {
     final db = await DatabaseHelper().database;
-    final producto = await _obtenerNombreProducto(db, idProducto);
 
     if (cantidadNueva <= 0) {
       throw Exception("Cantidad inválida");
     }
 
-    final result = await db.query(
-      "Inventario",
-      where: "id_producto = ?",
-      whereArgs: [idProducto],
+    final producto = await _obtenerNombreProducto(db, idProducto);
+    // Solo para el mensaje de auditoría; el incremento real se hace de
+    // forma atómica abajo para evitar que dos ventas/compras concurrentes
+    // sobre el mismo producto se pisen entre sí (lost update).
+    final actual = await _obtenerStockActual(db, idProducto);
+
+    final filas = await db.rawUpdate(
+      'UPDATE Inventario SET cantidad = cantidad + ? WHERE id_producto = ?',
+      [cantidadNueva, idProducto],
     );
 
-    int actual = result.first["cantidad"] as int;
-    int nuevo = actual + cantidadNueva;
+    if (filas == 0) {
+      throw Exception("El producto no tiene un registro de inventario");
+    }
 
-    await db.update(
-      "Inventario",
-      {"cantidad": nuevo},
-      where: "id_producto = ?",
-      whereArgs: [idProducto],
-    );
+    final nuevo = actual + cantidadNueva;
 
     await _auditoriaController.registrar(
       tabla: 'Inventario',
@@ -181,35 +236,45 @@ Future<List<Producto>> obtenerProductosConPrecioCompra() async {
     );
   }
 
-  Future<void> restarStock(int idProducto, int cantidad) async {
+  Future<Map<int, int>> obtenerStockMap() async {
     final db = await DatabaseHelper().database;
+    final res = await db.query('Inventario');
+    return {
+      for (var row in res)
+        (row['id_producto'] as int): (row['cantidad'] as int? ?? 0)
+    };
+  }
 
-    final result = await db.query(
-      "Inventario",
-      where: "id_producto = ?",
-      whereArgs: [idProducto],
-    );
+  /// Descuenta stock sin lanzar excepción. Si no hay suficiente, deja en 0.
+  /// Si [executor] se recibe (por ejemplo, una transacción de
+  /// PedidosController), la operación participa en ella en vez de abrir su
+  /// propia conexión.
+  Future<void> deducirStockPedido(
+    int idProducto,
+    int cantidad, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await DatabaseHelper().database;
+    await db.rawUpdate('''
+      UPDATE Inventario
+      SET cantidad = MAX(0, cantidad - ?)
+      WHERE id_producto = ?
+    ''', [cantidad, idProducto]);
+  }
 
-    int actual = result.first["cantidad"] as int;
-
-    if (cantidad > actual) {
-      throw Exception("Stock insuficiente");
-    }
-
-    await db.update(
-      "Inventario",
-      {"cantidad": actual - cantidad},
-      where: "id_producto = ?",
-      whereArgs: [idProducto],
-    );
-
-    await _auditoriaController.registrar(
-      tabla: 'Inventario',
-      accion: 'EDIT',
-      idRegistro: idProducto,
-      descripcion:
-          'Stock de ${await _obtenerNombreProducto(db, idProducto)} reducido de $actual a ${actual - cantidad} (-$cantidad)',
-    );
+  /// Restaura stock (usado al cancelar un pedido ya entregado). Acepta
+  /// [executor] por el mismo motivo que [deducirStockPedido].
+  Future<void> restaurarStockPedido(
+    int idProducto,
+    int cantidad, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await DatabaseHelper().database;
+    await db.rawUpdate('''
+      UPDATE Inventario
+      SET cantidad = cantidad + ?
+      WHERE id_producto = ?
+    ''', [cantidad, idProducto]);
   }
 
   Future<String> _obtenerNombreProducto(dynamic db, int idProducto) async {
@@ -238,4 +303,3 @@ Future<List<Producto>> obtenerProductosConPrecioCompra() async {
     return int.tryParse(result.first['cantidad'].toString()) ?? 0;
   }
 }
-

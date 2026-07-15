@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import '../core/theme/app_colors.dart';
 import '../controllers/pedidos_controller.dart';
+import '../models/carrito_pedido.dart';
 import '../models/pedidos_model.dart';
 import '../models/producto_model.dart';
 import '../widgets/nav_bar.dart';
 import '../widgets/custom_alert.dart';
-import '../services/producto_services.dart';
+import '../controllers/producto_controller.dart';
 
 class CrearPedidoView extends StatefulWidget {
   final int? idCliente;
@@ -22,13 +24,14 @@ class CrearPedidoView extends StatefulWidget {
 
 class _CrearPedidoViewState extends State<CrearPedidoView> {
   final controller = PedidosController();
-  final productoService = ProductoService();
+  final productoService = ProductoController();
 
   final direccionCtrl = TextEditingController();
 
   List<Producto> productos = [];
   Map<int, int> _stock = {};
-  List<Map<String, dynamic>> carrito = [];
+  final _carrito = CarritoPedido();
+  List<Map<String, dynamic>> get carrito => _carrito.items;
 
   String tipoEntrega = "Domicilio";
   DateTime? _fechaEntrega;
@@ -51,12 +54,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
 
   void agregarProducto(Producto producto) {
     final stockDisponible = _stock[producto.idProducto] ?? 0;
-
-    final indexEnCarrito = carrito.indexWhere(
-      (e) => (e['producto'] as Producto).idProducto == producto.idProducto,
-    );
-    final cantidadEnCarrito =
-        indexEnCarrito >= 0 ? carrito[indexEnCarrito]['cantidad'] as int : 0;
+    final cantidadEnCarrito = _carrito.cantidadEnCarrito(producto.idProducto);
 
     if (stockDisponible == 0) {
       showDialog(
@@ -88,13 +86,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
       return;
     }
 
-    setState(() {
-      if (indexEnCarrito >= 0) {
-        carrito[indexEnCarrito]['cantidad'] += 1;
-      } else {
-        carrito.add({'producto': producto, 'cantidad': 1});
-      }
-    });
+    setState(() => _carrito.agregar(producto));
 
     calcularTotal();
 
@@ -108,13 +100,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
   }
 
   void calcularTotal() {
-    double nuevo = 0;
-    for (var item in carrito) {
-      final producto = item['producto'] as Producto;
-      final cantidad = item['cantidad'] as int;
-      nuevo += producto.precio * cantidad;
-    }
-    setState(() => total = nuevo);
+    setState(() => total = _carrito.total);
   }
 
   void aumentar(int index) {
@@ -137,18 +123,12 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
       return;
     }
 
-    setState(() => carrito[index]['cantidad']++);
+    setState(() => _carrito.aumentar(index));
     calcularTotal();
   }
 
   void disminuir(int index) {
-    setState(() {
-      if (carrito[index]['cantidad'] > 1) {
-        carrito[index]['cantidad']--;
-      } else {
-        carrito.removeAt(index);
-      }
-    });
+    setState(() => _carrito.disminuir(index));
     calcularTotal();
   }
 
@@ -219,18 +199,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
           tipoEntrega == 'Domicilio' ? direccionCtrl.text.trim() : null,
     );
 
-    final idPedido = await controller.crearPedido(pedido);
-
-    for (var item in carrito) {
-      final producto = item['producto'] as Producto;
-      final cantidad = item['cantidad'] as int;
-      await controller.insertarDetalle(
-        idPedido,
-        producto.idProducto!,
-        cantidad,
-        producto.precio,
-      );
-    }
+    await controller.crearPedidoCompleto(pedido, _carrito.paraGuardar());
 
     if (!mounted) return;
 
@@ -252,7 +221,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7F7),
+      backgroundColor: AppColors.surface,
       appBar: const CustomHeader(
         titulo: 'Crear Pedido',
         mostrarVolver: true,
@@ -281,7 +250,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: const Color(0xFFE5C100),
+                              color: AppColors.primary,
                               borderRadius: BorderRadius.circular(14),
                             ),
                             child: const Icon(Icons.add),
@@ -403,7 +372,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                         vertical: 5,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFFE5C100),
+                                        color: AppColors.primary,
                                         borderRadius:
                                             BorderRadius.circular(30),
                                       ),
@@ -484,7 +453,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: sinStock
                                           ? Colors.grey.shade300
-                                          : const Color(0xFFE5C100),
+                                          : AppColors.primary,
                                       foregroundColor: Colors.black,
                                       padding: const EdgeInsets.symmetric(
                                         vertical: 12,
@@ -633,7 +602,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                     width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFE5C100),
+                        backgroundColor: AppColors.primary,
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 18),
                         shape: RoundedRectangleBorder(
@@ -755,7 +724,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
         decoration: BoxDecoration(
-          color: activo ? const Color(0xFFE5C100) : Colors.white,
+          color: activo ? AppColors.primary : Colors.white,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Row(
@@ -789,7 +758,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: const Color(0xFFE5C100),
+          color: AppColors.primary,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Icon(icon, size: 18),

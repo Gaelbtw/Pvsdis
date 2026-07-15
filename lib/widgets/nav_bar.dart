@@ -1,5 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+
+import '../core/config/app_config.dart';
 import '../core/session/session_manager.dart';
+import '../core/theme/app_colors.dart';
 
 class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
   final String titulo;
@@ -17,9 +22,10 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final puedeVolver = mostrarVolver ?? Navigator.canPop(context);
+    final logoPath = AppConfig.actual.logoPath;
 
     return AppBar(
-      backgroundColor: const Color(0xFFFAF8F4),
+      backgroundColor: AppColors.background,
       elevation: 0,
       leadingWidth: puedeVolver ? 110 : 0,
       leading: puedeVolver
@@ -35,18 +41,24 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
           : null,
       title: Row(
         children: [
-          Container(
-            width: 20,
-            height: 20,
-            decoration: const BoxDecoration(
-              color: Color(0xFFF2C500),
-              shape: BoxShape.circle,
+          if (logoPath != null && File(logoPath).existsSync())
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.file(File(logoPath), width: 22, height: 22, fit: BoxFit.cover),
+            )
+          else
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                shape: BoxShape.circle,
+              ),
             ),
-          ),
           const SizedBox(width: 10),
-          const Text(
-            "La Lomita",
-            style: TextStyle(
+          Text(
+            AppConfig.actual.nombreNegocio,
+            style: const TextStyle(
               color: Colors.black87,
               fontWeight: FontWeight.w800,
             ),
@@ -79,7 +91,7 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(28),
-        border: Border.all(color: const Color(0xFFE6E0D8)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -95,10 +107,10 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
           ),
           Text(
             SessionManager.currentUserRole.toUpperCase(),
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 10,
-              color: Color(0xFFCC9A00),
+              color: AppColors.primaryDark,
             ),
           ),
         ],
@@ -109,7 +121,7 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
   Widget _topInfo(IconData icon, String text) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: const Color(0xFFDA9B00)),
+        Icon(icon, size: 16, color: AppColors.primaryDark),
         const SizedBox(width: 6),
         Text(
           text,

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import '../core/theme/app_colors.dart';
 import '../controllers/producto_controller.dart';
 import '../controllers/proveedor_controller.dart';
 import '../controllers/compras_controller.dart';
+import '../models/carrito_compra.dart';
 import '../models/producto_model.dart';
 import '../models/proveedores_model.dart';
 import '../widgets/custom_alert.dart';
@@ -19,14 +21,15 @@ class ComprasView extends StatefulWidget {
 }
 
 class _ComprasViewState extends State<ComprasView> {
-  final productoController = ProductoService();
+  final productoController = ProductoController();
   final proveedorController = ProveedorController();
   final comprasController = ComprasController();
 
   List<Producto> productos = [];
   List<Proveedores> proveedores = [];
 
-  List<Map<String, dynamic>> carrito = [];
+  final _carrito = CarritoCompra();
+  List<Map<String, dynamic>> get carrito => _carrito.items;
   Map<int, TextEditingController> controllers = {};
 
   Proveedores? proveedorSeleccionado;
@@ -53,29 +56,11 @@ class _ComprasViewState extends State<ComprasView> {
 
   // 🟢 AGREGAR PRODUCTO
   void agregarProducto(Producto p) {
-    setState(() {
-      final index = carrito.indexWhere(
-        (item) => item['id_producto'] == p.idProducto,
-      );
-
-      if (index >= 0) {
-        carrito[index]['cantidad']++;
-      } else {
-        carrito.add({
-          "id_producto": p.idProducto,
-          "nombre": p.nombre,
-          "precio_compra": p.precioCompra ?? 0,
-          "cantidad": 1,
-        });
-      }
-    });
+    setState(() => _carrito.agregar(p));
   }
 
   // 🟢 TOTAL
-  double get total => carrito.fold(
-    0,
-    (sum, item) => sum + ((item['precio_compra'] ?? 0) * item['cantidad']),
-  );
+  double get total => _carrito.total;
 
   // 🔍 FILTRAR
   List<Producto> get productosFiltrados {
@@ -86,13 +71,7 @@ class _ComprasViewState extends State<ComprasView> {
 
   // ➕➖ CAMBIAR CANTIDAD
   void cambiarCantidad(int index, int delta) {
-    setState(() {
-      carrito[index]['cantidad'] += delta;
-
-      if (carrito[index]['cantidad'] <= 0) {
-        carrito.removeAt(index);
-      }
-    });
+    setState(() => _carrito.cambiarCantidad(index, delta));
   }
 
   // 🧾 GUARDAR COMPRA
@@ -163,7 +142,7 @@ class _ComprasViewState extends State<ComprasView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
+      backgroundColor: AppColors.background,
 
       appBar: const CustomHeader(titulo: "Compras", mostrarVolver: true),
 
@@ -197,7 +176,7 @@ class _ComprasViewState extends State<ComprasView> {
                           // 🔍 BUSCADOR
                           Container(
                             decoration: BoxDecoration(
-                              color: const Color(0xFFF8F6F2),
+                              color: AppColors.surface,
                               borderRadius: BorderRadius.circular(18),
                             ),
                             child: TextField(
@@ -244,7 +223,7 @@ class _ComprasViewState extends State<ComprasView> {
                                     padding: const EdgeInsets.all(18),
 
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFF9FAFC),
+                                      color: AppColors.surfaceSubtle,
                                       borderRadius: BorderRadius.circular(22),
 
                                       border: Border.all(
@@ -262,7 +241,7 @@ class _ComprasViewState extends State<ComprasView> {
                                           padding: const EdgeInsets.all(12),
 
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFFFFF3C4),
+                                            color: AppColors.primaryLight,
                                             borderRadius: BorderRadius.circular(
                                               14,
                                             ),
@@ -377,7 +356,7 @@ class _ComprasViewState extends State<ComprasView> {
                                 padding: const EdgeInsets.all(12),
 
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF3C4),
+                                  color: AppColors.primaryLight,
                                   borderRadius: BorderRadius.circular(14),
                                 ),
 
@@ -407,7 +386,7 @@ class _ComprasViewState extends State<ComprasView> {
                               labelText: "Proveedor",
 
                               filled: true,
-                              fillColor: const Color(0xFFF8F6F2),
+                              fillColor: AppColors.surface,
 
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(16),
@@ -483,7 +462,7 @@ class _ComprasViewState extends State<ComprasView> {
                                         padding: const EdgeInsets.all(14),
 
                                         decoration: BoxDecoration(
-                                          color: const Color(0xFFF9FAFC),
+                                          color: AppColors.surfaceSubtle,
 
                                           borderRadius: BorderRadius.circular(
                                             18,
@@ -674,7 +653,7 @@ class _ComprasViewState extends State<ComprasView> {
                               style: ElevatedButton.styleFrom(
                                 elevation: 0,
 
-                                backgroundColor: const Color(0xFFF2C500),
+                                backgroundColor: AppColors.primary,
 
                                 foregroundColor: Colors.black,
 

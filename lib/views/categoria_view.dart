@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import '../core/theme/app_colors.dart';
 import '../controllers/categoria_controller.dart';
 import '../models/categoria_model.dart';
 import '../widgets/nav_bar.dart';
+import '../widgets/app_text_field.dart';
+import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/form_dialog.dart';
 
 class CategoriasView extends StatefulWidget {
   const CategoriasView({super.key});
@@ -44,160 +48,54 @@ class _CategoriasViewState extends State<CategoriasView> {
 
     showDialog(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: const Color(0xFFFAF8F4),
-
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-
-        child: Container(
-          width: 420,
-
-          padding: const EdgeInsets.all(28),
-
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-
-            children: [
-              Text(
-                categoria == null ? "Nueva categoría" : "Editar categoría",
-
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF2D2B28),
-                ),
+      builder: (_) => FormDialog(
+        titulo: categoria == null ? "Nueva categoría" : "Editar categoría",
+        subtitulo: "Complete la información de la categoría",
+        campos: [
+          AppTextField(controller: ctrl, hint: "Nombre de categoría"),
+        ],
+        onGuardar: () async {
+          if (ctrl.text.trim().isEmpty) {
+            showDialog(
+              context: context,
+              builder: (_) => const CustomAlert(
+                titulo: "Campo vacío",
+                mensaje: "El nombre de la categoría no puede estar vacío.",
+                icono: Icons.warning_amber_rounded,
+                textoConfirmar: "Aceptar",
               ),
+            );
+            return;
+          }
 
-              const SizedBox(height: 8),
+          final nueva = Categoria(
+            idCategoria: categoria?.idCategoria,
+            nombre: ctrl.text.trim(),
+          );
 
-              const Text(
-                "Complete la información de la categoría",
+          if (categoria == null) {
+            await controller.insertar(nueva);
+          } else {
+            await controller.actualizar(nueva);
+          }
 
-                style: TextStyle(color: Color(0xFF6E6A64), fontSize: 13),
-              ),
+          if (!context.mounted) return;
+          Navigator.pop(context);
+          cargar();
 
-              const SizedBox(height: 24),
-
-              TextField(
-                controller: ctrl,
-
-                decoration: InputDecoration(
-                  hintText: "Nombre de categoría",
-
-                  filled: true,
-                  fillColor: Colors.white,
-
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 18,
-                  ),
-
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 28),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-
-                    child: const Text(
-                      "Cancelar",
-
-                      style: TextStyle(color: Colors.black87),
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  ElevatedButton(
-                    onPressed: () async {
-                      if (ctrl.text.trim().isEmpty){
-                        showDialog(
-                          context: context,
-                          builder: (_) => const CustomAlert(
-                            titulo: "Campo vacío",
-                            mensaje: "El nombre de la categoría no puede estar vacío.",
-                            icono: Icons.warning_amber_rounded,
-                            textoConfirmar: "Aceptar",
-                          ),
-                        );
-                        return;
-                      } 
-
-                      final nueva = Categoria(
-                        idCategoria: categoria?.idCategoria,
-                        nombre: ctrl.text.trim(),
-                      );
-
-                      if (categoria == null) {
-                        await controller.insertar(nueva);
-                      } else {
-                        await controller.actualizar(nueva);
-                      }
-
-                      Navigator.pop(context);
-
-                      cargar();
-
-                      showDialog(
-                        context: context,
-                        builder: (_) => CustomAlert(
-                          titulo: categoria == null
-                              ? "Categoría agregada"
-                              : "Categoría actualizada",
-
-                          mensaje: categoria == null
-                              ? "La categoría ha sido agregada exitosamente."
-                              : "La categoría ha sido actualizada exitosamente.",
-
-                          icono: Icons.check_circle_outline,
-
-                          textoConfirmar: "Aceptar",
-
-                          onConfirm: () {
-
-                          },
-                        ),
-                      );
-                    },
-
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFF2C500),
-
-                      foregroundColor: Colors.black87,
-
-                      elevation: 0,
-
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 22,
-                        vertical: 16,
-                      ),
-
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-
-                    child: const Text(
-                      "Guardar",
-
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+          showDialog(
+            context: context,
+            builder: (_) => CustomAlert(
+              titulo: categoria == null ? "Categoría agregada" : "Categoría actualizada",
+              mensaje: categoria == null
+                  ? "La categoría ha sido agregada exitosamente."
+                  : "La categoría ha sido actualizada exitosamente.",
+              icono: Icons.check_circle_outline,
+              textoConfirmar: "Aceptar",
+              onConfirm: () {},
+            ),
+          );
+        },
       ),
     );
   }
@@ -205,7 +103,7 @@ class _CategoriasViewState extends State<CategoriasView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFAF8F4),
+      backgroundColor: AppColors.background,
 
       appBar: CustomHeader(titulo: "Categorías", mostrarVolver: true),
 
@@ -239,7 +137,7 @@ class _CategoriasViewState extends State<CategoriasView> {
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w800,
-                  color: Color(0xFF2D2B28),
+                  color: AppColors.textPrimary,
                 ),
               ),
 
@@ -248,7 +146,7 @@ class _CategoriasViewState extends State<CategoriasView> {
               const Text(
                 "Administre las categorías disponibles dentro del sistema",
 
-                style: TextStyle(color: Color(0xFF6E6A64), fontSize: 13),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
               ),
 
               const SizedBox(height: 28),
@@ -269,7 +167,7 @@ class _CategoriasViewState extends State<CategoriasView> {
                         prefixIcon: const Icon(Icons.category_outlined),
 
                         filled: true,
-                        fillColor: const Color(0xFFF8F6F2),
+                        fillColor: AppColors.surface,
 
                         contentPadding: const EdgeInsets.symmetric(
                           vertical: 16,
@@ -291,7 +189,7 @@ class _CategoriasViewState extends State<CategoriasView> {
                     label: const Text("Agregar categoría"),
 
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFF2C500),
+                      backgroundColor: AppColors.primary,
 
                       foregroundColor: Colors.black87,
 
@@ -333,7 +231,7 @@ class _CategoriasViewState extends State<CategoriasView> {
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
-                                color: Color(0xFF6E6A64),
+                                color: AppColors.textSecondary,
                               ),
                             ),
                           ],
@@ -357,12 +255,12 @@ class _CategoriasViewState extends State<CategoriasView> {
                             padding: const EdgeInsets.all(20),
 
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFCFBF9),
+                              color: AppColors.surfaceAlt,
 
                               borderRadius: BorderRadius.circular(24),
 
                               border: Border.all(
-                                color: const Color(0xFFF0EBE5),
+                                color: AppColors.border,
                               ),
                             ),
 
@@ -373,14 +271,14 @@ class _CategoriasViewState extends State<CategoriasView> {
                                   height: 52,
 
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFFFFF7D6),
+                                    color: AppColors.primaryLighter,
 
                                     borderRadius: BorderRadius.circular(16),
                                   ),
 
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.category_outlined,
-                                    color: Color(0xFFB27B00),
+                                    color: AppColors.primaryDarker,
                                   ),
                                 ),
 
@@ -393,7 +291,7 @@ class _CategoriasViewState extends State<CategoriasView> {
                                     style: const TextStyle(
                                       fontSize: 17,
                                       fontWeight: FontWeight.w800,
-                                      color: Color(0xFF2D2B28),
+                                      color: AppColors.textPrimary,
                                     ),
                                   ),
                                 ),
@@ -412,39 +310,19 @@ class _CategoriasViewState extends State<CategoriasView> {
                                     PopupMenuItem(
                                       onTap: () {
                                         Future.delayed(Duration.zero, () {
-                                          showDialog(
+                                          confirmarAccion(
                                             context: context,
-                                            builder: (_) => CustomAlert(
-                                              titulo: "Eliminar categoria",
-                                              mensaje:
-                                                  "¿Seguro que deseas eliminar esta categoria?",
-                                              icono:
-                                                  Icons.warning_amber_rounded,
-                                              textoConfirmar: "Eliminar",
-
-                                              onConfirm: () async {
-                                                eliminar(c.idCategoria!);
-
-                                                //Navigator.pop(context);
-
-                                                showDialog(
-                                                  context: context,
-                                                  builder: (_) => CustomAlert(
-                                                    titulo:
-                                                        "Categoría eliminada",
-                                                    mensaje:
-                                                        "La categoría ha sido eliminada exitosamente.",
-                                                    icono: Icons
-                                                        .check_circle_outline,
-                                                    textoConfirmar: "Aceptar",
-
-                                                    onConfirm: () {
-                                                  
-                                                    },
-                                                  ),
-                                                );
-                                              },
-                                            ),
+                                            tituloConfirmar: "Eliminar categoria",
+                                            mensajeConfirmar:
+                                                "¿Seguro que deseas eliminar esta categoria?",
+                                            iconoConfirmar: Icons.warning_amber_rounded,
+                                            textoConfirmar: "Eliminar",
+                                            accion: () async {
+                                              eliminar(c.idCategoria!);
+                                            },
+                                            tituloExito: "Categoría eliminada",
+                                            mensajeExito:
+                                                "La categoría ha sido eliminada exitosamente.",
                                           );
                                         });
                                       },

@@ -1,4 +1,6 @@
 import '../core/database/database_helper.dart';
+import '../core/database/db_exceptions.dart';
+import '../core/security/password_hasher.dart';
 import '../models/usuarios_model.dart';
 import 'auditoria_controller.dart';
 
@@ -7,7 +9,11 @@ class UsuariosController {
 
   Future<int> insertar(Usuarios usuario) async {
     final db = await DatabaseHelper().database;
-    final id = await db.insert('Usuarios', usuario.toMap());
+
+    final datos = usuario.toMap();
+    datos['contra'] = PasswordHasher.hash(usuario.contra);
+
+    final id = await db.insert('Usuarios', datos);
 
     await _auditoriaController.registrar(
       tabla: 'Usuarios',
@@ -26,12 +32,22 @@ class UsuariosController {
     return result.map((e) => Usuarios.fromMap(e)).toList();
   }
 
-  Future<int> actualizar(Usuarios usuario) async {
+  /// Actualiza los datos del usuario. La contraseña solo se modifica cuando
+  /// se pasa [nuevaContrasena] (no vacía); si se omite, se conserva el hash
+  /// ya almacenado en vez de sobrescribirlo.
+  Future<int> actualizar(Usuarios usuario, {String? nuevaContrasena}) async {
     final db = await DatabaseHelper().database;
+
+    final datos = usuario.toMap();
+    if (nuevaContrasena != null && nuevaContrasena.isNotEmpty) {
+      datos['contra'] = PasswordHasher.hash(nuevaContrasena);
+    } else {
+      datos.remove('contra');
+    }
 
     final rows = await db.update(
       'Usuarios',
-      usuario.toMap(),
+      datos,
       where: 'id_usuario = ?',
       whereArgs: [usuario.idUsuario],
     );
@@ -58,10 +74,13 @@ class UsuariosController {
       limit: 1,
     );
 
-    final rows = await db.delete(
-      'Usuarios',
-      where: 'id_usuario = ?',
-      whereArgs: [id],
+    final rows = await ejecutarConMensajeDeIntegridad(
+      () => db.delete(
+        'Usuarios',
+        where: 'id_usuario = ?',
+        whereArgs: [id],
+      ),
+      'No se puede eliminar: el usuario tiene ventas o compras registradas.',
     );
 
     if (rows > 0) {

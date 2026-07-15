@@ -10,38 +10,39 @@ class ComprasController {
   ) async {
     final db = await DatabaseHelper().database;
 
-    // 1. INSERTAR COMPRA (CABECERA)
-    final idCompra = await db.insert('Compras', {
-      "fecha": DateTime.now().toIso8601String(),
-      "total": total,
-      "id_proveedor": idProveedor,
-      "id_usuario": SessionManager.currentUserId ?? 1,
-    });
-
-    // INSERTAR DETALLE + ACTUALIZAR INVENTARIO
-    for (var item in carrito) {
-
-      // detalle compra
-      await db.insert('Detalle_Compra', {
-        "id_compra": idCompra,
-        "id_producto": item['id_producto'],
-        "cantidad": item['cantidad'],
-        "precio": item['precio_compra'] ?? 0,
+    await db.transaction((txn) async {
+      // 1. INSERTAR COMPRA (CABECERA)
+      final idCompra = await txn.insert('Compras', {
+        "fecha": DateTime.now().toIso8601String(),
+        "total": total,
+        "id_proveedor": idProveedor,
+        "id_usuario": SessionManager.currentUserId ?? 1,
       });
 
-      // actualizar inventario (SUMA STOCK)
-      await db.rawUpdate(
-        '''
-        UPDATE Inventario 
-        SET cantidad = cantidad + ? 
-        WHERE id_producto = ?
-        ''',
-        [
-          item['cantidad'],
-          item['id_producto'],
-        ],
-      );
-    }
+      // INSERTAR DETALLE + ACTUALIZAR INVENTARIO
+      for (var item in carrito) {
+        // detalle compra
+        await txn.insert('Detalle_Compra', {
+          "id_compra": idCompra,
+          "id_producto": item['id_producto'],
+          "cantidad": item['cantidad'],
+          "precio": item['precio_compra'] ?? 0,
+        });
+
+        // actualizar inventario (SUMA STOCK)
+        await txn.rawUpdate(
+          '''
+          UPDATE Inventario
+          SET cantidad = cantidad + ?
+          WHERE id_producto = ?
+          ''',
+          [
+            item['cantidad'],
+            item['id_producto'],
+          ],
+        );
+      }
+    });
   }
 
   // OBTENER TODAS LAS COMPRAS
@@ -72,40 +73,42 @@ class ComprasController {
   Future<void> eliminarCompra(int idCompra) async {
     final db = await DatabaseHelper().database;
 
-    // obtener detalles
-    final detalles = await db.query(
-      'Detalle_Compra',
-      where: 'id_compra = ?',
-      whereArgs: [idCompra],
-    );
-
-    // revertir inventario
-    for (var item in detalles) {
-      await db.rawUpdate(
-        '''
-        UPDATE Inventario 
-        SET cantidad = cantidad - ? 
-        WHERE id_producto = ?
-        ''',
-        [
-          item['cantidad'] ?? 0,
-          item['id_producto'],
-        ],
+    await db.transaction((txn) async {
+      // obtener detalles
+      final detalles = await txn.query(
+        'Detalle_Compra',
+        where: 'id_compra = ?',
+        whereArgs: [idCompra],
       );
-    }
 
-    // borrar detalle
-    await db.delete(
-      'Detalle_Compra',
-      where: 'id_compra = ?',
-      whereArgs: [idCompra],
-    );
+      // revertir inventario
+      for (var item in detalles) {
+        await txn.rawUpdate(
+          '''
+          UPDATE Inventario
+          SET cantidad = cantidad - ?
+          WHERE id_producto = ?
+          ''',
+          [
+            item['cantidad'] ?? 0,
+            item['id_producto'],
+          ],
+        );
+      }
 
-    // borrar compra
-    await db.delete(
-      'Compras',
-      where: 'id_compra = ?',
-      whereArgs: [idCompra],
-    );
+      // borrar detalle
+      await txn.delete(
+        'Detalle_Compra',
+        where: 'id_compra = ?',
+        whereArgs: [idCompra],
+      );
+
+      // borrar compra
+      await txn.delete(
+        'Compras',
+        where: 'id_compra = ?',
+        whereArgs: [idCompra],
+      );
+    });
   }
 }

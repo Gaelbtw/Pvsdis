@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../controllers/auth_controller.dart';
 import '../core/session/session_manager.dart';
+import '../core/theme/app_colors.dart';
 import '../views/home_view.dart';
 import '../widgets/custom_alert.dart';
 
@@ -41,7 +42,7 @@ void login() async {
 
   setState(() => loading = true);
 
-  final user = await authController.login(
+  final resultado = await authController.login(
     usuarioController.text.trim(),
     passwordController.text.trim(),
   );
@@ -50,61 +51,65 @@ void login() async {
 
   setState(() => loading = false);
 
-  if (user == null) {
+  switch (resultado.status) {
+    case LoginStatus.usuarioNoEncontrado:
+      showDialog(
+        context: context,
+        builder: (_) => CustomAlert(
+          titulo: "Usuario incorrecto",
+          mensaje: "El usuario ingresado no existe.",
+          icono: Icons.person_off_outlined,
+          textoConfirmar: "Aceptar",
 
-    showDialog(
-      context: context,
-      builder: (_) => CustomAlert(
-        titulo: "Usuario incorrecto",
-        mensaje: "El usuario ingresado no existe.",
-        icono: Icons.person_off_outlined,
-        textoConfirmar: "Aceptar",
+          onConfirm: () {},
+        ),
+      );
+      break;
 
-        onConfirm: () {},
-      ),
-    );
+    case LoginStatus.contrasenaIncorrecta:
+      showDialog(
+        context: context,
+        builder: (_) => CustomAlert(
+          titulo: "Contraseña incorrecta",
+          mensaje: "La contraseña ingresada es incorrecta.",
+          icono: Icons.lock_outline,
+          textoConfirmar: "Aceptar",
 
-  } else if (user.isEmpty) {
+          onConfirm: () {},
+        ),
+      );
+      break;
 
-    showDialog(
-      context: context,
-      builder: (_) => CustomAlert(
-        titulo: "Contraseña incorrecta",
-        mensaje: "La contraseña ingresada es incorrecta.",
-        icono: Icons.lock_outline,
-        textoConfirmar: "Aceptar",
+    case LoginStatus.success:
+      final user = resultado.usuario!;
 
-        onConfirm: () {},
-      ),
-    );
+      SessionManager.setUser(
+        id: user['id_usuario'] as int?,
+        nombre: user['nombre']?.toString() ?? 'Admin',
+        rol: user['rol']?.toString() ?? 'Administrador',
+      );
 
-  } else {
-    SessionManager.setUser(
-      id: user['id_usuario'] as int?,
-      nombre: user['nombre']?.toString() ?? 'Admin',
-      rol: user['rol']?.toString() ?? 'Administrador',
-    );
+      showDialog(
+        context: context,
+        builder: (_) => CustomAlert(
+          titulo: "Sesión iniciada",
+          mensaje: "Bienvenido al sistema.",
+          icono: Icons.check_circle_outline,
+          textoConfirmar: "Continuar",
 
-    showDialog(
-      context: context,
-      builder: (_) => CustomAlert(
-        titulo: "Sesión iniciada",
-        mensaje: "Bienvenido al sistema.",
-        icono: Icons.check_circle_outline,
-        textoConfirmar: "Continuar",
-
-        onConfirm: () {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (_) => HomeView(
-                rol: user['rol'],
+          onConfirm: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (_) => HomeView(
+                  rol: user['rol'],
+                ),
               ),
-            ),
-          );
-        },
-      ),
-    );
+            );
+          },
+        ),
+      );
+      break;
   }
 }
 
@@ -118,7 +123,7 @@ void login() async {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
+      backgroundColor: AppColors.background,
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(
@@ -150,13 +155,13 @@ void login() async {
                     height: 90,
                     width: 90,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF2C500).withOpacity(0.15),
+                      color: AppColors.primary.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(24),
                     ),
-                    child: const Icon(
+                    child: Icon(
                       Icons.storefront_rounded,
                       size: 50,
-                      color: Color(0xFFD9A600),
+                      color: AppColors.primaryDark,
                     ),
                   ),
 
@@ -191,7 +196,7 @@ void login() async {
                       labelText: "Usuario",
                       prefixIcon: const Icon(Icons.person_outline),
                       filled: true,
-                      fillColor: const Color(0xFFF8F9FC),
+                      fillColor: AppColors.surfaceSubtle,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide.none,
@@ -209,7 +214,7 @@ void login() async {
                       labelText: "Contraseña",
                       prefixIcon: const Icon(Icons.lock_outline),
                       filled: true,
-                      fillColor: const Color(0xFFF8F9FC),
+                      fillColor: AppColors.surfaceSubtle,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                         borderSide: BorderSide.none,
@@ -237,7 +242,7 @@ void login() async {
                     child: ElevatedButton(
                       onPressed: loading ? null : login,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFF2C500),
+                        backgroundColor: AppColors.primary,
                         foregroundColor: Colors.black87,
                         elevation: 0,
                         shape: RoundedRectangleBorder(

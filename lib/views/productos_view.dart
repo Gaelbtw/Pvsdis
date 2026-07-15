@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import '../core/theme/app_colors.dart';
 import '../controllers/producto_controller.dart';
 import '../controllers/categoria_controller.dart';
 import '../models/producto_model.dart';
 import '../models/categoria_model.dart';
 import '../widgets/nav_bar.dart';
 import '../core/session/session_manager.dart';
+import '../widgets/app_text_field.dart';
+import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/form_dialog.dart';
 import 'categoria_view.dart';
 
 class ProductosView extends StatefulWidget {
@@ -16,13 +20,14 @@ class ProductosView extends StatefulWidget {
 }
 
 class _ProductosViewState extends State<ProductosView> {
-  final controller = ProductoService();
+  final controller = ProductoController();
   final categoriaController = CategoriaController();
 
   final nombreCtrl = TextEditingController();
   final descCtrl = TextEditingController();
   final precioCtrl = TextEditingController();
   final precioCompraCtrl = TextEditingController();
+  final codigoBarrasCtrl = TextEditingController();
 
   List<Producto> productos = [];
   List<Producto> filtrados = [];
@@ -55,8 +60,10 @@ class _ProductosViewState extends State<ProductosView> {
       return;
     }
 
+    final consulta = query.toLowerCase();
     final resultado = productos.where((p) {
-      return p.nombre.toLowerCase().contains(query.toLowerCase());
+      return p.nombre.toLowerCase().contains(consulta) ||
+          (p.codigoBarras?.toLowerCase().contains(consulta) ?? false);
     }).toList();
 
     setState(() => filtrados = resultado);
@@ -75,235 +82,169 @@ class _ProductosViewState extends State<ProductosView> {
       estado = producto.estado;
       categoriaSeleccionada = producto.categoriaId;
       stockCtrl.text = producto.stockMinimo.toString();
+      codigoBarrasCtrl.text = producto.codigoBarras ?? "";
     } else {
       nombreCtrl.clear();
       descCtrl.clear();
       precioCtrl.clear();
       precioCompraCtrl.clear();
       stockCtrl.clear();
+      codigoBarrasCtrl.clear();
       categoriaSeleccionada = null;
     }
 
     showDialog(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: const Color(0xFFFAF8F4),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        child: Container(
-          width: 520,
-          padding: const EdgeInsets.all(28),
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  producto == null ? "Nuevo Producto" : "Editar Producto",
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w800,
-                    color: Color(0xFF2D2B28),
-                  ),
+      builder: (_) => FormDialog(
+        titulo: producto == null ? "Nuevo Producto" : "Editar Producto",
+        subtitulo: "Complete la información del producto",
+        campos: [
+          AppTextField(controller: nombreCtrl, hint: "Nombre"),
+          AppTextField(controller: descCtrl, hint: "Descripción", maxLines: 3),
+          Row(
+            children: [
+              Expanded(
+                child: AppTextField(
+                  controller: precioCtrl,
+                  hint: "Precio",
+                  keyboardType: TextInputType.number,
                 ),
-
-                const SizedBox(height: 8),
-
-                const Text(
-                  "Complete la información del producto",
-                  style: TextStyle(color: Color(0xFF6E6A64), fontSize: 13),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: AppTextField(
+                  controller: precioCompraCtrl,
+                  hint: "Precio compra",
+                  keyboardType: TextInputType.number,
                 ),
-
-                const SizedBox(height: 24),
-
-                _input(nombreCtrl, "Nombre"),
-                const SizedBox(height: 16),
-
-                _input(descCtrl, "Descripción", maxLines: 3),
-                const SizedBox(height: 16),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: _input(
-                        precioCtrl,
-                        "Precio",
-                        keyboard: TextInputType.number,
-                      ),
-                    ),
-
-                    const SizedBox(width: 16),
-
-                    Expanded(
-                      child: _input(
-                        precioCompraCtrl,
-                        "Precio compra",
-                        keyboard: TextInputType.number,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 16),
-
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: DropdownButtonFormField<int>(
-                    value: categoriaSeleccionada,
-                    decoration: const InputDecoration(border: InputBorder.none),
-                    hint: const Text("Seleccionar categoría"),
-                    items: categorias.map((cat) {
-                      return DropdownMenuItem(
-                        value: cat.idCategoria,
-                        child: Text(cat.nombre),
-                      );
-                    }).toList(),
-                    onChanged: (v) {
-                      categoriaSeleccionada = v;
-                    },
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                _input(
-                  stockCtrl,
-                  "Stock mínimo",
-                  keyboard: TextInputType.number,
-                ),
-
-                const SizedBox(height: 16),
-
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: DropdownButtonFormField<String>(
-                    value: estado,
-                    decoration: const InputDecoration(border: InputBorder.none),
-                    items: ["Activo", "Inactivo"]
-                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                        .toList(),
-                    onChanged: (v) {
-                      estado = v!;
-                    },
-                  ),
-                ),
-
-                const SizedBox(height: 28),
-
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text(
-                        "Cancelar",
-                        style: TextStyle(color: Colors.black87),
-                      ),
-                    ),
-
-                    const SizedBox(width: 12),
-
-                    ElevatedButton(
-                      onPressed: () async {
-                      
-
-                        double precio = double.tryParse(precioCtrl.text) ?? 0;
-
-                        int stock = int.tryParse(stockCtrl.text) ?? 0;
-
-                        final nuevo = Producto(
-                          idProducto: producto?.idProducto,
-                          nombre: nombreCtrl.text,
-                          descripcion: descCtrl.text,
-                          precio: precio,
-                          precioCompra:
-                              double.tryParse(precioCompraCtrl.text) ?? 0,
-                          categoriaId: categoriaSeleccionada,
-                          estado: estado,
-                          stockMinimo: stock,
-                        );
-
-                        if (producto == null) {
-                          await controller.insertar(nuevo, stock);
-                        } else {
-                          await controller.actualizar(nuevo);
-                          // El stock actual se gestiona desde la vista de Inventario
-                        }
-
-                        Navigator.pop(context);
-                        cargar();
-
-                          showDialog (
-                              context: context,
-                              builder: (_) => CustomAlert(
-                                titulo: producto == null ? "Producto agregado" : "Producto actualizado",
-                                mensaje: producto == null
-                                    ? "El producto ha sido agregado exitosamente."
-                                    : "El producto ha sido actualizado exitosamente.",
-                                icono: Icons.check_circle_outline,
-                                textoConfirmar: "Aceptar",
-                                onConfirm: () {
-                                },
-                              ),
-                            );
-
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFF2C500),
-                        foregroundColor: Colors.black87,
-                        elevation: 0,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 22,
-                          vertical: 16,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      
-                      child: const Text(
-                        "Guardar",
-                        style: TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+              ),
+            ],
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: DropdownButtonFormField<int>(
+              value: categoriaSeleccionada,
+              decoration: const InputDecoration(border: InputBorder.none),
+              hint: const Text("Seleccionar categoría"),
+              items: categorias.map((cat) {
+                return DropdownMenuItem(
+                  value: cat.idCategoria,
+                  child: Text(cat.nombre),
+                );
+              }).toList(),
+              onChanged: (v) {
+                categoriaSeleccionada = v;
+              },
             ),
           ),
-        ),
-      ),
-    );
-  }
+          AppTextField(
+            controller: stockCtrl,
+            hint: "Stock mínimo",
+            keyboardType: TextInputType.number,
+          ),
+          AppTextField(
+            controller: codigoBarrasCtrl,
+            hint: "Código de barras (opcional)",
+            icon: Icons.qr_code_scanner,
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: DropdownButtonFormField<String>(
+              value: estado,
+              decoration: const InputDecoration(border: InputBorder.none),
+              items: ["Activo", "Inactivo"]
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                  .toList(),
+              onChanged: (v) {
+                estado = v!;
+              },
+            ),
+          ),
+        ],
+        onGuardar: () async {
+          double precio = double.tryParse(precioCtrl.text) ?? 0;
+          int stock = int.tryParse(stockCtrl.text) ?? 0;
+          final codigoBarras = Producto.normalizarCodigoBarras(codigoBarrasCtrl.text);
 
-  Widget _input(
-    TextEditingController controller,
-    String hint, {
-    int maxLines = 1,
-    TextInputType keyboard = TextInputType.text,
-  }) {
-    return TextField(
-      controller: controller,
-      maxLines: maxLines,
-      keyboardType: keyboard,
-      decoration: InputDecoration(
-        hintText: hint,
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 18,
-          vertical: 18,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
-        ),
+          if (codigoBarras != null) {
+            final duplicado = await controller.existeCodigoBarras(
+              codigoBarras,
+              excluirId: producto?.idProducto,
+            );
+
+            if (duplicado) {
+              if (!context.mounted) return;
+              showDialog(
+                context: context,
+                builder: (_) => const CustomAlert(
+                  titulo: "Código duplicado",
+                  mensaje: "Ya existe otro producto con ese código de barras.",
+                  icono: Icons.error_outline,
+                  textoConfirmar: "Aceptar",
+                ),
+              );
+              return;
+            }
+          }
+
+          final nuevo = Producto(
+            idProducto: producto?.idProducto,
+            nombre: nombreCtrl.text,
+            descripcion: descCtrl.text,
+            precio: precio,
+            precioCompra: double.tryParse(precioCompraCtrl.text) ?? 0,
+            categoriaId: categoriaSeleccionada,
+            estado: estado,
+            stockMinimo: stock,
+            codigoBarras: codigoBarras,
+          );
+
+          try {
+            if (producto == null) {
+              await controller.insertar(nuevo, stock);
+            } else {
+              await controller.actualizar(nuevo);
+              // El stock actual se gestiona desde la vista de Inventario
+            }
+          } catch (e) {
+            if (!context.mounted) return;
+            showDialog(
+              context: context,
+              builder: (_) => CustomAlert(
+                titulo: "No se pudo guardar",
+                mensaje: e.toString().replaceFirst("Exception: ", ""),
+                icono: Icons.error_outline,
+                textoConfirmar: "Aceptar",
+              ),
+            );
+            return;
+          }
+
+          if (!context.mounted) return;
+          Navigator.pop(context);
+          cargar();
+
+          showDialog(
+            context: context,
+            builder: (_) => CustomAlert(
+              titulo: producto == null ? "Producto agregado" : "Producto actualizado",
+              mensaje: producto == null
+                  ? "El producto ha sido agregado exitosamente."
+                  : "El producto ha sido actualizado exitosamente.",
+              icono: Icons.check_circle_outline,
+              textoConfirmar: "Aceptar",
+              onConfirm: () {},
+            ),
+          );
+        },
       ),
     );
   }
@@ -316,7 +257,7 @@ class _ProductosViewState extends State<ProductosView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFAF8F4),
+      backgroundColor: AppColors.background,
 
       appBar: CustomHeader(titulo: "Productos", mostrarVolver: true),
 
@@ -360,7 +301,7 @@ class _ProductosViewState extends State<ProductosView> {
                         prefixIcon: const Icon(Icons.search),
 
                         filled: true,
-                        fillColor: const Color(0xFFF8F6F2),
+                        fillColor: AppColors.surface,
 
                         contentPadding: const EdgeInsets.symmetric(
                           vertical: 14,
@@ -383,7 +324,7 @@ class _ProductosViewState extends State<ProductosView> {
                       label: const Text("Nuevo producto"),
 
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFF2C500),
+                        backgroundColor: AppColors.primary,
 
                         foregroundColor: Colors.black87,
 
@@ -423,7 +364,7 @@ class _ProductosViewState extends State<ProductosView> {
                           vertical: 18,
                         ),
 
-                        side: const BorderSide(color: Color(0xFFE5DED3)),
+                        side: const BorderSide(color: AppColors.border),
 
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
@@ -437,7 +378,7 @@ class _ProductosViewState extends State<ProductosView> {
 
               const Text(
                 "Administre los productos registrados dentro del sistema",
-                style: TextStyle(color: Color(0xFF6E6A64), fontSize: 13),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
               ),
 
               const SizedBox(height: 24),
@@ -460,11 +401,11 @@ class _ProductosViewState extends State<ProductosView> {
                       padding: const EdgeInsets.all(12),
 
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFCFBF9),
+                        color: AppColors.surfaceAlt,
 
                         borderRadius: BorderRadius.circular(24),
 
-                        border: Border.all(color: const Color(0xFFF0EBE5)),
+                        border: Border.all(color: AppColors.border),
                       ),
 
                       child: Column(
@@ -480,7 +421,7 @@ class _ProductosViewState extends State<ProductosView> {
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 17,
-                                    color: Color(0xFF2D2B28),
+                                    color: AppColors.textPrimary,
                                   ),
                                 ),
                               ),
@@ -498,36 +439,19 @@ class _ProductosViewState extends State<ProductosView> {
                                     PopupMenuItem(
                                       onTap: () {
                                         Future.delayed(Duration.zero, () {
-                                          showDialog(
+                                          confirmarAccion(
                                             context: context,
-                                            builder: (_) => CustomAlert(
-                                              titulo: "Eliminar producto",
-                                              mensaje:
-                                                  "¿Seguro que deseas eliminar este producto?",
-                                              icono: Icons.warning_amber_rounded,
-                                              textoConfirmar: "Eliminar",
-
-                                              onConfirm: () async {
-                                                eliminar(p.idProducto!);
-
-                                                //Navigator.pop(context);
-
-                                                showDialog(
-                                                  context: context,
-                                                  builder: (_) => CustomAlert(
-                                                    titulo: "Producto eliminado",
-                                                    mensaje:
-                                                        "El producto ha sido eliminado exitosamente.",
-                                                    icono: Icons.check_circle_outline,
-                                                    textoConfirmar: "Aceptar",
-
-                                                    onConfirm: () {
-                                              
-                                                    },
-                                                  ),
-                                                );
-                                              },
-                                            ),
+                                            tituloConfirmar: "Eliminar producto",
+                                            mensajeConfirmar:
+                                                "¿Seguro que deseas eliminar este producto?",
+                                            iconoConfirmar: Icons.warning_amber_rounded,
+                                            textoConfirmar: "Eliminar",
+                                            accion: () async {
+                                              eliminar(p.idProducto!);
+                                            },
+                                            tituloExito: "Producto eliminado",
+                                            mensajeExito:
+                                                "El producto ha sido eliminado exitosamente.",
                                           );
                                         });
                                       },
@@ -548,7 +472,7 @@ class _ProductosViewState extends State<ProductosView> {
                             overflow: TextOverflow.ellipsis,
 
                             style: const TextStyle(
-                              color: Color(0xFF6F6A63),
+                              color: AppColors.textSecondary,
                               height: 1.5,
                             ),
                           ),
@@ -564,7 +488,7 @@ class _ProductosViewState extends State<ProductosView> {
                                 ),
 
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFFFF7D6),
+                                  color: AppColors.primaryLighter,
 
                                   borderRadius: BorderRadius.circular(30),
                                 ),
@@ -572,10 +496,10 @@ class _ProductosViewState extends State<ProductosView> {
                                 child: Text(
                                   p.categoriaNombre ?? "Sin categoría",
 
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontWeight: FontWeight.w700,
                                     fontSize: 12,
-                                    color: Color(0xFFB27B00),
+                                    color: AppColors.primaryDarker,
                                   ),
                                 ),
                               ),

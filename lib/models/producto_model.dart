@@ -8,6 +8,7 @@ class Producto {
   final double? precioCompra;
   final int? categoriaId;
   final String? categoriaNombre;
+  final String? codigoBarras;
 
   const Producto({
     this.idProducto,
@@ -19,7 +20,16 @@ class Producto {
     this.precioCompra,
     this.categoriaId,
     this.categoriaNombre,
+    this.codigoBarras,
   });
+
+  /// Normaliza un código de barras ingresado por el usuario: recorta
+  /// espacios y convierte cadenas vacías a `null`, para no guardar `""`
+  /// como si fuera un valor real (evita falsos duplicados/columna sucia).
+  static String? normalizarCodigoBarras(String? valor) {
+    final limpio = valor?.trim();
+    return (limpio == null || limpio.isEmpty) ? null : limpio;
+  }
 
   Map<String, dynamic> toMap() {
     final map = <String, dynamic>{
@@ -30,6 +40,7 @@ class Producto {
       'id_categoria': categoriaId,
       'estado': estado,
       'stock_minimo': stockMinimo,
+      'codigo_barras': normalizarCodigoBarras(codigoBarras),
     };
 
     if (idProducto != null) {
@@ -51,6 +62,7 @@ class Producto {
       precioCompra: map["precio_compra"],
       categoriaId: map["id_categoria"],
       categoriaNombre: map["categoria_nombre"],
+      codigoBarras: map["codigo_barras"],
     );
   }
 }

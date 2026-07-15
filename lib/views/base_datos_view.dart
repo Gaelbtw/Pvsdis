@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../controllers/database_backup_controller.dart';
+import '../core/config/app_config.dart';
 import '../core/session/session_manager.dart';
+import '../core/theme/app_colors.dart';
 import '../models/database_backup_model.dart';
 import '../widgets/custom_alert.dart';
 import 'login_view.dart';
@@ -10,7 +12,7 @@ import 'login_view.dart';
 const _databaseHeaderStyle = TextStyle(
   fontSize: 11,
   fontWeight: FontWeight.w800,
-  color: Color(0xFF3C3935),
+  color: AppColors.textMuted,
 );
 
 enum DatabaseTab { backup, restore }
@@ -160,9 +162,9 @@ final confirmar = await showDialog<bool>(
     final now = DateTime.now();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFAF8F4),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFFFAF8F4),
+        backgroundColor: AppColors.background,
         elevation: 0,
         leadingWidth: 110,
         leading: TextButton.icon(
@@ -178,15 +180,15 @@ final confirmar = await showDialog<bool>(
             Container(
               width: 20,
               height: 20,
-              decoration: const BoxDecoration(
-                color: Color(0xFFF2C500),
+              decoration: BoxDecoration(
+                color: AppColors.primary,
                 shape: BoxShape.circle,
               ),
             ),
             const SizedBox(width: 10),
-            const Text(
-              'La Lomita',
-              style: TextStyle(
+            Text(
+              AppConfig.actual.nombreNegocio,
+              style: const TextStyle(
                 color: Colors.black87,
                 fontWeight: FontWeight.w800,
               ),
@@ -227,10 +229,10 @@ final confirmar = await showDialog<bool>(
                 ),
                 Text(
                   SessionManager.currentUserRole.toUpperCase(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 10,
-                    color: Color(0xFFCC9A00),
+                    color: AppColors.primaryDark,
                   ),
                 ),
               ],
@@ -353,7 +355,7 @@ final confirmar = await showDialog<bool>(
                   backups.isEmpty
                       ? 'Sin respaldos generados'
                       : 'Ultimo: ${_fechaHora(backups.first.modifiedAt)}',
-                  style: const TextStyle(color: Color(0xFF6E6A64)),
+                  style: const TextStyle(color: AppColors.textSecondary),
                 ),
               ),
             ],
@@ -459,7 +461,7 @@ final confirmar = await showDialog<bool>(
   Widget _topInfo(IconData icon, String text) {
     return Row(
       children: [
-        Icon(icon, size: 16, color: const Color(0xFFDA9B00)),
+        Icon(icon, size: 16, color: AppColors.primaryDark),
         const SizedBox(width: 6),
         Text(
           text,

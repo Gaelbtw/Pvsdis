@@ -3,11 +3,14 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../widgets/custom_alert.dart';
+import '../controllers/reporte_controller.dart';
+import '../core/config/app_config.dart';
 import '../core/session/session_manager.dart';
-import '../core/database/database_helper.dart';
+import '../core/theme/app_colors.dart';
 import '../services/ticket_compras_service.dart';
 import '../services/ticket_service.dart';
 import '../widgets/nav_bar.dart';
+import 'detalle_venta_view.dart';
 
 class ReporteView extends StatefulWidget {
   const ReporteView({super.key});
@@ -17,6 +20,8 @@ class ReporteView extends StatefulWidget {
 }
 
 class _ReporteViewState extends State<ReporteView> {
+  final _reporteController = ReporteController();
+
   DateTime desde = DateTime.now().subtract(const Duration(days: 6));
   DateTime hasta = DateTime.now();
   bool cargando = false;
@@ -67,169 +72,38 @@ class _ReporteViewState extends State<ReporteView> {
   }
 
 Future<void> _cargarReportesVentas() async {
-  final db = await DatabaseHelper().database;
-
-  final fechaInicio =
-      desde.toIso8601String().substring(0, 10);
-
-  final fechaFin =
-      hasta.toIso8601String().substring(0, 10);
-
-  final filtroUsuario =
-      esCajero ? 'AND id_usuario = ?' : '';
-
-  final params = esCajero
-      ? [fechaInicio, fechaFin, usuarioId]
-      : [fechaInicio, fechaFin];
-
-  // RESUMEN
-  final summary = await db.rawQuery(
-    '''
-    SELECT
-      COUNT(*) as ventas,
-      IFNULL(SUM(total), 0) as ingresos
-    FROM Ventas
-    WHERE date(fecha) BETWEEN date(?) AND date(?)
-    $filtroUsuario
-    ''',
-    params,
-  );
-
-  // PRODUCTOS
-  final productos = await db.rawQuery(
-    '''
-    SELECT
-      Producto.nombre,
-      SUM(Detalle_Venta.cantidad) as total
-
-    FROM Detalle_Venta
-
-    INNER JOIN Ventas
-      ON Ventas.id_venta = Detalle_Venta.id_venta
-
-    INNER JOIN Producto
-      ON Producto.id_producto = Detalle_Venta.id_producto
-
-    WHERE date(Ventas.fecha)
-      BETWEEN date(?) AND date(?)
-
-    ${esCajero ? 'AND Ventas.id_usuario = ?' : ''}
-
-    GROUP BY Producto.nombre
-    ORDER BY total DESC
-    LIMIT 10
-    ''',
-    params,
-  );
-
-  // VENTAS
-  final ventas = await db.rawQuery(
-    '''
-    SELECT
-      Ventas.id_venta,
-      Ventas.fecha,
-      Ventas.total,
-      Ventas.metodo_pago,
-      Clientes.nombre as cliente
-
-    FROM Ventas
-
-    LEFT JOIN Clientes
-      ON Clientes.id_cliente = Ventas.id_cliente
-
-    WHERE date(fecha)
-      BETWEEN date(?) AND date(?)
-
-    $filtroUsuario
-
-    ORDER BY fecha DESC
-    LIMIT 20
-    ''',
-    params,
+  final resumen = await _reporteController.obtenerReporteVentas(
+    desde: desde,
+    hasta: hasta,
+    filtrarPorUsuario: esCajero,
+    usuarioId: usuarioId,
   );
 
   if (!mounted) return;
 
   setState(() {
-    totalVentas =
-        summary.first['ventas'] as int? ?? 0;
-
-    ingresosTotales =
-        (summary.first['ingresos'] as num?)
-            ?.toDouble() ??
-        0;
-
-    productosVendidos = productos;
-
-    ventasRecientes = ventas;
+    totalVentas = resumen.totalVentas;
+    ingresosTotales = resumen.ingresosTotales;
+    productosVendidos = resumen.productosVendidos;
+    ventasRecientes = resumen.ventasRecientes;
   });
 }
 
   Future<void> _cargarReportesCompras() async {
-  final db = await DatabaseHelper().database;
-  final fechaInicio = desde.toIso8601String().substring(0, 10);
-  final fechaFin = hasta.toIso8601String().substring(0, 10);
-
-  final summary = await db.rawQuery(
-    '''
-    SELECT
-      COUNT(*) as compras,
-      IFNULL(SUM(total), 0) as gasto
-    FROM Compras
-    WHERE date(fecha) BETWEEN date(?) AND date(?)
-    ${esCajero ? 'AND id_usuario = ?' : ''}
-    ''',
-    esCajero
-        ? [fechaInicio, fechaFin, SessionManager.currentUserId]
-        : [fechaInicio, fechaFin],
-  );
-
-  final productos = await db.rawQuery(
-    '''
-    SELECT
-      Producto.nombre,
-      SUM(IFNULL(Detalle_Compra.cantidad, 1)) as total
-    FROM Detalle_Compra
-    INNER JOIN Compras ON Compras.id_compra = Detalle_Compra.id_compra
-    INNER JOIN Producto ON Producto.id_producto = Detalle_Compra.id_producto
-    WHERE date(Compras.fecha) BETWEEN date(?) AND date(?)
-    ${esCajero ? 'AND Compras.id_usuario = ?' : ''}
-    GROUP BY Producto.nombre
-    ORDER BY total DESC
-    LIMIT 10
-    ''',
-    esCajero
-        ? [fechaInicio, fechaFin, SessionManager.currentUserId]
-        : [fechaInicio, fechaFin],
-  );
-
-  final compras = await db.rawQuery(
-    '''
-    SELECT
-      Compras.id_compra,
-      Compras.fecha,
-      Compras.total,
-      Proveedores.nombre as proveedor
-    FROM Compras
-    LEFT JOIN Proveedores 
-      ON Proveedores.id_proveedor = Compras.id_proveedor
-    WHERE date(Compras.fecha) BETWEEN date(?) AND date(?)
-    ${esCajero ? 'AND Compras.id_usuario = ?' : ''}
-    ORDER BY Compras.fecha DESC
-    LIMIT 20
-    ''',
-    esCajero
-        ? [fechaInicio, fechaFin, SessionManager.currentUserId]
-        : [fechaInicio, fechaFin],
+  final resumen = await _reporteController.obtenerReporteCompras(
+    desde: desde,
+    hasta: hasta,
+    filtrarPorUsuario: esCajero,
+    usuarioId: SessionManager.currentUserId,
   );
 
   if (!mounted) return;
 
   setState(() {
-    totalCompras = summary.first['compras'] as int? ?? 0;
-    gastoTotal = (summary.first['gasto'] as num?)?.toDouble() ?? 0;
-    productosComprados = productos;
-    comprasRecientes = compras;
+    totalCompras = resumen.totalCompras;
+    gastoTotal = resumen.gastoTotal;
+    productosComprados = resumen.productosComprados;
+    comprasRecientes = resumen.comprasRecientes;
   });
 }
 
@@ -285,7 +159,7 @@ Future<void> _cargarReportesVentas() async {
                 crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Text(
-                    'La Lomita',
+                    AppConfig.actual.nombreNegocio,
                     style: pw.TextStyle(
                       fontSize: 24,
                       fontWeight: pw.FontWeight.bold,
@@ -392,17 +266,21 @@ Future<void> _cargarReportesVentas() async {
 
     return pw.Table.fromTextArray(
       headers: esVentas
-          ? const ['Folio', 'Fecha', 'Cliente', 'Pago', 'Total']
+          ? const ['Folio', 'Fecha', 'Cliente', 'Pago', 'Estado', 'Total']
           : const ['Folio', 'Fecha', 'Proveedor', 'Total'],
       data: movimientos.map((item) {
         final fecha = DateTime.tryParse(item['fecha']?.toString() ?? '');
         if (esVentas) {
+          final totalNeto = (item['total_neto'] as num?)?.toDouble() ??
+              (item['total'] as num?)?.toDouble() ??
+              0;
           return [
             '#${item['id_venta']}',
             fecha == null ? '' : _formatDate(fecha),
             item['cliente']?.toString() ?? 'Final',
             item['metodo_pago']?.toString() ?? 'efectivo',
-            '\$${((item['total'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}',
+            item['estado']?.toString() ?? 'Activa',
+            '\$${totalNeto.toStringAsFixed(2)}',
           ];
         }
 
@@ -427,26 +305,8 @@ Future<void> _cargarReportesVentas() async {
   String cliente,
   String fecha,
 ) async {
-  final db = await DatabaseHelper().database;
-
-  final detalles = await db.rawQuery(
-    '''
-    SELECT Producto.nombre, Detalle_Venta.cantidad, Detalle_Venta.precio
-    FROM Detalle_Venta
-    INNER JOIN Producto ON Producto.id_producto = Detalle_Venta.id_producto
-    WHERE Detalle_Venta.id_venta = ?
-    ''',
-    [idVenta],
-  );
-
-  final carrito = detalles.map((item) {
-    return {
-      'id_producto': null,
-      'nombre': item['nombre'],
-      'precio': item['precio'],
-      'cantidad': item['cantidad'],
-    };
-  }).toList();
+  final carrito = await _reporteController.obtenerDetalleVentaParaTicket(idVenta);
+  final totales = await _reporteController.obtenerTotalesVentaParaTicket(idVenta);
 
   if (!mounted) return;
 
@@ -458,6 +318,7 @@ Future<void> _cargarReportesVentas() async {
           'Cliente: ${cliente.isNotEmpty ? cliente : 'Consumidor final'}\n\n'
           'Fecha: ${_formatDate(DateTime.parse(fecha))}\n'
           'Método: $metodoPago\n\n'
+          '${totales.descuentoTotal > 0 ? 'Subtotal: \$${totales.subtotal.toStringAsFixed(2)}\nDescuento: -\$${totales.descuentoTotal.toStringAsFixed(2)}\n' : ''}'
           'Total: \$${total.toStringAsFixed(2)}\n\n'
           '¿Deseas imprimir el ticket?',
       icono: Icons.receipt_long,
@@ -467,9 +328,11 @@ Future<void> _cargarReportesVentas() async {
       onConfirm: () async {
         final pdf = await TicketService.generarTicket(
           carrito: carrito,
-          total: total,
+          total: totales.total,
+          subtotal: totales.subtotal,
+          descuento: totales.descuentoTotal,
           metodoPago: metodoPago,
-          recibido: total,
+          recibido: totales.total,
           cambio: 0,
         );
 
@@ -486,25 +349,7 @@ Future<void> _cargarReportesVentas() async {
   String proveedor,
   double total,
 ) async {
-  final db = await DatabaseHelper().database;
-
-  final detalles = await db.rawQuery(
-    '''
-    SELECT Producto.nombre, Detalle_Compra.cantidad, Detalle_Compra.precio
-    FROM Detalle_Compra
-    INNER JOIN Producto ON Producto.id_producto = Detalle_Compra.id_producto
-    WHERE Detalle_Compra.id_compra = ?
-    ''',
-    [idCompra],
-  );
-
-  final carrito = detalles.map((item) {
-    return {
-      'nombre': item['nombre'],
-      'cantidad': item['cantidad'] ?? 1,
-      'precio_compra': item['precio'],
-    };
-  }).toList();
+  final carrito = await _reporteController.obtenerDetalleCompraParaTicket(idCompra);
 
   if (carrito.isEmpty) {
     if (!mounted) return;
@@ -568,7 +413,7 @@ Future<void> _cargarReportesVentas() async {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6FA),
+      backgroundColor: AppColors.background,
       appBar: CustomHeader(titulo: tituloReporte, mostrarVolver: true),
       body: cargando
           ? const Center(child: CircularProgressIndicator())
@@ -658,7 +503,7 @@ Future<void> _cargarReportesVentas() async {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFFF8F6F2),
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(14),
           ),
           child: Row(
@@ -680,7 +525,7 @@ Future<void> _cargarReportesVentas() async {
           label: const Text('Imprimir reporte'),
           style: ElevatedButton.styleFrom(
             elevation: 0,
-            backgroundColor: const Color(0xFFF2C500),
+            backgroundColor: AppColors.primary,
             foregroundColor: Colors.black,
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             shape: RoundedRectangleBorder(
@@ -704,7 +549,7 @@ Future<void> _cargarReportesVentas() async {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? const Color(0xFFF2C500) : const Color(0xFFF8F6F2),
+          color: selected ? AppColors.primary : AppColors.surface,
           borderRadius: BorderRadius.circular(14),
         ),
         child: Row(
@@ -723,7 +568,7 @@ Future<void> _cargarReportesVentas() async {
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
         elevation: 0,
-        backgroundColor: const Color(0xFFF8F6F2),
+        backgroundColor: AppColors.surface,
         foregroundColor: Colors.black87,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -740,7 +585,7 @@ Future<void> _cargarReportesVentas() async {
           icon: esVentas ? Icons.receipt_long : Icons.shopping_bag_outlined,
           label: esVentas ? 'Ventas realizadas' : 'Compras realizadas',
           value: esVentas ? '$totalVentas' : '$totalCompras',
-          color: const Color(0xFFFFF3C4),
+          color: AppColors.primaryLight,
         ),
         const SizedBox(width: 16),
         _summaryCard(
@@ -755,7 +600,7 @@ Future<void> _cargarReportesVentas() async {
           icon: Icons.trending_up,
           label: esVentas ? 'Ticket promedio' : 'Compra promedio',
           value: _promedioTexto(esVentas),
-          color: const Color(0xFFF3E1C7),
+          color: AppColors.primaryLighter,
         ),
       ],
     );
@@ -844,7 +689,7 @@ Future<void> _cargarReportesVentas() async {
                 return Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF9FAFC),
+                    color: AppColors.surfaceSubtle,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(color: Colors.grey.shade200),
                   ),
@@ -855,7 +700,7 @@ Future<void> _cargarReportesVentas() async {
                         height: 34,
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFFF3C4),
+                          color: AppColors.primaryLight,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
@@ -916,7 +761,7 @@ Future<void> _cargarReportesVentas() async {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8F6F2),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(22),
       ),
       child: Column(
@@ -926,7 +771,7 @@ Future<void> _cargarReportesVentas() async {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF3C4),
+                  color: AppColors.primaryLight,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, size: 20),
@@ -953,17 +798,28 @@ Future<void> _cargarReportesVentas() async {
   Widget _ventaTile(Map<String, dynamic> venta) {
     final fecha = DateTime.tryParse(venta['fecha']?.toString() ?? '');
     final total = (venta['total'] as num?)?.toDouble() ?? 0;
+    final totalNeto = (venta['total_neto'] as num?)?.toDouble() ?? total;
     final cliente = venta['cliente']?.toString() ?? 'Consumidor final';
     final metodoPago = venta['metodo_pago']?.toString() ?? 'efectivo';
+    final idVenta = venta['id_venta'] as int;
+    final estado = venta['estado']?.toString() ?? 'Activa';
 
     return _movementTile(
       icon: Icons.point_of_sale,
-      title: 'Venta #${venta['id_venta']}',
+      title: 'Venta #$idVenta',
       subtitle:
           '${fecha == null ? 'Sin fecha' : _formatDate(fecha)}  |  $cliente  |  $metodoPago',
-      total: total,
+      total: totalNeto,
+      estado: estado,
+      onDetalle: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => DetalleVentaView(idVenta: idVenta)),
+        );
+        await _cargarReportesVentas();
+      },
       onReceipt: () => _mostrarRecibo(
-        venta['id_venta'] as int,
+        idVenta,
         metodoPago,
         total,
         cliente,
@@ -996,7 +852,15 @@ Future<void> _cargarReportesVentas() async {
     required String subtitle,
     required double total,
     required VoidCallback onReceipt,
+    String? estado,
+    VoidCallback? onDetalle,
   }) {
+    final colorEstado = switch (estado) {
+      'Cancelada' => Colors.red,
+      'Parcialmente devuelta' => Colors.orange,
+      _ => null,
+    };
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1009,7 +873,7 @@ Future<void> _cargarReportesVentas() async {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF3C4),
+              color: AppColors.primaryLight,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(icon, size: 20),
@@ -1019,9 +883,31 @@ Future<void> _cargarReportesVentas() async {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
+                Row(
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    if (colorEstado != null) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: colorEstado.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          estado!,
+                          style: TextStyle(
+                            color: colorEstado,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -1038,6 +924,12 @@ Future<void> _cargarReportesVentas() async {
             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
           ),
           const SizedBox(width: 8),
+          if (onDetalle != null)
+            IconButton(
+              tooltip: 'Ver detalle',
+              onPressed: onDetalle,
+              icon: const Icon(Icons.visibility_outlined),
+            ),
           IconButton(
             tooltip: 'Imprimir ticket',
             onPressed: onReceipt,

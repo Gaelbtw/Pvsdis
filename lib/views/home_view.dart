@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/theme/app_colors.dart';
 import '../core/session/session_manager.dart';
 import '../widgets/menu_card.dart';
 import 'auditorias_view.dart';
@@ -30,7 +31,7 @@ class HomeView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFAF8F4),
+      backgroundColor: AppColors.background,
 
       appBar: CustomHeader(
         titulo: "Menu",
@@ -123,7 +124,7 @@ class HomeView extends StatelessWidget {
                     title: "Productos",
                     subtitle: "Gestion de productos",
                     icon: Icons.inventory,
-                    color: const Color(0xFFF3E1C7),
+                    color: AppColors.primaryLighter,
 
                     onTap: () {
                       Navigator.push(
@@ -140,7 +141,7 @@ class HomeView extends StatelessWidget {
                     title: "Ventas",
                     subtitle: "Registrar ventas",
                     icon: Icons.point_of_sale,
-                    color: const Color(0xFFF7D6BF),
+                    color: AppColors.primaryLighter,
 
                     onTap: () {
                       Navigator.push(
@@ -157,7 +158,7 @@ class HomeView extends StatelessWidget {
                       title: "Clientes",
                       subtitle: "Base de clientes",
                       icon: Icons.people,
-                      color: const Color(0xFFFFE7B8),
+                      color: AppColors.primaryLight,
 
                       onTap: () {
                         Navigator.push(
@@ -174,7 +175,7 @@ class HomeView extends StatelessWidget {
                       title: "Inventario",
                       subtitle: "Control de inventario",
                       icon: Icons.inventory_2,
-                      color: const Color(0xFFF3E1C7),
+                      color: AppColors.primaryLighter,
 
                       onTap: () {
                         Navigator.push(
@@ -192,7 +193,7 @@ class HomeView extends StatelessWidget {
                       title: "Proveedores",
                       subtitle: "Gestion de proveedores",
                       icon: Icons.local_shipping,
-                      color: const Color(0xFFF7D6BF),
+                      color: AppColors.primaryLighter,
 
                       onTap: () {
                         Navigator.push(
@@ -210,7 +211,7 @@ class HomeView extends StatelessWidget {
                       title: "Usuarios",
                       subtitle: "Gestion de usuarios",
                       icon: Icons.person,
-                      color: const Color(0xFFFFE7B8),
+                      color: AppColors.primaryLight,
 
                       onTap: () {
                         Navigator.push(
@@ -227,7 +228,7 @@ class HomeView extends StatelessWidget {
                       title: "Reportes",
                       subtitle: "Analisis",
                       icon: Icons.bar_chart,
-                      color: const Color(0xFFF3E1C7),
+                      color: AppColors.primaryLighter,
 
                       onTap: () {
                         Navigator.push(
@@ -244,7 +245,7 @@ class HomeView extends StatelessWidget {
                       title: "Compras",
                       subtitle: "Compras a proveedores",
                       icon: Icons.money,
-                      color: const Color(0xFFF7D6BF),
+                      color: AppColors.primaryLighter,
 
                       onTap: () {
                         Navigator.push(
@@ -261,7 +262,7 @@ class HomeView extends StatelessWidget {
                       title: "Pedidos",
                       subtitle: "Gestion de pedidos",
                       icon: Icons.receipt_long,
-                      color: const Color(0xFFFFE7B8),
+                      color: AppColors.primaryLight,
 
                       onTap: () {
                         Navigator.push(
@@ -279,7 +280,7 @@ class HomeView extends StatelessWidget {
                       title: "Auditorias",
                       subtitle: "Seguimiento del sistema",
                       icon: Icons.fact_check_outlined,
-                      color: const Color(0xFFF3E1C7),
+                      color: AppColors.primaryLighter,
 
                       onTap: () {
                         Navigator.push(
@@ -297,7 +298,7 @@ class HomeView extends StatelessWidget {
                       title: "Base de datos",
                       subtitle: "Backup y restore",
                       icon: Icons.storage_rounded,
-                      color: const Color(0xFFF7D6BF),
+                      color: AppColors.primaryLighter,
 
                       onTap: () {
                         Navigator.push(
@@ -314,7 +315,7 @@ class HomeView extends StatelessWidget {
                       title: "Corte de Caja",
                       subtitle: "Resumen diario",
                       icon: Icons.attach_money,
-                      color: const Color(0xFFFFE7B8),
+                      color: AppColors.primaryLight,
 
                       onTap: () {
                         Navigator.push(

@@ -1,4 +1,5 @@
 import '../core/database/database_helper.dart';
+import '../core/database/db_exceptions.dart';
 import '../models/cliente_model.dart';
 import 'auditoria_controller.dart';
 
@@ -88,10 +89,13 @@ class ClienteController {
       limit: 1,
     );
 
-    final rows = await db.delete(
-      'Clientes',
-      where: 'id_cliente = ?',
-      whereArgs: [id],
+    final rows = await ejecutarConMensajeDeIntegridad(
+      () => db.delete(
+        'Clientes',
+        where: 'id_cliente = ?',
+        whereArgs: [id],
+      ),
+      'No se puede eliminar: el cliente tiene ventas o pedidos registrados.',
     );
 
     if (rows > 0) {

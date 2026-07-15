@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
+import '../core/theme/app_colors.dart';
 import '../controllers/usuarios_controller.dart';
+import '../core/security/password_hasher.dart';
 import '../models/usuarios_model.dart';
+import '../widgets/app_text_field.dart';
+import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/form_dialog.dart';
 import '../widgets/nav_bar.dart';
 
 class UsuariosView extends StatefulWidget {
@@ -45,219 +50,112 @@ class _UsuariosViewState extends State<UsuariosView> {
     text: usuario?.nombre ?? "",
   );
 
-  final contraCtrl = TextEditingController(
-    text: usuario?.contra ?? "",
-  );
+  // Nunca se prellena: el valor guardado ya es un hash, no la contraseña
+  // real. Al editar, dejarlo vacío significa "no cambiar la contraseña".
+  final contraCtrl = TextEditingController();
 
   String rolSeleccionado = usuario?.rol ?? "Cajero";
 
   showDialog(
     context: context,
-
     builder: (_) => StatefulBuilder(
       builder: (context, setModalState) {
-        return Dialog(
-          backgroundColor: const Color(0xFFFAF8F4),
-
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(28),
-          ),
-
-          child: Container(
-            width: 520,
-
-            padding: const EdgeInsets.all(28),
-
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-
-                children: [
-                  Text(
-                    usuario == null
-                        ? "Nuevo Usuario"
-                        : "Editar Usuario",
-
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF2D2B28),
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  Text(
-                    usuario == null
-                        ? "Complete la información del usuario"
-                        : "Actualice la información del usuario",
-
-                    style: const TextStyle(
-                      color: Color(0xFF6E6A64),
-                      fontSize: 13,
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  _inputFormulario(
-                    controller: nombreCtrl,
-                    label: "Nombre de usuario",
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  _inputFormulario(
-                    controller: contraCtrl,
-                    label: "Contraseña",
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-
-                    child: DropdownButtonFormField<String>(
-                      value: rolSeleccionado,
-
-                      decoration: const InputDecoration(
-                        border: InputBorder.none,
-                      ),
-
-                      items: ["Admin", "Cajero"]
-                          .map(
-                            (r) => DropdownMenuItem(
-                              value: r,
-                              child: Text(r),
-                            ),
-                          )
-                          .toList(),
-
-                      onChanged: (value) {
-                        if (value == null) return;
-
-                        setModalState(() {
-                          rolSeleccionado = value;
-                        });
-                      },
-                    ),
-                  ),
-
-                  const SizedBox(height: 28),
-
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-
-                    children: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-
-                        child: const Text(
-                          "Cancelar",
-
-                          style: TextStyle(
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(width: 12),
-
-                      ElevatedButton(
-                        onPressed: () async {
-                          if (nombreCtrl.text.isEmpty ||
-                              contraCtrl.text.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  "Completa todos los campos",
-                                ),
-                              ),
-                            );
-
-                            return;
-                          }
-
-                          final nuevo = Usuarios(
-                            idUsuario: usuario?.idUsuario,
-
-                            nombre: nombreCtrl.text,
-
-                            contra: contraCtrl.text,
-
-                            rol: rolSeleccionado,
-                          );
-
-                          if (usuario == null) {
-                            await usuariosController.insertar(nuevo);
-                          } else {
-                            await usuariosController.actualizar(nuevo);
-                          }
-
-                          Navigator.pop(context);
-
-                          cargarTodo();
-
-                          showDialog(
-                            context: context,
-
-                            builder: (_) => CustomAlert(
-                              titulo: usuario == null
-                                  ? "Usuario agregado"
-                                  : "Usuario actualizado",
-
-                              mensaje: usuario == null
-                                  ? "El usuario ha sido agregado exitosamente."
-                                  : "El usuario ha sido actualizado exitosamente.",
-
-                              icono: Icons.check_circle_outline,
-
-                              textoConfirmar: "Aceptar",
-
-                              onConfirm: () {
-                                Navigator.pop(context);
-                              },
-                            ),
-                          );
-                        },
-
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFF2C500),
-
-                          foregroundColor: Colors.black87,
-
-                          elevation: 0,
-
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 22,
-                            vertical: 16,
-                          ),
-
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-
-                        child: const Text(
-                          "Guardar",
-
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+        return FormDialog(
+          titulo: usuario == null ? "Nuevo Usuario" : "Editar Usuario",
+          subtitulo: usuario == null
+              ? "Complete la información del usuario"
+              : "Actualice la información del usuario",
+          campos: [
+            AppTextField(controller: nombreCtrl, hint: "Nombre de usuario"),
+            AppTextField(
+              controller: contraCtrl,
+              hint: usuario == null
+                  ? "Contraseña"
+                  : "Nueva contraseña (dejar en blanco para no cambiar)",
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: DropdownButtonFormField<String>(
+                value: rolSeleccionado,
+                decoration: const InputDecoration(border: InputBorder.none),
+                items: ["Admin", "Cajero"]
+                    .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setModalState(() {
+                    rolSeleccionado = value;
+                  });
+                },
               ),
             ),
-          ),
+          ],
+          onGuardar: () async {
+            void mostrarError(String mensaje) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(mensaje)),
+              );
+            }
+
+            if (nombreCtrl.text.trim().isEmpty) {
+              mostrarError("El nombre de usuario es obligatorio");
+              return;
+            }
+
+            // Al crear, la contraseña es obligatoria. Al
+            // editar, puede quedar vacía (no se cambia).
+            if (usuario == null && contraCtrl.text.isEmpty) {
+              mostrarError("La contraseña es obligatoria");
+              return;
+            }
+
+            if (contraCtrl.text.isNotEmpty) {
+              final errorPolitica = PasswordHasher.validate(contraCtrl.text);
+              if (errorPolitica != null) {
+                mostrarError(errorPolitica);
+                return;
+              }
+            }
+
+            final nuevo = Usuarios(
+              idUsuario: usuario?.idUsuario,
+              nombre: nombreCtrl.text.trim(),
+              // Al editar sin cambiar contraseña este valor se
+              // descarta en UsuariosController.actualizar.
+              contra: usuario == null ? contraCtrl.text : "",
+              rol: rolSeleccionado,
+            );
+
+            if (usuario == null) {
+              await usuariosController.insertar(nuevo);
+            } else {
+              await usuariosController.actualizar(
+                nuevo,
+                nuevaContrasena: contraCtrl.text.isEmpty ? null : contraCtrl.text,
+              );
+            }
+
+            if (!context.mounted) return;
+            Navigator.pop(context);
+            cargarTodo();
+
+            showDialog(
+              context: context,
+              builder: (_) => CustomAlert(
+                titulo: usuario == null ? "Usuario agregado" : "Usuario actualizado",
+                mensaje: usuario == null
+                    ? "El usuario ha sido agregado exitosamente."
+                    : "El usuario ha sido actualizado exitosamente.",
+                icono: Icons.check_circle_outline,
+                textoConfirmar: "Aceptar",
+                onConfirm: () {},
+              ),
+            );
+          },
         );
       },
     ),
@@ -266,54 +164,24 @@ class _UsuariosViewState extends State<UsuariosView> {
 
   // 🔥 ELIMINAR
  void confirmarEliminar(Usuarios u) {
-  showDialog(
+  confirmarAccion(
     context: context,
-
-    builder: (_) => CustomAlert(
-      titulo: "Eliminar Usuario",
-
-      mensaje: "¿Desea eliminar a ${u.nombre}?",
-
-      icono: Icons.delete_outline,
-
-      textoConfirmar: "Eliminar",
-
-
-      onConfirm: () async {
-        Navigator.pop(context);
-
-        await usuariosController.eliminar(
-          u.idUsuario!,
-        );
-
-        cargarTodo();
-
-        showDialog(
-          context: context,
-
-          builder: (_) => CustomAlert(
-            titulo: "Usuario eliminado",
-
-            mensaje:
-                "El usuario ha sido eliminado exitosamente.",
-
-            icono: Icons.check_circle_outline,
-
-            textoConfirmar: "Aceptar",
-
-            onConfirm: () {
-              Navigator.pop(context);
-            },
-          ),
-        );
-      },
-    ),
+    tituloConfirmar: "Eliminar Usuario",
+    mensajeConfirmar: "¿Desea eliminar a ${u.nombre}?",
+    iconoConfirmar: Icons.delete_outline,
+    textoConfirmar: "Eliminar",
+    accion: () async {
+      await usuariosController.eliminar(u.idUsuario!);
+      cargarTodo();
+    },
+    tituloExito: "Usuario eliminado",
+    mensajeExito: "El usuario ha sido eliminado exitosamente.",
   );
 }
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFAF8F4),
+      backgroundColor: AppColors.background,
 
       appBar: CustomHeader(titulo: "Usuarios", mostrarVolver: true),
 
@@ -357,7 +225,7 @@ class _UsuariosViewState extends State<UsuariosView> {
 
                             fontWeight: FontWeight.w800,
 
-                            color: Color(0xFF2D2B28),
+                            color: AppColors.textPrimary,
                           ),
                         ),
 
@@ -367,7 +235,7 @@ class _UsuariosViewState extends State<UsuariosView> {
                           "Administre usuarios y permisos del sistema",
 
                           style: TextStyle(
-                            color: Color(0xFF6E6A64),
+                            color: AppColors.textSecondary,
 
                             fontSize: 13,
                           ),
@@ -384,7 +252,7 @@ class _UsuariosViewState extends State<UsuariosView> {
                     label: const Text("Nuevo Usuario"),
 
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFF2C500),
+                      backgroundColor: AppColors.primary,
 
                       foregroundColor: Colors.black87,
 
@@ -419,7 +287,7 @@ class _UsuariosViewState extends State<UsuariosView> {
 
                     filled: true,
 
-                    fillColor: const Color(0xFFF8F6F2),
+                    fillColor: AppColors.surface,
 
                     contentPadding: const EdgeInsets.symmetric(vertical: 14),
 
@@ -477,7 +345,7 @@ class _UsuariosViewState extends State<UsuariosView> {
               style: TextStyle(
                 fontWeight: FontWeight.w800,
 
-                color: Color(0xFF3C3935),
+                color: AppColors.textMuted,
 
                 fontSize: 12,
               ),
@@ -493,7 +361,7 @@ class _UsuariosViewState extends State<UsuariosView> {
               style: TextStyle(
                 fontWeight: FontWeight.w800,
 
-                color: Color(0xFF3C3935),
+                color: AppColors.textMuted,
 
                 fontSize: 12,
               ),
@@ -509,7 +377,7 @@ class _UsuariosViewState extends State<UsuariosView> {
               style: TextStyle(
                 fontWeight: FontWeight.w800,
 
-                color: Color(0xFF3C3935),
+                color: AppColors.textMuted,
 
                 fontSize: 12,
               ),
@@ -540,7 +408,7 @@ class _UsuariosViewState extends State<UsuariosView> {
 
                   decoration: BoxDecoration(
                     color: esAdmin
-                        ? const Color(0xFFFFF1BF)
+                        ? AppColors.primaryLight
                         : const Color(0xFFEAEAEA),
 
                     borderRadius: BorderRadius.circular(14),
@@ -556,7 +424,7 @@ class _UsuariosViewState extends State<UsuariosView> {
                         fontSize: 18,
 
                         color: esAdmin
-                            ? const Color(0xFFB88300)
+                            ? AppColors.primaryDarker
                             : Colors.black87,
                       ),
                     ),
@@ -586,7 +454,7 @@ class _UsuariosViewState extends State<UsuariosView> {
 
               decoration: BoxDecoration(
                 color: esAdmin
-                    ? const Color(0xFFFFF4CC)
+                    ? AppColors.primaryLight
                     : const Color(0xFFF3F3F3),
 
                 borderRadius: BorderRadius.circular(14),
@@ -600,7 +468,7 @@ class _UsuariosViewState extends State<UsuariosView> {
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
 
-                  color: esAdmin ? const Color(0xFF9B6A00) : Colors.black87,
+                  color: esAdmin ? AppColors.primaryDarker : Colors.black87,
                 ),
               ),
             ),
@@ -634,35 +502,5 @@ class _UsuariosViewState extends State<UsuariosView> {
     );
   }
 
-  // 🔥 INPUT
-Widget _inputFormulario({
-  required TextEditingController controller,
-  required String label,
-  int maxLines = 1,
-  TextInputType keyboard = TextInputType.text,
-}) {
-  return TextField(
-    controller: controller,
-    maxLines: maxLines,
-    keyboardType: keyboard,
-
-    decoration: InputDecoration(
-      hintText: label,
-
-      filled: true,
-      fillColor: Colors.white,
-
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 18,
-        vertical: 18,
-      ),
-
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
-      ),
-    ),
-  );
 }
-  }
 
