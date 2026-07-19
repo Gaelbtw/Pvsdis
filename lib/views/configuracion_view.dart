@@ -5,12 +5,23 @@ import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../controllers/auditoria_controller.dart';
 import '../core/config/app_config.dart';
+import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
 import '../models/configuracion_model.dart';
 import '../services/configuracion_service.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/menu_card.dart';
 import '../widgets/nav_bar.dart';
+import 'apartados_view.dart';
+import 'auditorias_view.dart';
+import 'base_datos_view.dart';
+import 'cuentas_por_pagar_view.dart';
+import 'pedidos_view.dart';
+import 'promociones_view.dart';
+import 'reporte_view.dart';
+import 'usuarios_view.dart';
 
 class ConfiguracionView extends StatefulWidget {
   const ConfiguracionView({super.key});
@@ -174,6 +185,12 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
     await _configuracionService.guardar(nuevaConfig);
     AppConfig.actualizar(nuevaConfig);
 
+    await AuditoriaController().registrar(
+      tabla: 'Configuracion',
+      accion: 'EDIT',
+      descripcion: 'Configuración del negocio actualizada',
+    );
+
     if (!mounted) return;
 
     showDialog(
@@ -216,6 +233,141 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
         inicio ? vespertinoInicio = picked : vespertinoFin = picked;
       }
     });
+  }
+
+  /// Accesos administrativos que antes vivían como tarjetas sueltas en el
+  /// inicio del Administrador (Usuarios, Reportes, Auditorías, Base de
+  /// datos) más Apartados, Promociones y Pedidos, agrupados aquí para no
+  /// duplicar accesos en dos partes distintas de la app.
+  Widget _accesosAdministracion(BuildContext context) {
+    final accesos = <Widget>[
+      MenuCard(
+        title: "Usuarios",
+        subtitle: "Gestion de usuarios",
+        icon: Icons.person,
+        color: AppColors.primaryLight,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const UsuariosView()),
+        ),
+      ),
+      MenuCard(
+        title: "Reportes",
+        subtitle: "Analisis",
+        icon: Icons.bar_chart,
+        color: AppColors.primaryLighter,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ReporteView()),
+        ),
+      ),
+      MenuCard(
+        title: "Auditorias",
+        subtitle: "Seguimiento del sistema",
+        icon: Icons.fact_check_outlined,
+        color: AppColors.primaryLighter,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const AuditoriasView()),
+        ),
+      ),
+      MenuCard(
+        title: "Base de datos",
+        subtitle: "Backup y restore",
+        icon: Icons.storage_rounded,
+        color: AppColors.primaryLighter,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const BaseDatosView()),
+        ),
+      ),
+      MenuCard(
+        title: "Apartados",
+        subtitle: "Reservas con anticipo",
+        icon: Icons.event_available,
+        color: AppColors.primaryLighter,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ApartadosView()),
+        ),
+      ),
+      MenuCard(
+        title: "Promociones",
+        subtitle: "Descuentos automaticos",
+        icon: Icons.local_offer,
+        color: AppColors.primaryLight,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const PromocionesView()),
+        ),
+      ),
+      MenuCard(
+        title: "Pedidos",
+        subtitle: "Gestion de pedidos",
+        icon: Icons.receipt_long,
+        color: AppColors.primaryLight,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const PedidosView()),
+        ),
+      ),
+      MenuCard(
+        title: "Cuentas por pagar",
+        subtitle: "Deuda con proveedores",
+        icon: Icons.account_balance_wallet_outlined,
+        color: AppColors.primaryLighter,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const CuentasPorPagarView()),
+        ),
+      ),
+    ];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Accesos y administración",
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            "Módulos administrativos: no aparecen en el inicio para mantenerlo enfocado en la operación diaria.",
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 18),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              int columnas = 2;
+              if (constraints.maxWidth >= 700) columnas = 4;
+              if (constraints.maxWidth >= 1000) columnas = 5;
+
+              return GridView.count(
+                crossAxisCount: columnas,
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 14,
+                childAspectRatio: constraints.maxWidth >= 700 ? 1.15 : 1.3,
+                children: accesos,
+              );
+            },
+          ),
+        ],
+      ),
+    );
   }
 
   Widget sectionCard({
@@ -405,6 +557,23 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
 
   @override
   Widget build(BuildContext context) {
+    if (!SessionManager.isAdmin) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: const CustomHeader(titulo: "Configuración", mostrarVolver: true),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              "Acceso restringido. Esta sección es solo para administradores.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 15),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: const CustomHeader(titulo: "Configuración", mostrarVolver: true),
@@ -418,13 +587,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(28),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Color(0x11000000),
-                        blurRadius: 18,
-                        offset: Offset(0, 8),
-                      ),
-                    ],
+                    boxShadow: AppColors.cardShadow,
                   ),
                   child: ListView(
                     children: [
@@ -442,6 +605,8 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
                         style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
                       ),
                       const SizedBox(height: 28),
+                      _accesosAdministracion(context),
+                      const SizedBox(height: 8),
                       sectionCard(
                         icon: Icons.storefront_outlined,
                         title: "Datos del negocio",

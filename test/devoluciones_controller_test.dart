@@ -10,6 +10,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import 'package:pvapp/controllers/devoluciones_controller.dart';
 import 'package:pvapp/core/database/database_helper.dart';
+import 'package:pvapp/core/security/password_hasher.dart';
 
 void main() {
   setUpAll(() {
@@ -27,6 +28,22 @@ void main() {
     db = await DatabaseHelper().abrirEnRuta(path);
     DatabaseHelper.setTestDatabase(db);
     controller = DevolucionesController();
+
+    // El controlador exige caja abierta para procesar devoluciones; sin
+    // SessionManager.setUser(...) cae en id_usuario=1 (ver `?? 1` en
+    // DevolucionesController), así que se siembra ese usuario (requerido
+    // por la FK de Cajas.id_usuario) y su caja abierta.
+    await db.insert('Usuarios', {
+      'nombre': 'Sistema',
+      'contra': PasswordHasher.hash('x'),
+      'rol': 'Admin',
+    });
+    await db.insert('Cajas', {
+      'id_usuario': 1,
+      'fecha_apertura': DateTime.now().toIso8601String(),
+      'fondo_inicial': 500,
+      'estado': 'Abierta',
+    });
   });
 
   tearDown(() async {

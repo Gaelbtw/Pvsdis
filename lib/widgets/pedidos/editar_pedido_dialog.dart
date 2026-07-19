@@ -165,9 +165,9 @@ void mostrarEditarPedidoDialog(
                             : 'Pedido editado con éxito',
                   ),
                   backgroundColor: estado == 'Entregado'
-                      ? Colors.green
+                      ? AppColors.success
                       : estado == 'Cancelado'
-                          ? Colors.red
+                          ? AppColors.error
                           : Colors.blueGrey,
                   duration: const Duration(seconds: 3),
                 ),

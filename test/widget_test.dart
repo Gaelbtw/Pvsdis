@@ -1,30 +1,36 @@
-// This is a basic Flutter widget test.
+// Smoke test de arranque de la app real, reemplazando el contador de
+// ejemplo que dejaba `flutter create` (esta app no tiene ningún contador).
 //
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
+// Pumpea directamente las dos pantallas reales entre las que decide
+// `_AppEntryPoint` (instalación nueva sin usuarios -> SetupAdminView; ya
+// existe un usuario -> LoginView) y confirma que cada una renderiza sin
+// lanzar. No se pasa por `MyApp`/`_AppEntryPoint` con su `FutureBuilder`
+// sobre una consulta real a la base de datos: dentro de `testWidgets`,
+// mezclar esa espera asíncrona real con el reloj falso de
+// `AutomatedTestWidgetsFlutterBinding` resultó frágil (colgó
+// `pumpAndSettle`/`runAsync` de forma intermitente). Pumpear la pantalla
+// concreta es el patrón estándar y no depende de esa mecánica.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:pvapp/main.dart';
+import 'package:pvapp/views/login_view.dart';
+import 'package:pvapp/views/setup_admin_view.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
-
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
-
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+  testWidgets('SetupAdminView (instalación nueva) renderiza sus campos y botón principal', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: SetupAdminView()));
     await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.text('Configuración inicial'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Crear cuenta de administrador'), findsOneWidget);
+  });
+
+  testWidgets('LoginView renderiza sus campos y botón de ingreso', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: LoginView()));
+    await tester.pump();
+
+    expect(find.text('Punto de Venta'), findsOneWidget);
+    expect(find.byType(TextField), findsNWidgets(2)); // usuario + contraseña
+    expect(find.widgetWithText(ElevatedButton, 'Ingresar'), findsOneWidget);
   });
 }

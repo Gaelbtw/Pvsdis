@@ -4,15 +4,26 @@ import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
 import '../core/utils/descuento_utils.dart';
 import '../core/utils/escaneo_utils.dart';
+import '../core/utils/pagos_mixtos.dart';
+import '../core/utils/promociones_engine.dart';
+import '../controllers/caja_controller.dart';
 import '../controllers/ventas_controller.dart';
 import '../controllers/producto_controller.dart';
+import '../controllers/promociones_controller.dart';
+import '../models/caja_model.dart';
 import '../models/carrito_venta.dart';
 import '../models/producto_model.dart';
+import '../models/promocion_model.dart';
+import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
 import '../widgets/ventas/autorizacion_descuento_dialog.dart';
 import '../widgets/ventas/descuento_dialog.dart';
+import '../widgets/ventas/pagos_mixtos_section.dart';
+import '../widgets/ventas/promociones_aplicadas_section.dart';
+import '../widgets/ventas/ventas_atajos.dart' as atajos;
 import '../models/cliente_model.dart';
 import '../widgets/nav_bar.dart';
+import 'caja_view.dart';
 
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
@@ -33,6 +44,8 @@ class VentasView extends StatefulWidget {
 class _VentasViewState extends State<VentasView> {
   final ventasController = VentasController();
   final productoController = ProductoController();
+  final cajaController = CajaController();
+  final promocionesController = PromocionesController();
 
   Cliente? clienteSeleccionado;
 
@@ -43,27 +56,48 @@ class _VentasViewState extends State<VentasView> {
 
   final Map<int, TextEditingController> controllers = {};
 
-  final pagoCtrl = TextEditingController();
   final busquedaCtrl = TextEditingController();
   final busquedaFocus = FocusNode();
 
-  String metodoPago = "efectivo";
   String busqueda = "";
 
-  double cambio = 0;
+  List<Map<String, dynamic>> pagos = [];
+  ResultadoValidacionPagos resultadoPagos = validarPagosMixtos(total: 0, pagos: const []);
+  int ventaCounter = 0;
+
   bool cargando = true;
+
+  Caja? _cajaAbierta;
+
+  List<Promocion> _promocionesActivas = [];
+
+  // Selección de línea del carrito para navegar con flechas y eliminar con
+  // Delete (ver atajos de teclado más abajo). Puramente de UI: no cambia
+  // ninguna regla de venta.
+  int? _lineaSeleccionada;
 
   bool get esCajero => SessionManager.currentUserRole == "Cajero";
 
   bool get puedeAplicarDescuentos =>
       !esCajero || AppConfig.actual.descuentoCajeroPuedeAplicar;
 
+  /// Qué promociones automáticas aplican al carrito actual y cuánto
+  /// descuentan, línea por línea. Función pura (`evaluarPromociones`) sobre
+  /// el carrito y las promociones ya cargadas: se recalcula en cada build,
+  /// igual que [calculo], así que agregar/quitar/cambiar cantidades la
+  /// actualiza automáticamente sin lógica adicional.
+  ResultadoPromociones get resultadoPromociones => evaluarPromociones(
+        carrito: carrito,
+        promocionesActivas: _promocionesActivas,
+      );
+
   /// Única fuente de verdad del desglose financiero de la venta en curso
   /// (subtotal, descuentos, total). Se recalcula en cada build a partir del
-  /// carrito y del descuento global — nunca se guarda un total aparte que
-  /// se pueda desincronizar.
+  /// carrito, las promociones vigentes y el descuento global — nunca se
+  /// guarda un total aparte que se pueda desincronizar.
   VentaCalculada get calculo => calcularVenta(
         carrito: carrito,
+        descuentosPromocionPorLinea: resultadoPromociones.descuentoPorLinea,
         descuentoGlobalTipo: _carrito.descuentoGlobalTipo,
         descuentoGlobalValor: _carrito.descuentoGlobalValor,
         descuentoMaximoPorcentaje: AppConfig.actual.descuentoMaximoPorcentaje,
@@ -76,6 +110,31 @@ class _VentasViewState extends State<VentasView> {
     clienteSeleccionado = widget.cliente;
 
     cargarProductos();
+    cargarCaja();
+    cargarPromociones();
+  }
+
+  Future<void> cargarPromociones() async {
+    final promociones = await promocionesController.obtenerActivasVigentes();
+    if (!mounted) return;
+    setState(() => _promocionesActivas = promociones);
+  }
+
+  // 🔐 CAJA
+  Future<void> cargarCaja() async {
+    final idUsuario = SessionManager.currentUserId ?? 1;
+    final caja = await cajaController.obtenerCajaAbierta(idUsuario);
+
+    if (!mounted) return;
+    setState(() => _cajaAbierta = caja);
+  }
+
+  Future<void> irAAbrirCaja() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CajaView()),
+    );
+    await cargarCaja();
   }
 
   // 🔥 CARGAR PRODUCTOS
@@ -91,7 +150,9 @@ class _VentasViewState extends State<VentasView> {
       final p = Producto.fromMap(row);
       lista.add(p);
       if (p.idProducto != null) {
-        stock[p.idProducto!] = (row['cantidad'] as int?) ?? 0;
+        // "disponible" (física - reservada por Apartados), no la existencia
+        // física a secas: una unidad ya apartada no debe ofrecerse aquí.
+        stock[p.idProducto!] = (row['disponible'] as int?) ?? 0;
       }
     }
 
@@ -180,12 +241,11 @@ class _VentasViewState extends State<VentasView> {
   // 💰 TOTAL (ya con descuentos aplicados)
   double get total => calculo.total;
 
-  // 💵 CAMBIO
-  void calcularCambio() {
-    final recibido = double.tryParse(pagoCtrl.text) ?? 0;
-
+  // 💳 PAGOS
+  void actualizarPagos(List<Map<String, dynamic>> nuevosPagos, ResultadoValidacionPagos resultado) {
     setState(() {
-      cambio = recibido - total;
+      pagos = nuevosPagos;
+      resultadoPagos = resultado;
     });
   }
 
@@ -215,10 +275,12 @@ class _VentasViewState extends State<VentasView> {
   void editarDescuentoGlobal() {
     if (carrito.isEmpty) return;
 
-    // Base real del descuento global: el subtotal ya después de los
-    // descuentos de línea (sin el propio descuento global todavía).
+    // Base real del descuento global: el subtotal ya después de las
+    // promociones automáticas y de los descuentos de línea (sin el propio
+    // descuento global todavía).
     final baseGlobal = calcularVenta(
       carrito: carrito,
+      descuentosPromocionPorLinea: resultadoPromociones.descuentoPorLinea,
       descuentoMaximoPorcentaje: AppConfig.actual.descuentoMaximoPorcentaje,
     ).total;
 
@@ -234,6 +296,72 @@ class _VentasViewState extends State<VentasView> {
       onQuitar: _carrito.descuentoGlobalTipo != null
           ? () => setState(() => _carrito.quitarDescuentoGlobal())
           : null,
+    );
+  }
+
+  // ⌨️ ATAJOS DE TECLADO
+  //
+  // El widget compartido `VentasAtajos` (widgets/ventas/ventas_atajos.dart)
+  // ya se encarga de no disparar F4/flechas/Delete mientras se escribe en
+  // un campo de texto; aquí solo vive la lógica de negocio de cada atajo.
+  void _atajoEnfocarBusqueda() {
+    busquedaFocus.requestFocus();
+    busquedaCtrl.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: busquedaCtrl.text.length,
+    );
+  }
+
+  void _atajoConfirmarVenta() {
+    final puedeConfirmar = atajos.puedeConfirmarVenta(
+      carritoVacio: carrito.isEmpty,
+      pagosValidos: resultadoPagos.esValido,
+      cajaAbierta: _cajaAbierta != null,
+    );
+    if (puedeConfirmar) {
+      iniciarConfirmacionVenta();
+    }
+  }
+
+  void _atajoEscape() {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      busquedaCtrl.clear();
+      busqueda = "";
+      _lineaSeleccionada = null;
+    });
+  }
+
+  void _moverSeleccionCarrito(int delta) {
+    setState(() {
+      _lineaSeleccionada = atajos.moverSeleccionCarrito(
+        actual: _lineaSeleccionada,
+        delta: delta,
+        totalLineas: carrito.length,
+      );
+    });
+  }
+
+  Future<void> _atajoEliminarLineaSeleccionada() async {
+    final index = _lineaSeleccionada;
+    if (index == null || index < 0 || index >= carrito.length) return;
+
+    final item = carrito[index];
+    final nombre = item['nombre']?.toString() ?? 'este producto';
+    final cantidadActual = item['cantidad'] as int;
+
+    await confirmarAccion(
+      context: context,
+      tituloConfirmar: 'Quitar del carrito',
+      mensajeConfirmar: '¿Quitar "$nombre" del carrito?',
+      iconoConfirmar: Icons.delete_outline,
+      textoConfirmar: 'Quitar',
+      accion: () async {
+        cambiarCantidad(index, -cantidadActual);
+        if (mounted) setState(() => _lineaSeleccionada = null);
+      },
+      tituloExito: 'Producto quitado',
+      mensajeExito: '"$nombre" se quitó del carrito.',
     );
   }
 
@@ -287,32 +415,28 @@ class _VentasViewState extends State<VentasView> {
   Future<void> vender({String? descuentoMotivo, int? descuentoAutorizadoPor}) async {
     if (carrito.isEmpty) return;
 
-    if (metodoPago == "efectivo") {
-      final recibido = double.tryParse(
-            pagoCtrl.text,
-          ) ??
-          0;
+    if (!resultadoPagos.esValido) {
+      showDialog(
+        context: context,
+        builder: (_) => CustomAlert(
+          titulo: 'VENTA',
+          mensaje: resultadoPagos.mensajeError ?? 'Revisa los pagos capturados.',
+          icono: Icons.error,
+        ),
+      );
 
-      if (recibido < total) {
-        showDialog(
-          context: context,
-          builder: (_) => const CustomAlert(
-            titulo: 'VENTA',
-            mensaje: 'Dinero insuficiente',
-            icono: Icons.error,
-          ),
-        );
-
-        return;
-      }
+      return;
     }
 
     try {
       final ventaCalculada = calculo;
+      final promocionesVenta = resultadoPromociones;
+      final pagosVenta = pagos;
+      final cambioVenta = resultadoPagos.cambio;
 
       await ventasController.insertarVentaCompleta(
         carrito: carrito,
-        metodoPago: metodoPago,
+        pagos: pagosVenta,
         idCliente: clienteSeleccionado?.idCliente,
         descuentoGlobalTipo: _carrito.descuentoGlobalTipo,
         descuentoGlobalValor: _carrito.descuentoGlobalValor,
@@ -320,14 +444,13 @@ class _VentasViewState extends State<VentasView> {
         descuentoAutorizadoPor: descuentoAutorizadoPor,
       );
 
-      await imprimirTicket(ventaCalculada);
+      await imprimirTicket(ventaCalculada, promocionesVenta, pagosVenta, cambioVenta);
 
       setState(() {
         _carrito.limpiar();
 
-        pagoCtrl.clear();
-
-        cambio = 0;
+        pagos = [];
+        ventaCounter++;
 
         for (var c in controllers.values) {
           c.dispose();
@@ -362,7 +485,12 @@ class _VentasViewState extends State<VentasView> {
   }
 
   // 🖨 IMPRIMIR
-  Future<void> imprimirTicket(VentaCalculada ventaCalculada) async {
+  Future<void> imprimirTicket(
+    VentaCalculada ventaCalculada,
+    ResultadoPromociones promocionesVenta,
+    List<Map<String, dynamic>> pagosVenta,
+    double cambioVenta,
+  ) async {
     final carritoParaTicket = ventaCalculada.lineas
         .map((l) => {
               'nombre': l.nombre,
@@ -372,17 +500,19 @@ class _VentasViewState extends State<VentasView> {
             })
         .toList();
 
+    final promocionesParaTicket = promocionesVenta.aplicaciones
+        .map((a) => {'nombre': a.nombre, 'ahorro_total': a.ahorroTotal})
+        .toList();
+
     final pdf = await TicketService.generarTicket(
       carrito: carritoParaTicket,
       total: ventaCalculada.total,
       subtotal: ventaCalculada.subtotal,
       descuento: ventaCalculada.descuentoTotal,
-      metodoPago: metodoPago,
-      recibido: double.tryParse(
-            pagoCtrl.text,
-          ) ??
-          0,
-      cambio: cambio,
+      pagos: pagosVenta,
+      cambio: cambioVenta,
+      promocionesAplicadas: promocionesParaTicket,
+      ahorroPromociones: promocionesVenta.ahorroTotal,
     );
 
     await Printing.layoutPdf(
@@ -406,15 +536,25 @@ class _VentasViewState extends State<VentasView> {
           ? const Center(
               child: CircularProgressIndicator(),
             )
-          : Padding(
+          : atajos.VentasAtajos(
+              onEnfocarBusqueda: _atajoEnfocarBusqueda,
+              onConfirmarVenta: _atajoConfirmarVenta,
+              onEscape: _atajoEscape,
+              onMoverSeleccion: _moverSeleccionCarrito,
+              onEliminarSeleccionada: _atajoEliminarLineaSeleccionada,
+              child: Padding(
               padding: const EdgeInsets.fromLTRB(
                 24,
                 20,
                 24,
                 24,
               ),
-              child: Row(
+              child: Column(
                 children: [
+                  if (_cajaAbierta == null) _bannerSinCaja(),
+                  Expanded(
+                    child: Row(
+                      children: [
 
                   // 🔥 PRODUCTOS
                   Expanded(
@@ -424,13 +564,7 @@ class _VentasViewState extends State<VentasView> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(28),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x11000000),
-                            blurRadius: 18,
-                            offset: Offset(0, 8),
-                          ),
-                        ],
+                        boxShadow: AppColors.cardShadow,
                       ),
                       child: Column(
                         children: [
@@ -590,12 +724,9 @@ class _VentasViewState extends State<VentasView> {
                                                 ElevatedButton
                                                     .styleFrom(
                                               backgroundColor:
-                                                  const Color(
-                                                0xFFF2C500,
-                                              ),
+                                                  AppColors.primary,
                                               foregroundColor:
-                                                  Colors
-                                                      .black,
+                                                  AppColors.onPrimary,
                                               elevation: 0,
                                               shape:
                                                   RoundedRectangleBorder(
@@ -630,13 +761,7 @@ class _VentasViewState extends State<VentasView> {
                         color: Colors.white,
                         borderRadius:
                             BorderRadius.circular(28),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x11000000),
-                            blurRadius: 18,
-                            offset: Offset(0, 8),
-                          ),
-                        ],
+                        boxShadow: AppColors.cardShadow,
                       ),
                       child: Column(
                         children: [
@@ -729,21 +854,32 @@ class _VentasViewState extends State<VentasView> {
                                           item['cantidad']
                                               .toString();
 
-                                      return Container(
+                                      final seleccionada =
+                                          i == _lineaSeleccionada;
+
+                                      return GestureDetector(
+                                      onTap: () => setState(
+                                          () => _lineaSeleccionada = i),
+                                      child: Container(
                                         padding:
                                             const EdgeInsets
                                                 .all(12),
                                         decoration:
                                             BoxDecoration(
-                                          color:
-                                              const Color(
-                                            0xFFF8F6F2,
-                                          ),
+                                          color: AppColors
+                                              .surface,
                                           borderRadius:
                                               BorderRadius
                                                   .circular(
                                             16,
                                           ),
+                                          border: seleccionada
+                                              ? Border.all(
+                                                  color: AppColors
+                                                      .primary,
+                                                  width: 2,
+                                                )
+                                              : null,
                                         ),
                                         child: Column(
                                           crossAxisAlignment:
@@ -905,12 +1041,22 @@ class _VentasViewState extends State<VentasView> {
                                             ),
                                           ],
                                         ),
+                                      ),
                                       );
                                     },
                                   ),
                           ),
 
                           const Divider(height: 30),
+
+                          // 🏷️ PROMOCIONES AUTOMÁTICAS
+                          Builder(builder: (_) {
+                            final rp = resultadoPromociones;
+                            return PromocionesAplicadasSection(
+                              aplicaciones: rp.aplicaciones,
+                              ahorroTotal: rp.ahorroTotal,
+                            );
+                          }),
 
                           // 🏷 DESCUENTO GLOBAL
                           if (puedeAplicarDescuentos)
@@ -989,152 +1135,12 @@ class _VentasViewState extends State<VentasView> {
 
                           const SizedBox(height: 20),
 
-                          // 💳 MÉTODO
-                          Row(
-                            children: [
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      metodoPago =
-                                          "efectivo";
-                                    });
-                                  },
-                                  style:
-                                      ElevatedButton
-                                          .styleFrom(
-                                    backgroundColor:
-                                        metodoPago ==
-                                                "efectivo"
-                                            ? Colors.green
-                                            : Colors.grey
-                                                .shade200,
-                                    foregroundColor:
-                                        metodoPago ==
-                                                "efectivo"
-                                            ? Colors.white
-                                            : Colors.black,
-                                    elevation: 0,
-                                    shape:
-                                        RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius
-                                              .circular(
-                                        14,
-                                      ),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    "Efectivo",
-                                  ),
-                                ),
-                              ),
-
-                              const SizedBox(width: 10),
-
-                              Expanded(
-                                child: ElevatedButton(
-                                  onPressed: () {
-                                    setState(() {
-                                      metodoPago =
-                                          "tarjeta";
-                                    });
-                                  },
-                                  style:
-                                      ElevatedButton
-                                          .styleFrom(
-                                    backgroundColor:
-                                        metodoPago ==
-                                                "tarjeta"
-                                            ? Colors.blue
-                                            : Colors.grey
-                                                .shade200,
-                                    foregroundColor:
-                                        metodoPago ==
-                                                "tarjeta"
-                                            ? Colors.white
-                                            : Colors.black,
-                                    elevation: 0,
-                                    shape:
-                                        RoundedRectangleBorder(
-                                      borderRadius:
-                                          BorderRadius
-                                              .circular(
-                                        14,
-                                      ),
-                                    ),
-                                  ),
-                                  child: const Text(
-                                    "Tarjeta",
-                                  ),
-                                ),
-                              ),
-                            ],
+                          // 💳 PAGOS
+                          PagosMixtosSection(
+                            key: ValueKey(ventaCounter),
+                            total: total,
+                            onCambio: actualizarPagos,
                           ),
-
-                          // 💵 EFECTIVO
-                          if (metodoPago ==
-                              "efectivo") ...[
-                            const SizedBox(height: 16),
-
-                            TextField(
-                              controller: pagoCtrl,
-                              keyboardType:
-                                  TextInputType.number,
-                              onChanged: (_) =>
-                                  calcularCambio(),
-                              decoration: InputDecoration(
-                                labelText:
-                                    "Monto recibido",
-                                prefixIcon: const Icon(
-                                  Icons.payments,
-                                ),
-                                filled: true,
-                                fillColor:
-                                    const Color(
-                                  0xFFF8F6F2,
-                                ),
-                                border:
-                                    OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius
-                                          .circular(14),
-                                  borderSide:
-                                      BorderSide.none,
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 10),
-
-                            Container(
-                              width: double.infinity,
-                              padding:
-                                  const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: cambio < 0
-                                    ? Colors.red
-                                        .withOpacity(0.1)
-                                    : Colors.green
-                                        .withOpacity(0.1),
-                                borderRadius:
-                                    BorderRadius
-                                        .circular(14),
-                              ),
-                              child: Text(
-                                "Cambio: \$${cambio.toStringAsFixed(2)}",
-                                textAlign:
-                                    TextAlign.center,
-                                style: TextStyle(
-                                  fontWeight:
-                                      FontWeight.bold,
-                                  color: cambio < 0
-                                      ? Colors.red
-                                      : Colors.green,
-                                ),
-                              ),
-                            ),
-                          ],
 
                           const SizedBox(height: 20),
 
@@ -1143,7 +1149,9 @@ class _VentasViewState extends State<VentasView> {
                             width: double.infinity,
                             height: 52,
                             child: ElevatedButton.icon(
-                              onPressed: iniciarConfirmacionVenta,
+                              onPressed: (carrito.isNotEmpty && resultadoPagos.esValido && _cajaAbierta != null)
+                                  ? iniciarConfirmacionVenta
+                                  : null,
                               icon: const Icon(
                                 Icons.check_circle,
                               ),
@@ -1154,11 +1162,9 @@ class _VentasViewState extends State<VentasView> {
                                   ElevatedButton
                                       .styleFrom(
                                 backgroundColor:
-                                    const Color(
-                                  0xFFF2C500,
-                                ),
+                                    AppColors.primary,
                                 foregroundColor:
-                                    Colors.black,
+                                    AppColors.onPrimary,
                                 elevation: 0,
                                 shape:
                                     RoundedRectangleBorder(
@@ -1174,14 +1180,53 @@ class _VentasViewState extends State<VentasView> {
                     ),
                   ),
                 ],
+                    ),
+                  ),
+                ],
               ),
             ),
+            ),
+    );
+  }
+
+  // 🔐 BANNER SIN CAJA
+  Widget _bannerSinCaja() {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.error.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.lock_outline, color: AppColors.error),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Text(
+              "Debes abrir tu caja antes de vender.",
+              style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w600),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: irAAbrirCaja,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text("Abrir Caja"),
+          ),
+        ],
+      ),
     );
   }
 
   @override
   void dispose() {
-    pagoCtrl.dispose();
     busquedaCtrl.dispose();
     busquedaFocus.dispose();
 

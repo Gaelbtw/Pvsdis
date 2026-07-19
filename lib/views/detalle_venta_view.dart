@@ -272,9 +272,9 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
 
   Widget _estadoChip(String estado) {
     final color = switch (estado) {
-      'Cancelada' => Colors.red,
-      'Parcialmente devuelta' => Colors.orange,
-      _ => Colors.green,
+      'Cancelada' => AppColors.error,
+      'Parcialmente devuelta' => AppColors.warning,
+      _ => AppColors.success,
     };
 
     return Container(

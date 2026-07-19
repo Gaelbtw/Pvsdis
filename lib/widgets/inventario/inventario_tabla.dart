@@ -150,7 +150,7 @@ class InventarioTabla extends StatelessWidget {
                 ),
                 IconButton(
                   tooltip: "Editar",
-                  icon: const Icon(Icons.edit_outlined, color: Colors.blue),
+                  icon: Icon(Icons.edit_outlined, color: AppColors.primaryDark),
                   onPressed: () => onEditar(p),
                 ),
                 if (!esCajero)

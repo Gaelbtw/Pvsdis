@@ -7,6 +7,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../security/password_hasher.dart';
+import '../utils/pagos_mixtos.dart';
 
 class DatabaseHelper {
   static Database? _database;
@@ -58,7 +59,7 @@ class DatabaseHelper {
 
   // Inicializar la base de datos
 
-  static const _databaseVersion = 11;
+  static const _databaseVersion = 17;
 
   Future<Database> _initDB() async {
     final path = await getDatabasePath();
@@ -285,11 +286,34 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
+      CREATE TABLE Cajas (
+        id_caja INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_usuario INTEGER NOT NULL,
+        fecha_apertura TEXT NOT NULL,
+        fecha_cierre TEXT,
+        fondo_inicial REAL NOT NULL DEFAULT 0,
+        observaciones_apertura TEXT,
+        ventas_efectivo REAL,
+        ventas_tarjeta REAL,
+        ventas_transferencia REAL,
+        cambio_entregado REAL,
+        devoluciones REAL,
+        efectivo_esperado REAL,
+        efectivo_contado REAL,
+        diferencia REAL,
+        observaciones_cierre TEXT,
+        estado TEXT CHECK(estado IN ('Abierta','Cerrada')) NOT NULL DEFAULT 'Abierta',
+        FOREIGN KEY (id_usuario) REFERENCES Usuarios(id_usuario) ON DELETE RESTRICT
+      );
+    ''');
+
+    await db.execute('''
       CREATE TABLE Ventas (
         id_venta INTEGER PRIMARY KEY AUTOINCREMENT,
         id_cliente INTEGER,
         id_usuario INTEGER,
         id_pedido INTEGER,
+        id_caja INTEGER,
         fecha DATE,
         total REAL,
         metodo_pago TEXT DEFAULT 'efectivo',
@@ -300,9 +324,11 @@ class DatabaseHelper {
         descuento_global_valor REAL DEFAULT 0,
         descuento_motivo TEXT,
         descuento_autorizado_por INTEGER,
+        cambio REAL DEFAULT 0,
         FOREIGN KEY (id_cliente) REFERENCES Clientes(id_cliente) ON DELETE RESTRICT,
         FOREIGN KEY (id_usuario) REFERENCES Usuarios(id_usuario) ON DELETE RESTRICT,
-        FOREIGN KEY (id_pedido) REFERENCES Pedidos(id_pedido) ON DELETE SET NULL
+        FOREIGN KEY (id_pedido) REFERENCES Pedidos(id_pedido) ON DELETE SET NULL,
+        FOREIGN KEY (id_caja) REFERENCES Cajas(id_caja) ON DELETE SET NULL
       );
     ''');
 
@@ -323,16 +349,28 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
+      CREATE TABLE Venta_Pagos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_venta INTEGER NOT NULL,
+        metodo_pago TEXT NOT NULL,
+        monto REAL NOT NULL DEFAULT 0,
+        FOREIGN KEY (id_venta) REFERENCES Ventas(id_venta) ON DELETE CASCADE
+      );
+    ''');
+
+    await db.execute('''
       CREATE TABLE Devoluciones (
         id_devolucion INTEGER PRIMARY KEY AUTOINCREMENT,
         id_venta INTEGER NOT NULL,
         id_usuario INTEGER,
+        id_caja INTEGER,
         fecha_hora TEXT NOT NULL,
         tipo TEXT CHECK(tipo IN ('Cancelacion','Parcial')) NOT NULL,
         motivo TEXT NOT NULL,
         importe REAL NOT NULL DEFAULT 0,
         FOREIGN KEY (id_venta) REFERENCES Ventas(id_venta) ON DELETE RESTRICT,
-        FOREIGN KEY (id_usuario) REFERENCES Usuarios(id_usuario) ON DELETE RESTRICT
+        FOREIGN KEY (id_usuario) REFERENCES Usuarios(id_usuario) ON DELETE RESTRICT,
+        FOREIGN KEY (id_caja) REFERENCES Cajas(id_caja) ON DELETE SET NULL
       );
     ''');
 
@@ -412,6 +450,16 @@ class DatabaseHelper {
 
 
     await _ensureAuditoriasTable(db);
+    await _ensurePromocionesTables(db);
+    await _ensureInventarioCantidadReservadaColumn(db);
+    await _ensureApartadosTables(db);
+    await _ensureVentasIdApartadoColumn(db);
+    await _ensureCajasAnticiposColumns(db);
+    await _ensureAuditoriasContextColumns(db);
+    await _ensureComprasCreditoColumns(db);
+    await _ensureAbonosTables(db);
+    await _ensureCajasPagosProveedoresColumn(db);
+    await _backfillAbonosComprasExistentes(db);
     await _crearIndices(db);
 
     // No se siembra ningún usuario por defecto: la primera cuenta de
@@ -443,6 +491,22 @@ class DatabaseHelper {
     await _ensureVentasDescuentoColumns(db);
     await _ensureDetalleVentaDescuentoColumns(db);
     await _ensureConfiguracionDescuentoColumns(db);
+    await _ensureVentaPagosTable(db);
+    await _ensureVentasCambioColumn(db);
+    await _backfillVentaPagos(db);
+    await _ensureCajasTable(db);
+    await _ensureVentasIdCajaColumn(db);
+    await _ensureDevolucionesIdCajaColumn(db);
+    await _ensurePromocionesTables(db);
+    await _ensureInventarioCantidadReservadaColumn(db);
+    await _ensureApartadosTables(db);
+    await _ensureVentasIdApartadoColumn(db);
+    await _ensureCajasAnticiposColumns(db);
+    await _ensureAuditoriasContextColumns(db);
+    await _ensureComprasCreditoColumns(db);
+    await _ensureAbonosTables(db);
+    await _ensureCajasPagosProveedoresColumn(db);
+    await _backfillAbonosComprasExistentes(db);
 
     if (oldVersion < 7) {
       // SQLite no permite modificar una FOREIGN KEY ya existente con
@@ -558,6 +622,463 @@ class DatabaseHelper {
     }
 
     await db.execute('UPDATE Ventas SET subtotal = total WHERE subtotal IS NULL;');
+  }
+
+  /// Agrega la columna de cambio entregado (solo puede originarse de pagos
+  /// en efectivo, ver `lib/core/utils/pagos_mixtos.dart`). En filas
+  /// existentes queda en su DEFAULT 0: el cambio histórico nunca se
+  /// persistió antes de esta versión, así que no hay forma de reconstruirlo.
+  Future<void> _ensureVentasCambioColumn(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(Ventas)');
+    final columnNames = info.map((row) => row['name']?.toString()).toSet();
+
+    if (!columnNames.contains('cambio')) {
+      await db.execute('ALTER TABLE Ventas ADD COLUMN cambio REAL DEFAULT 0;');
+    }
+  }
+
+  /// Crea la tabla de líneas de pago (relación 1:N con `Ventas`) que permite
+  /// pagar una venta con varios métodos simultáneos. Tabla nueva, sin datos
+  /// legacy que migrar por ALTER TABLE: el historial se rellena aparte en
+  /// [_backfillVentaPagos].
+  Future<void> _ensureVentaPagosTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Venta_Pagos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_venta INTEGER NOT NULL,
+        metodo_pago TEXT NOT NULL,
+        monto REAL NOT NULL DEFAULT 0,
+        FOREIGN KEY (id_venta) REFERENCES Ventas(id_venta) ON DELETE CASCADE
+      );
+    ''');
+  }
+
+  /// Por cada venta histórica que todavía no tenga ninguna fila en
+  /// `Venta_Pagos`, asume que se pagó de una sola vez con el método ya
+  /// guardado en `Ventas.metodo_pago`, por el total completo (el desglose
+  /// mixto y el cambio de esas ventas nunca existieron). Un solo
+  /// INSERT...SELECT con NOT IN es naturalmente idempotente: en la segunda
+  /// llamada el WHERE ya no matchea ninguna fila.
+  Future<void> _backfillVentaPagos(Database db) async {
+    await db.execute('''
+      INSERT INTO Venta_Pagos (id_venta, metodo_pago, monto)
+      SELECT id_venta, IFNULL(metodo_pago, 'efectivo'), total
+      FROM Ventas
+      WHERE id_venta NOT IN (SELECT DISTINCT id_venta FROM Venta_Pagos);
+    ''');
+  }
+
+  /// Crea la tabla de sesiones de caja (apertura/cierre por cajero). Tabla
+  /// nueva, sin datos legacy que migrar. Las columnas de cierre quedan NULL
+  /// mientras `estado='Abierta'` y se congelan una sola vez en
+  /// `CajaController.cerrarCaja` (snapshot inmutable, mismo criterio que
+  /// `Devoluciones.importe`).
+  Future<void> _ensureCajasTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Cajas (
+        id_caja INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_usuario INTEGER NOT NULL,
+        fecha_apertura TEXT NOT NULL,
+        fecha_cierre TEXT,
+        fondo_inicial REAL NOT NULL DEFAULT 0,
+        observaciones_apertura TEXT,
+        ventas_efectivo REAL,
+        ventas_tarjeta REAL,
+        ventas_transferencia REAL,
+        anticipos_efectivo REAL,
+        anticipos_tarjeta REAL,
+        anticipos_transferencia REAL,
+        cambio_entregado REAL,
+        devoluciones REAL,
+        efectivo_esperado REAL,
+        efectivo_contado REAL,
+        diferencia REAL,
+        observaciones_cierre TEXT,
+        estado TEXT CHECK(estado IN ('Abierta','Cerrada')) NOT NULL DEFAULT 'Abierta',
+        FOREIGN KEY (id_usuario) REFERENCES Usuarios(id_usuario) ON DELETE RESTRICT
+      );
+    ''');
+  }
+
+  /// Desglose de anticipos/abonos de Apartados cobrados en esta caja,
+  /// congelado al cerrar (mismo criterio que `ventas_efectivo` etc.) — sin
+  /// esto, una caja ya cerrada solo mostraría el total correcto en
+  /// `efectivo_esperado`, pero perdería el desglose por categoría.
+  Future<void> _ensureCajasAnticiposColumns(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(Cajas)');
+    final columnNames = info.map((row) => row['name']?.toString()).toSet();
+
+    final columnasNuevas = ['anticipos_efectivo', 'anticipos_tarjeta', 'anticipos_transferencia'];
+    for (final columna in columnasNuevas) {
+      if (!columnNames.contains(columna)) {
+        await db.execute('ALTER TABLE Cajas ADD COLUMN $columna REAL;');
+      }
+    }
+  }
+
+  /// Desglose de pagos a proveedores cobrados en efectivo desde esta caja,
+  /// congelado al cerrar (mismo criterio que `anticipos_efectivo`) — sin
+  /// esto, el cierre no podría mostrar cuánto de esa salida ya quedó fijo
+  /// en el historial de cajas cerradas.
+  Future<void> _ensureCajasPagosProveedoresColumn(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(Cajas)');
+    final columnNames = info.map((row) => row['name']?.toString()).toSet();
+
+    if (!columnNames.contains('pagos_proveedores_efectivo')) {
+      await db.execute('ALTER TABLE Cajas ADD COLUMN pagos_proveedores_efectivo REAL;');
+    }
+  }
+
+  /// Datos de crédito/vencimiento de una compra. `forma_pago` es solo
+  /// informativa (qué intención tenía el usuario al comprar); el saldo y el
+  /// estado de pago NUNCA se guardan aquí — siempre se calculan en vivo a
+  /// partir de `total` y la suma de `Abonos` (ver `CuentasPorPagarController`).
+  Future<void> _ensureComprasCreditoColumns(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(Compras)');
+    final columnNames = info.map((row) => row['name']?.toString()).toSet();
+
+    if (!columnNames.contains('forma_pago')) {
+      await db.execute("ALTER TABLE Compras ADD COLUMN forma_pago TEXT NOT NULL DEFAULT 'Contado';");
+    }
+    if (!columnNames.contains('fecha_vencimiento')) {
+      await db.execute('ALTER TABLE Compras ADD COLUMN fecha_vencimiento TEXT;');
+    }
+    if (!columnNames.contains('folio_factura')) {
+      await db.execute('ALTER TABLE Compras ADD COLUMN folio_factura TEXT;');
+    }
+  }
+
+  /// `Abonos`: cada pago hecho a cuenta de una compra (historial inmutable,
+  /// nunca se edita ni se borra). `id_caja` es NULLABLE a propósito: un
+  /// abono por transferencia/tarjeta no requiere caja abierta, uno en
+  /// efectivo sí (se valida en `CuentasPorPagarController`, no aquí).
+  /// `Abono_Pagos` desglosa cada abono por método de pago, igual que
+  /// `Apartado_Abono_Pagos` desglosa cada abono de apartado — no se reutiliza
+  /// `Venta_Pagos` a propósito, es una estructura propia para compras.
+  Future<void> _ensureAbonosTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Abonos (
+        id_abono INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_compra INTEGER NOT NULL,
+        id_caja INTEGER,
+        id_usuario INTEGER,
+        fecha TEXT NOT NULL,
+        monto REAL NOT NULL DEFAULT 0,
+        referencia TEXT,
+        observaciones TEXT,
+        FOREIGN KEY (id_compra) REFERENCES Compras(id_compra) ON DELETE RESTRICT,
+        FOREIGN KEY (id_caja) REFERENCES Cajas(id_caja) ON DELETE RESTRICT,
+        FOREIGN KEY (id_usuario) REFERENCES Usuarios(id_usuario) ON DELETE RESTRICT
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Abono_Pagos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_abono INTEGER NOT NULL,
+        metodo_pago TEXT NOT NULL,
+        monto REAL NOT NULL DEFAULT 0,
+        FOREIGN KEY (id_abono) REFERENCES Abonos(id_abono) ON DELETE CASCADE
+      );
+    ''');
+  }
+
+  /// Antes de esta migración, toda compra se asumía saldada de inmediato
+  /// (no existía ningún concepto de crédito/pago). Sin este backfill, todas
+  /// las compras históricas aparecerían de golpe como 100% pendientes al
+  /// abrir la app ya migrada, porque el saldo se calcula en vivo a partir de
+  /// `Abonos` y ninguna compra vieja tiene abonos.
+  ///
+  /// El abono retroactivo cubre el total completo (para que la compra quede
+  /// `Pagada` y no se convierta en deuda pendiente que nunca existió), pero
+  /// a propósito NO se marca como pagado en efectivo/tarjeta/transferencia:
+  /// ese dato nunca se registró y no debe inventarse, porque falsearía los
+  /// totales por método de pago y los cierres de caja (una compra vieja no
+  /// tiene `id_caja`, así que jamás pudo ser un cierre real). Se usa
+  /// [metodoPagoHistorico] ("sin método de pago registrado"), que
+  /// deliberadamente no aparece en ninguna suma de efectivo/tarjeta/
+  /// transferencia (ver `CajaController`/`ReporteController`).
+  ///
+  /// Idempotente: solo actúa sobre compras que todavía no tengan ningún
+  /// abono, así que no duplica nada si se vuelve a llamar.
+  Future<void> _backfillAbonosComprasExistentes(Database db) async {
+    final comprasSinAbono = await db.rawQuery('''
+      SELECT c.id_compra, c.fecha, c.total, c.id_usuario
+      FROM Compras c
+      LEFT JOIN Abonos a ON a.id_compra = c.id_compra
+      WHERE a.id_abono IS NULL
+    ''');
+
+    for (final compra in comprasSinAbono) {
+      final total = (compra['total'] as num?)?.toDouble() ?? 0;
+      if (total <= 0) continue;
+
+      final idAbono = await db.insert('Abonos', {
+        'id_compra': compra['id_compra'],
+        'id_caja': null,
+        'id_usuario': compra['id_usuario'],
+        'fecha': compra['fecha']?.toString() ?? DateTime.now().toIso8601String(),
+        'monto': total,
+        'referencia': 'Migración: compra previa a Cuentas por Pagar, sin método de pago registrado',
+        'observaciones': null,
+      });
+
+      await db.insert('Abono_Pagos', {
+        'id_abono': idAbono,
+        'metodo_pago': metodoPagoHistorico,
+        'monto': total,
+      });
+    }
+  }
+
+  /// Liga cada venta a la caja que estaba abierta al momento de cobrarla.
+  /// Sin `REFERENCES` en el ALTER (igual que `descuento_autorizado_por`)
+  /// para evitar edge cases de SQLite con FK agregadas fuera de CREATE
+  /// TABLE; la integridad referencial real solo aplica a instalaciones
+  /// nuevas vía `_onCreate`. Ventas históricas quedan con `id_caja = NULL`
+  /// — no se inventa una caja retroactiva.
+  Future<void> _ensureVentasIdCajaColumn(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(Ventas)');
+    final columnNames = info.map((row) => row['name']?.toString()).toSet();
+
+    if (!columnNames.contains('id_caja')) {
+      await db.execute('ALTER TABLE Ventas ADD COLUMN id_caja INTEGER;');
+    }
+  }
+
+  /// Liga cada devolución a la caja abierta de quien la procesó (no
+  /// necesariamente la misma caja bajo la que se hizo la venta original).
+  Future<void> _ensureDevolucionesIdCajaColumn(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(Devoluciones)');
+    final columnNames = info.map((row) => row['name']?.toString()).toSet();
+
+    if (!columnNames.contains('id_caja')) {
+      await db.execute('ALTER TABLE Devoluciones ADD COLUMN id_caja INTEGER;');
+    }
+  }
+
+  /// Tablas del motor de promociones automáticas: la definición de cada
+  /// promoción, sus participantes (productos/categorías, o los items del
+  /// combo) y el snapshot inmutable de lo aplicado en cada venta.
+  ///
+  /// `Venta_Promociones`/`Venta_Promociones_Detalle` son tablas nuevas sin
+  /// datos legacy que migrar. `id_promocion` en `Venta_Promociones` es
+  /// `ON DELETE SET NULL` a propósito: editar o borrar una promoción no debe
+  /// alterar ventas ya cerradas, por eso el nombre/tipo se guardan también
+  /// como snapshot (`nombre_snapshot`/`tipo_snapshot`) en vez de leerse en
+  /// vivo desde `Promociones`.
+  Future<void> _ensurePromocionesTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Promociones (
+        id_promocion INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        tipo TEXT CHECK(tipo IN ('PORCENTAJE_PRODUCTO','MONTO_FIJO_PRODUCTO','NXY','DESCUENTO_CANTIDAD','COMBO')) NOT NULL,
+        activo INTEGER NOT NULL DEFAULT 1,
+        fecha_inicio TEXT,
+        fecha_fin TEXT,
+        prioridad INTEGER NOT NULL DEFAULT 0,
+        combinable INTEGER NOT NULL DEFAULT 0,
+        valor REAL,
+        tipo_valor TEXT,
+        cantidad_minima INTEGER,
+        nx_lleva INTEGER,
+        nx_paga INTEGER,
+        precio_combo REAL,
+        fecha_creacion TEXT NOT NULL,
+        creado_por TEXT
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Promocion_Productos (
+        id_promocion INTEGER NOT NULL,
+        id_producto INTEGER NOT NULL,
+        PRIMARY KEY (id_promocion, id_producto),
+        FOREIGN KEY (id_promocion) REFERENCES Promociones(id_promocion) ON DELETE CASCADE,
+        FOREIGN KEY (id_producto) REFERENCES Producto(id_producto) ON DELETE CASCADE
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Promocion_Categorias (
+        id_promocion INTEGER NOT NULL,
+        id_categoria INTEGER NOT NULL,
+        PRIMARY KEY (id_promocion, id_categoria),
+        FOREIGN KEY (id_promocion) REFERENCES Promociones(id_promocion) ON DELETE CASCADE,
+        FOREIGN KEY (id_categoria) REFERENCES Categorias(id_categoria) ON DELETE CASCADE
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Promocion_Combo_Items (
+        id_promocion INTEGER NOT NULL,
+        id_producto INTEGER NOT NULL,
+        cantidad INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (id_promocion, id_producto),
+        FOREIGN KEY (id_promocion) REFERENCES Promociones(id_promocion) ON DELETE CASCADE,
+        FOREIGN KEY (id_producto) REFERENCES Producto(id_producto) ON DELETE CASCADE
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Venta_Promociones (
+        id_venta_promocion INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_venta INTEGER NOT NULL,
+        id_promocion INTEGER,
+        nombre_snapshot TEXT NOT NULL,
+        tipo_snapshot TEXT NOT NULL,
+        ahorro_total REAL NOT NULL DEFAULT 0,
+        FOREIGN KEY (id_venta) REFERENCES Ventas(id_venta) ON DELETE CASCADE,
+        FOREIGN KEY (id_promocion) REFERENCES Promociones(id_promocion) ON DELETE SET NULL
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Venta_Promociones_Detalle (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_venta_promocion INTEGER NOT NULL,
+        id_detalleV INTEGER NOT NULL,
+        cantidad_afectada INTEGER NOT NULL,
+        ahorro REAL NOT NULL DEFAULT 0,
+        FOREIGN KEY (id_venta_promocion) REFERENCES Venta_Promociones(id_venta_promocion) ON DELETE CASCADE,
+        FOREIGN KEY (id_detalleV) REFERENCES Detalle_Venta(id_detalleV) ON DELETE CASCADE
+      );
+    ''');
+  }
+
+  /// Distingue por primera vez stock físico de stock reservado (por
+  /// Apartados): `cantidad` sigue significando "existencia física" tal como
+  /// ya la usan Ventas/Compras/Pedidos-al-entregar; `cantidad_reservada`
+  /// nunca se resta de `cantidad` directamente — "disponible para vender"
+  /// se calcula siempre como `cantidad - cantidad_reservada` en el momento
+  /// de leer, nunca se guarda.
+  Future<void> _ensureInventarioCantidadReservadaColumn(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(Inventario)');
+    final columnNames = info.map((row) => row['name']?.toString()).toSet();
+
+    if (!columnNames.contains('cantidad_reservada')) {
+      await db.execute('ALTER TABLE Inventario ADD COLUMN cantidad_reservada INTEGER NOT NULL DEFAULT 0;');
+    }
+  }
+
+  /// Enlaza la venta definitiva creada al liquidar un apartado de vuelta al
+  /// apartado de origen. Sin `REFERENCES` en el ALTER (mismo motivo que
+  /// `id_caja`/`descuento_autorizado_por`: SQLite y sus limitaciones con FK
+  /// agregadas fuera de CREATE TABLE) — la integridad referencial real solo
+  /// aplica a instalaciones nuevas vía `_onCreate`.
+  Future<void> _ensureVentasIdApartadoColumn(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(Ventas)');
+    final columnNames = info.map((row) => row['name']?.toString()).toSet();
+
+    if (!columnNames.contains('id_apartado')) {
+      await db.execute('ALTER TABLE Ventas ADD COLUMN id_apartado INTEGER;');
+    }
+  }
+
+  /// Tablas del módulo de Apartados (layaway): la reserva en sí
+  /// (`Apartados`/`Detalle_Apartado`, snapshot inmutable igual que
+  /// Ventas/Detalle_Venta), el snapshot de promociones aplicadas al crear
+  /// (mismo patrón que `Venta_Promociones`), y el historial de abonos
+  /// (`Apartado_Abonos`, un evento de pago) con sus métodos de pago
+  /// (`Apartado_Abono_Pagos`, mismo shape que `Venta_Pagos` pero un nivel
+  /// más anidado porque un apartado admite *varios* eventos de pago en el
+  /// tiempo, no uno solo).
+  ///
+  /// Al liquidar, la Venta resultante NO copia filas a `Venta_Pagos` ni
+  /// `Venta_Promociones` (evita contar el dinero dos veces en Caja/Reportes,
+  /// ver `ApartadosController._liquidar`): el historial de pagos y
+  /// promociones de una venta que vino de un apartado se sigue leyendo de
+  /// `Apartado_Abonos`/`Apartado_Promociones` a través de `Ventas.id_apartado`.
+  Future<void> _ensureApartadosTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Apartados (
+        id_apartado INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_cliente INTEGER NOT NULL,
+        id_usuario INTEGER,
+        fecha_creacion TEXT NOT NULL,
+        fecha_limite TEXT,
+        estado TEXT CHECK(estado IN ('Pendiente','Liquidado','Cancelado','Vencido')) NOT NULL DEFAULT 'Pendiente',
+        subtotal REAL NOT NULL DEFAULT 0,
+        descuento_total REAL NOT NULL DEFAULT 0,
+        descuento_global_tipo TEXT,
+        descuento_global_valor REAL DEFAULT 0,
+        descuento_motivo TEXT,
+        descuento_autorizado_por INTEGER,
+        total REAL NOT NULL DEFAULT 0,
+        id_venta INTEGER,
+        observaciones TEXT,
+        FOREIGN KEY (id_cliente) REFERENCES Clientes(id_cliente) ON DELETE RESTRICT,
+        FOREIGN KEY (id_usuario) REFERENCES Usuarios(id_usuario) ON DELETE RESTRICT,
+        FOREIGN KEY (id_venta) REFERENCES Ventas(id_venta) ON DELETE SET NULL
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Detalle_Apartado (
+        id_detalle_apartado INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_apartado INTEGER NOT NULL,
+        id_producto INTEGER NOT NULL,
+        cantidad INTEGER NOT NULL,
+        precio REAL NOT NULL,
+        descuento_tipo TEXT,
+        descuento_valor REAL DEFAULT 0,
+        descuento_monto REAL DEFAULT 0,
+        precio_neto REAL,
+        FOREIGN KEY (id_apartado) REFERENCES Apartados(id_apartado) ON DELETE CASCADE,
+        FOREIGN KEY (id_producto) REFERENCES Producto(id_producto) ON DELETE RESTRICT
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Apartado_Promociones (
+        id_apartado_promocion INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_apartado INTEGER NOT NULL,
+        id_promocion INTEGER,
+        nombre_snapshot TEXT NOT NULL,
+        tipo_snapshot TEXT NOT NULL,
+        ahorro_total REAL NOT NULL DEFAULT 0,
+        FOREIGN KEY (id_apartado) REFERENCES Apartados(id_apartado) ON DELETE CASCADE,
+        FOREIGN KEY (id_promocion) REFERENCES Promociones(id_promocion) ON DELETE SET NULL
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Apartado_Promociones_Detalle (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_apartado_promocion INTEGER NOT NULL,
+        id_detalle_apartado INTEGER NOT NULL,
+        cantidad_afectada INTEGER NOT NULL,
+        ahorro REAL NOT NULL DEFAULT 0,
+        FOREIGN KEY (id_apartado_promocion) REFERENCES Apartado_Promociones(id_apartado_promocion) ON DELETE CASCADE,
+        FOREIGN KEY (id_detalle_apartado) REFERENCES Detalle_Apartado(id_detalle_apartado) ON DELETE CASCADE
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Apartado_Abonos (
+        id_abono INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_apartado INTEGER NOT NULL,
+        id_caja INTEGER NOT NULL,
+        id_usuario INTEGER,
+        fecha TEXT NOT NULL,
+        tipo TEXT CHECK(tipo IN ('Anticipo','Abono','Liquidacion')) NOT NULL,
+        monto REAL NOT NULL DEFAULT 0,
+        cambio REAL NOT NULL DEFAULT 0,
+        FOREIGN KEY (id_apartado) REFERENCES Apartados(id_apartado) ON DELETE CASCADE,
+        FOREIGN KEY (id_caja) REFERENCES Cajas(id_caja) ON DELETE RESTRICT,
+        FOREIGN KEY (id_usuario) REFERENCES Usuarios(id_usuario) ON DELETE RESTRICT
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Apartado_Abono_Pagos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id_abono INTEGER NOT NULL,
+        metodo_pago TEXT NOT NULL,
+        monto REAL NOT NULL DEFAULT 0,
+        FOREIGN KEY (id_abono) REFERENCES Apartado_Abonos(id_abono) ON DELETE CASCADE
+      );
+    ''');
   }
 
   /// Agrega a `Detalle_Venta` las columnas de descuento por línea y
@@ -843,11 +1364,49 @@ class DatabaseHelper {
     await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_producto_codigo_barras ON Producto(codigo_barras);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_auditorias_fecha_hora ON Auditorias(fecha_hora);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_auditorias_tabla ON Auditorias(tabla);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_auditorias_id_usuario ON Auditorias(id_usuario);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_ventas_estado ON Ventas(estado);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_devoluciones_id_venta ON Devoluciones(id_venta);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_devoluciones_fecha_hora ON Devoluciones(fecha_hora);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_detalle_devolucion_id_devolucion ON Detalle_Devolucion(id_devolucion);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_detalle_devolucion_id_producto ON Detalle_Devolucion(id_producto);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_venta_pagos_id_venta ON Venta_Pagos(id_venta);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_cajas_id_usuario_estado ON Cajas(id_usuario, estado);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_cajas_fecha_apertura ON Cajas(fecha_apertura);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_ventas_id_caja ON Ventas(id_caja);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_devoluciones_id_caja ON Devoluciones(id_caja);');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_promociones_activo ON Promociones(activo, fecha_inicio, fecha_fin);');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_promocion_productos_id_producto ON Promocion_Productos(id_producto);');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_promocion_categorias_id_categoria ON Promocion_Categorias(id_categoria);');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_venta_promociones_id_venta ON Venta_Promociones(id_venta);');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_venta_promociones_detalle_id_venta_promocion ON Venta_Promociones_Detalle(id_venta_promocion);');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_venta_promociones_detalle_id_detalleV ON Venta_Promociones_Detalle(id_detalleV);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_apartados_id_cliente ON Apartados(id_cliente);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_apartados_id_venta ON Apartados(id_venta);');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_apartados_estado_fecha_limite ON Apartados(estado, fecha_limite);');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_detalle_apartado_id_apartado ON Detalle_Apartado(id_apartado);');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_apartado_promociones_id_apartado ON Apartado_Promociones(id_apartado);');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_apartado_promociones_detalle_id_apartado_promocion ON Apartado_Promociones_Detalle(id_apartado_promocion);');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_apartado_abonos_id_apartado ON Apartado_Abonos(id_apartado);');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_apartado_abonos_id_caja ON Apartado_Abonos(id_caja);');
+    await db.execute(
+        'CREATE INDEX IF NOT EXISTS idx_apartado_abono_pagos_id_abono ON Apartado_Abono_Pagos(id_abono);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_ventas_id_apartado ON Ventas(id_apartado);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_abonos_id_compra ON Abonos(id_compra);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_abonos_id_caja ON Abonos(id_caja);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_abono_pagos_id_abono ON Abono_Pagos(id_abono);');
   }
 
   /// Migra a hash bcrypt cualquier contraseña que todavía esté en texto
@@ -885,6 +1444,22 @@ class DatabaseHelper {
     await _ensureVentasDescuentoColumns(db);
     await _ensureDetalleVentaDescuentoColumns(db);
     await _ensureConfiguracionDescuentoColumns(db);
+    await _ensureVentaPagosTable(db);
+    await _ensureVentasCambioColumn(db);
+    await _backfillVentaPagos(db);
+    await _ensureCajasTable(db);
+    await _ensureVentasIdCajaColumn(db);
+    await _ensureDevolucionesIdCajaColumn(db);
+    await _ensurePromocionesTables(db);
+    await _ensureInventarioCantidadReservadaColumn(db);
+    await _ensureApartadosTables(db);
+    await _ensureVentasIdApartadoColumn(db);
+    await _ensureCajasAnticiposColumns(db);
+    await _ensureAuditoriasContextColumns(db);
+    await _ensureComprasCreditoColumns(db);
+    await _ensureAbonosTables(db);
+    await _ensureCajasPagosProveedoresColumn(db);
+    await _backfillAbonosComprasExistentes(db);
   }
 
   Future<void> _ensureVentasMetodoPagoColumn(Database db) async {
@@ -925,9 +1500,28 @@ class DatabaseHelper {
         tabla TEXT NOT NULL,
         accion TEXT NOT NULL,
         id_registro INTEGER,
-        descripcion TEXT
+        descripcion TEXT,
+        id_usuario INTEGER,
+        id_caja INTEGER
       );
     ''');
+  }
+
+  /// Agrega a `Auditorias` el usuario (numérico) y la caja relacionados con
+  /// cada evento, para poder filtrar el reporte de movimientos por usuario
+  /// sin depender de parsear el campo `usuario` (texto libre). Ambas
+  /// columnas son opcionales: no todo evento ocurre dentro de una caja
+  /// abierta (ej. cambios de configuración).
+  Future<void> _ensureAuditoriasContextColumns(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(Auditorias)');
+    final columnNames = info.map((row) => row['name']?.toString()).toSet();
+
+    if (!columnNames.contains('id_usuario')) {
+      await db.execute('ALTER TABLE Auditorias ADD COLUMN id_usuario INTEGER;');
+    }
+    if (!columnNames.contains('id_caja')) {
+      await db.execute('ALTER TABLE Auditorias ADD COLUMN id_caja INTEGER;');
+    }
   }
 
   Future<void> _insertarAuditoriasDemo(Database db) async {

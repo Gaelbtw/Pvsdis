@@ -122,13 +122,7 @@ class _SetupAdminViewState extends State<SetupAdminView> {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(28),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x14000000),
-                    blurRadius: 24,
-                    offset: Offset(0, 10),
-                  ),
-                ],
+                boxShadow: AppColors.cardShadow,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -152,7 +146,7 @@ class _SetupAdminViewState extends State<SetupAdminView> {
                     style: TextStyle(
                       fontSize: 26,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF1F2937),
+                      color: AppColors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 8),

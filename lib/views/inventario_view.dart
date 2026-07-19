@@ -155,13 +155,7 @@ class _InventarioViewState extends State<InventarioView> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(28),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x11000000),
-                      blurRadius: 18,
-                      offset: Offset(0, 8),
-                    ),
-                  ],
+                  boxShadow: AppColors.cardShadow,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,7 +259,7 @@ class _InventarioViewState extends State<InventarioView> {
                 ChoiceChip(
                   label: const Text("Todos"),
                   selected: categoriaSeleccionada == null,
-                  selectedColor: const Color(0xFFF2C500),
+                  selectedColor: AppColors.primary,
                   labelStyle: TextStyle(
                     color: categoriaSeleccionada == null ? Colors.black : Colors.black87,
                   ),
@@ -281,7 +275,7 @@ class _InventarioViewState extends State<InventarioView> {
                     child: ChoiceChip(
                       label: Text(cat.nombre),
                       selected: selected,
-                      selectedColor: const Color(0xFFF2C500),
+                      selectedColor: AppColors.primary,
                       labelStyle: TextStyle(
                         color: selected ? Colors.black : Colors.black87,
                       ),

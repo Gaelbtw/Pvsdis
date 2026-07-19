@@ -43,6 +43,12 @@ void main() {
       'contra': PasswordHasher.hash('x'),
       'rol': 'Admin',
     });
+    await db.insert('Cajas', {
+      'id_usuario': 1,
+      'fecha_apertura': DateTime.now().toIso8601String(),
+      'fondo_inicial': 500,
+      'estado': 'Abierta',
+    });
   });
 
   tearDown(() async {
@@ -77,7 +83,9 @@ void main() {
           'descuento_valor': 10.0,
         },
       ],
-      metodoPago: 'efectivo',
+      pagos: const [
+        {'metodo_pago': 'Efectivo', 'monto': 45.0},
+      ],
     );
 
     final stockTrasVenta = await db.query('Inventario', where: 'id_producto = ?', whereArgs: [idProducto]);
@@ -127,7 +135,9 @@ void main() {
         {'id_producto': idA, 'nombre': 'Producto A', 'precio': 20.0, 'cantidad': 1},
         {'id_producto': idB, 'nombre': 'Producto B', 'precio': 10.0, 'cantidad': 1},
       ],
-      metodoPago: 'efectivo',
+      pagos: const [
+        {'metodo_pago': 'Efectivo', 'monto': 27.0},
+      ],
       descuentoGlobalTipo: TipoDescuento.fijo,
       descuentoGlobalValor: 3,
     );

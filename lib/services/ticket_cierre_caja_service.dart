@@ -3,28 +3,28 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../core/config/app_config.dart';
 
-class TicketCorteCajaService {
-
-  static Future<pw.Document> generarCorte({
-    required String fecha,
-    required String turno,
+class TicketCierreCajaService {
+  static Future<pw.Document> generarCierre({
+    required String fechaApertura,
+    required String fechaCierre,
     required String cajero,
-    required String horaApertura,
-    required String horaCierre,
 
     required double total,
     required double efectivo,
     required double tarjeta,
+    required double transferencia,
+    required double cambioEntregado,
 
     required double fondo,
-    required double salidas,
     required double devoluciones,
     required double contado,
 
     required double esperado,
     required double diferencia,
-  }) async {
 
+    String? observacionesApertura,
+    String? observacionesCierre,
+  }) async {
     final pdf = pw.Document();
     final config = AppConfig.actual;
 
@@ -35,7 +35,6 @@ class TicketCorteCajaService {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-
               // ENCABEZADO
               pw.Center(
                 child: pw.Column(
@@ -47,7 +46,7 @@ class TicketCorteCajaService {
                         fontWeight: pw.FontWeight.bold,
                       ),
                     ),
-                    pw.Text("CORTE DE CAJA"),
+                    pw.Text("CIERRE DE CAJA"),
                     pw.SizedBox(height: 5),
                   ],
                 ),
@@ -56,14 +55,14 @@ class TicketCorteCajaService {
               pw.Divider(),
 
               // INFO GENERAL
-              pw.Text("Fecha: $fecha"),
-              pw.Text("Turno: $turno"),
               pw.Text("Cajero: $cajero"),
-
               pw.SizedBox(height: 5),
-
-              pw.Text("Apertura: $horaApertura"),
-              pw.Text("Cierre:   $horaCierre"),
+              pw.Text("Apertura: $fechaApertura"),
+              pw.Text("Cierre:   $fechaCierre"),
+              if (observacionesApertura != null && observacionesApertura.isNotEmpty)
+                pw.Text("Obs. apertura: $observacionesApertura"),
+              if (observacionesCierre != null && observacionesCierre.isNotEmpty)
+                pw.Text("Obs. cierre: $observacionesCierre"),
 
               pw.Divider(),
 
@@ -74,7 +73,9 @@ class TicketCorteCajaService {
               _row("Total", total),
               _row("Efectivo", efectivo),
               _row("Tarjeta", tarjeta),
-              if (devoluciones > 0) _row("Devoluciones del día", -devoluciones),
+              _row("Transferencia", transferencia),
+              if (cambioEntregado > 0) _row("Cambio entregado", -cambioEntregado),
+              if (devoluciones > 0) _row("Devoluciones", -devoluciones),
 
               pw.Divider(),
 
@@ -83,7 +84,6 @@ class TicketCorteCajaService {
               pw.SizedBox(height: 5),
 
               _row("Fondo inicial", fondo),
-              _row("Salidas", salidas),
               _row("Contado", contado),
 
               pw.Divider(),
@@ -111,7 +111,7 @@ class TicketCorteCajaService {
               pw.SizedBox(height: 20),
 
               pw.Center(
-                child: pw.Text("Corte generado correctamente"),
+                child: pw.Text("Cierre generado correctamente"),
               ),
 
               pw.SizedBox(height: 10),

@@ -498,7 +498,7 @@ class _PedidosViewState extends State<PedidosView> {
                   IconButton(
                     tooltip: 'Eliminar',
                     icon: Icon(Icons.delete_outline,
-                        color: Colors.red.shade400),
+                        color: AppColors.error),
                     onPressed: () => _confirmarEliminar(idPedido),
                   ),
                 ],
@@ -514,16 +514,16 @@ class _PedidosViewState extends State<PedidosView> {
     Color color;
     switch (estado) {
       case 'Entregado':
-        color = Colors.green;
+        color = AppColors.success;
         break;
       case 'Cancelado':
-        color = Colors.red;
+        color = AppColors.error;
         break;
       case 'En Proceso':
         color = Colors.blue;
         break;
       default:
-        color = Colors.orange;
+        color = AppColors.warning;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -567,10 +567,10 @@ class _PedidosViewState extends State<PedidosView> {
           if (!mounted) return;
           cargarPedidos();
           messenger.showSnackBar(
-            const SnackBar(
-              content: Text('Pedido eliminado con éxito'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 2),
+            SnackBar(
+              content: const Text('Pedido eliminado con éxito'),
+              backgroundColor: AppColors.error,
+              duration: const Duration(seconds: 2),
             ),
           );
         },

@@ -32,10 +32,10 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
           ? TextButton.icon(
               onPressed: () => Navigator.pop(context),
               icon: const Icon(Icons.arrow_back,
-                  color: Colors.black87, size: 18),
+                  color: AppColors.textPrimary, size: 18),
               label: const Text(
                 "Volver",
-                style: TextStyle(color: Colors.black87),
+                style: TextStyle(color: AppColors.textPrimary),
               ),
             )
           : null,
@@ -59,7 +59,7 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
           Text(
             AppConfig.actual.nombreNegocio,
             style: const TextStyle(
-              color: Colors.black87,
+              color: AppColors.textPrimary,
               fontWeight: FontWeight.w800,
             ),
           ),
@@ -67,7 +67,7 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
             " | $titulo",
             style: const TextStyle(
               fontWeight: FontWeight.w700,
-              color: Colors.black87,
+              color: AppColors.textPrimary,
             ),
           ),
         ],
@@ -102,7 +102,7 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
             style: const TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 12,
-              color: Colors.black87,
+              color: AppColors.textPrimary,
             ),
           ),
           Text(
@@ -128,7 +128,7 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
           style: const TextStyle(
             fontWeight: FontWeight.w600,
             fontSize: 13,
-            color: Colors.black87,
+            color: AppColors.textPrimary,
           ),
         ),
       ],

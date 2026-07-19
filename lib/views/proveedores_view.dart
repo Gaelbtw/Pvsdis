@@ -7,6 +7,7 @@ import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
 import '../widgets/form_dialog.dart';
 import '../widgets/nav_bar.dart';
+import 'proveedor_detalle_view.dart';
 
 class ProveedorView extends StatefulWidget {
   const ProveedorView({super.key});
@@ -206,13 +207,7 @@ void abrirFormulario({Proveedores? proveedor}) {
 
             borderRadius: BorderRadius.circular(28),
 
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x11000000),
-                blurRadius: 18,
-                offset: Offset(0, 8),
-              ),
-            ],
+            boxShadow: AppColors.cardShadow,
           ),
 
           child: Column(
@@ -429,6 +424,19 @@ void abrirFormulario({Proveedores? proveedor}) {
 
             child: Row(
               children: [
+                IconButton(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => ProveedorDetalleView(proveedor: p)),
+                  ),
+
+                  tooltip: "Ver cuenta",
+
+                  icon: const Icon(Icons.account_balance_wallet_outlined),
+
+                  color: AppColors.primaryDark,
+                ),
+
                 IconButton(
                   onPressed: () => abrirFormulario(proveedor: p),
 

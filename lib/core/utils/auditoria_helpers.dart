@@ -16,13 +16,25 @@ const auditoriaHeaderStyle = TextStyle(
 Color colorPorAccionAuditoria(String accion) {
   switch (accion) {
     case "CREATE":
-      return Colors.green.shade700;
+    case "LOGIN":
+    case "APERTURA_CAJA":
+    case "ACTIVAR":
+      return AppColors.success;
     case "EDIT":
-      return Colors.orange.shade800;
+    case "DESCUENTO":
+    case "PROMOCION":
+    case "ABONO_PROVEEDOR":
+      return AppColors.warning;
     case "DELETE":
-      return Colors.red.shade700;
+    case "CANCEL":
+    case "DEVOLUCION":
+      return AppColors.error;
+    case "CIERRE_CAJA":
+    case "LOGOUT":
+    case "DESACTIVAR":
+      return AppColors.textSecondary;
     default:
-      return Colors.black87;
+      return AppColors.textPrimary;
   }
 }
 
@@ -34,10 +46,71 @@ IconData iconoPorAccionAuditoria(String accion) {
       return Icons.edit_outlined;
     case "DELETE":
       return Icons.delete_outline;
+    case "LOGIN":
+      return Icons.login;
+    case "LOGOUT":
+      return Icons.logout;
+    case "APERTURA_CAJA":
+      return Icons.point_of_sale;
+    case "CIERRE_CAJA":
+      return Icons.lock_clock_outlined;
+    case "CANCEL":
+      return Icons.cancel_outlined;
+    case "DEVOLUCION":
+      return Icons.assignment_return_outlined;
+    case "ACTIVAR":
+      return Icons.toggle_on_outlined;
+    case "DESACTIVAR":
+      return Icons.toggle_off_outlined;
+    case "DESCUENTO":
+      return Icons.sell_outlined;
+    case "PROMOCION":
+      return Icons.local_offer_outlined;
+    case "ABONO_PROVEEDOR":
+      return Icons.payments_outlined;
     default:
       return Icons.history;
   }
 }
+
+/// Todas las acciones que efectivamente se registran hoy en `Auditorias`,
+/// usadas para poblar filtros (dropdown de acción en Auditorías y en el
+/// reporte de movimientos por usuario) sin dejar valores reales fuera.
+const accionesAuditoria = [
+  'CREATE',
+  'EDIT',
+  'DELETE',
+  'LOGIN',
+  'LOGOUT',
+  'APERTURA_CAJA',
+  'CIERRE_CAJA',
+  'CANCEL',
+  'DEVOLUCION',
+  'ACTIVAR',
+  'DESACTIVAR',
+  'DESCUENTO',
+  'PROMOCION',
+  'ABONO_PROVEEDOR',
+];
+
+/// Valores reales de `tabla` (módulo) usados como origen de un registro de
+/// auditoría. Fija (no derivada de resultados ya filtrados) para que el
+/// dropdown de módulo en el reporte de movimientos por usuario no pierda su
+/// selección cuando otro filtro deja la tabla actual sin resultados.
+const modulosAuditoria = [
+  'Ventas',
+  'Compras',
+  'Clientes',
+  'Proveedores',
+  'Productos',
+  'Inventario',
+  'Usuarios',
+  'Promociones',
+  'Apartados',
+  'Cajas',
+  'Sesion',
+  'Configuracion',
+];
 
 String formatearFechaHora(String value) {
   final fecha = DateTime.tryParse(value);

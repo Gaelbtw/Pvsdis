@@ -1,32 +1,32 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_colors.dart';
 import '../core/session/session_manager.dart';
+import '../controllers/auditoria_controller.dart';
 import '../widgets/menu_card.dart';
-import 'auditorias_view.dart';
-import 'base_datos_view.dart';
+import 'apartados_view.dart';
 import 'clientes_view.dart';
-import 'cortecaja_view.dart';
+import 'caja_view.dart';
 import 'inventario_view.dart';
 import 'login_view.dart';
 import 'pedidos_view.dart';
 import 'productos_view.dart';
 import 'proveedores_view.dart';
 import 'reporte_view.dart';
-import 'usuarios_view.dart';
 import 'ventas_view.dart';
 import 'compras_view.dart';
 import 'configuracion_view.dart';
 import '../widgets/nav_bar.dart';
 
+/// Inicio del Administrador: muestra únicamente Productos, Ventas,
+/// Inventario, Clientes, Proveedores, Compras y Caja. Usuarios, Reportes,
+/// Auditorías, Base de datos, Apartados, Promociones y Pedidos se
+/// administran desde Configuración. El inicio de Cajero no cambia: conserva
+/// su acceso directo a Apartados, Pedidos y Reportes (con las mismas
+/// restricciones que ya tenía).
 class HomeView extends StatelessWidget {
-  final String rol;
+  const HomeView({super.key});
 
-  const HomeView({
-    super.key,
-    required this.rol,
-  });
-
-  bool get esAdmin => rol == "Admin";
+  bool get esAdmin => SessionManager.isAdmin;
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +43,7 @@ class HomeView extends StatelessWidget {
               tooltip: "Configuracion",
               icon: const Icon(
                 Icons.settings,
-                color: Colors.black87,
+                color: AppColors.textPrimary,
               ),
               onPressed: () {
                 Navigator.push(
@@ -57,11 +57,19 @@ class HomeView extends StatelessWidget {
           IconButton(
             icon: const Icon(
               Icons.logout,
-              color: Colors.black87,
+              color: AppColors.textPrimary,
             ),
 
-            onPressed: () {
+            onPressed: () async {
+              await AuditoriaController().registrar(
+                tabla: 'Sesion',
+                accion: 'LOGOUT',
+                descripcion: 'Cierre de sesión',
+              );
+
               SessionManager.clear();
+
+              if (!context.mounted) return;
 
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(
@@ -85,13 +93,7 @@ class HomeView extends StatelessWidget {
 
             borderRadius: BorderRadius.circular(28),
 
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x11000000),
-                blurRadius: 18,
-                offset: Offset(0, 8),
-              ),
-            ],
+            boxShadow: AppColors.cardShadow,
           ),
 
           child: LayoutBuilder(
@@ -153,6 +155,24 @@ class HomeView extends StatelessWidget {
                     },
                   ),
 
+                  // APARTADOS (solo Cajero: Admin los administra desde Configuración)
+                  if (!esAdmin)
+                    MenuCard(
+                      title: "Apartados",
+                      subtitle: "Reservas con anticipo",
+                      icon: Icons.event_available,
+                      color: AppColors.primaryLighter,
+
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ApartadosView(),
+                          ),
+                        );
+                      },
+                    ),
+
                   // CLIENTES
                     MenuCard(
                       title: "Clientes",
@@ -205,25 +225,8 @@ class HomeView extends StatelessWidget {
                       },
                     ),
 
-                  // USUARIOS
-                  if (esAdmin)
-                    MenuCard(
-                      title: "Usuarios",
-                      subtitle: "Gestion de usuarios",
-                      icon: Icons.person,
-                      color: AppColors.primaryLight,
-
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const UsuariosView(),
-                          ),
-                        );
-                      },
-                    ),
-
-                  // REPORTES
+                  // REPORTES (solo Cajero: Admin los administra desde Configuración)
+                  if (!esAdmin)
                     MenuCard(
                       title: "Reportes",
                       subtitle: "Analisis",
@@ -257,7 +260,8 @@ class HomeView extends StatelessWidget {
                       },
                     ),
 
-                  // PEDIDOS
+                  // PEDIDOS (solo Cajero: Admin los administra desde Configuración)
+                  if (!esAdmin)
                     MenuCard(
                       title: "Pedidos",
                       subtitle: "Gestion de pedidos",
@@ -274,46 +278,10 @@ class HomeView extends StatelessWidget {
                       },
                     ),
 
-                  // AUDITORIAS
-                  if (esAdmin)
+                  // CAJA
                     MenuCard(
-                      title: "Auditorias",
-                      subtitle: "Seguimiento del sistema",
-                      icon: Icons.fact_check_outlined,
-                      color: AppColors.primaryLighter,
-
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const AuditoriasView(),
-                          ),
-                        );
-                      },
-                    ),
-
-                  // BASE DE DATOS
-                  if (esAdmin)
-                    MenuCard(
-                      title: "Base de datos",
-                      subtitle: "Backup y restore",
-                      icon: Icons.storage_rounded,
-                      color: AppColors.primaryLighter,
-
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const BaseDatosView(),
-                          ),
-                        );
-                      },
-                    ),
-
-                  // CORTE DE CAJA
-                    MenuCard(
-                      title: "Corte de Caja",
-                      subtitle: "Resumen diario",
+                      title: "Caja",
+                      subtitle: "Apertura, cierre e historial",
                       icon: Icons.attach_money,
                       color: AppColors.primaryLight,
 
@@ -321,7 +289,7 @@ class HomeView extends StatelessWidget {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => const CorteCajaView(),
+                            builder: (_) => const CajaView(),
                           ),
                         );
                       },

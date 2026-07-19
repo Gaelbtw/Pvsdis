@@ -73,13 +73,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(28),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x11000000),
-                blurRadius: 18,
-                offset: Offset(0, 8),
-              ),
-            ],
+            boxShadow: AppColors.cardShadow,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,11 +133,11 @@ class _AuditoriasViewState extends State<AuditoriasView> {
             child: DropdownButton<String>(
               value: accionFiltro,
               icon: const Icon(Icons.filter_list),
-              items: const [
-                DropdownMenuItem(value: "TODAS", child: Text("Todas")),
-                DropdownMenuItem(value: "CREATE", child: Text("CREATE")),
-                DropdownMenuItem(value: "EDIT", child: Text("EDIT")),
-                DropdownMenuItem(value: "DELETE", child: Text("DELETE")),
+              items: [
+                const DropdownMenuItem(value: "TODAS", child: Text("Todas")),
+                ...accionesAuditoria.map(
+                  (a) => DropdownMenuItem(value: a, child: Text(a)),
+                ),
               ],
               onChanged: (value) {
                 if (value == null) return;

@@ -196,13 +196,7 @@ class _UsuariosViewState extends State<UsuariosView> {
 
             borderRadius: BorderRadius.circular(28),
 
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x11000000),
-                blurRadius: 18,
-                offset: Offset(0, 8),
-              ),
-            ],
+            boxShadow: AppColors.cardShadow,
           ),
 
           child: Column(

@@ -243,6 +243,23 @@ class DevolucionesController {
         throw Exception('Esta venta ya está cancelada; no se pueden hacer más devoluciones.');
       }
 
+      // El reembolso siempre sale en efectivo (ver `_procesarDevolucion` más
+      // abajo), así que necesita quedar ligado a la caja actualmente abierta
+      // de quien procesa la devolución (no la de la venta original): de lo
+      // contrario ese efectivo saliente no se restaría de ningún cierre y
+      // generaría un faltante silencioso.
+      final idUsuarioActual = SessionManager.currentUserId ?? 1;
+      final cajaAbierta = await txn.query(
+        'Cajas',
+        where: 'id_usuario = ? AND estado = ?',
+        whereArgs: [idUsuarioActual, 'Abierta'],
+        limit: 1,
+      );
+      if (cajaAbierta.isEmpty) {
+        throw Exception('Debes abrir la caja antes de procesar devoluciones.');
+      }
+      final idCaja = cajaAbierta.first['id_caja'] as int;
+
       final vendidos = await txn.rawQuery('''
         SELECT dv.id_producto, p.nombre, dv.precio, dv.precio_neto, SUM(dv.cantidad) as cantidad_vendida
         FROM Detalle_Venta dv
@@ -334,6 +351,7 @@ class DevolucionesController {
       final idDevolucion = await txn.insert('Devoluciones', {
         'id_venta': idVenta,
         'id_usuario': SessionManager.currentUserId,
+        'id_caja': idCaja,
         'fecha_hora': DateTime.now().toIso8601String(),
         'tipo': tipo,
         'motivo': motivoLimpio,
@@ -380,10 +398,14 @@ class DevolucionesController {
         whereArgs: [idVenta],
       );
 
+      // El reembolso siempre se entrega en efectivo, sin importar con qué
+      // método(s) se pagó la venta original: así lo decidió el negocio para
+      // no depender de terminales de tarjeta al momento de la devolución.
+      // El corte de caja lo resta directamente del bucket de efectivo.
       final descripcion = tipo == 'Cancelacion'
-          ? 'Venta #$idVenta cancelada. Motivo: $motivoLimpio. Importe devuelto: \$${importeTotal.toStringAsFixed(2)}.'
+          ? 'Venta #$idVenta cancelada. Motivo: $motivoLimpio. Importe devuelto: \$${importeTotal.toStringAsFixed(2)} (reembolsado en efectivo).'
           : 'Devolución parcial en venta #$idVenta (${itemsAProcesar.length} producto(s)). '
-              'Motivo: $motivoLimpio. Importe devuelto: \$${importeTotal.toStringAsFixed(2)}.';
+              'Motivo: $motivoLimpio. Importe devuelto: \$${importeTotal.toStringAsFixed(2)} (reembolsado en efectivo).';
 
       await txn.insert('Auditorias', {
         'fecha_hora': DateTime.now().toIso8601String(),
@@ -392,6 +414,8 @@ class DevolucionesController {
         'accion': tipo == 'Cancelacion' ? 'CANCEL' : 'DEVOLUCION',
         'id_registro': idVenta,
         'descripcion': descripcion,
+        'id_usuario': idUsuarioActual,
+        'id_caja': idCaja,
       });
 
       return idDevolucion;

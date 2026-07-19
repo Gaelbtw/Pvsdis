@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../controllers/auditoria_controller.dart';
 import '../controllers/auth_controller.dart';
 import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
@@ -89,6 +90,14 @@ void login() async {
         rol: user['rol']?.toString() ?? 'Administrador',
       );
 
+      await AuditoriaController().registrar(
+        tabla: 'Sesion',
+        accion: 'LOGIN',
+        descripcion: 'Inicio de sesión',
+      );
+
+      if (!mounted) return;
+
       showDialog(
         context: context,
         builder: (_) => CustomAlert(
@@ -101,9 +110,7 @@ void login() async {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
-                builder: (_) => HomeView(
-                  rol: user['rol'],
-                ),
+                builder: (_) => const HomeView(),
               ),
             );
           },
@@ -139,13 +146,7 @@ void login() async {
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(28),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x14000000),
-                    blurRadius: 24,
-                    offset: Offset(0, 10),
-                  ),
-                ],
+                boxShadow: AppColors.cardShadow,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -173,7 +174,7 @@ void login() async {
                     style: TextStyle(
                       fontSize: 30,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF1F2937),
+                      color: AppColors.textPrimary,
                     ),
                   ),
 

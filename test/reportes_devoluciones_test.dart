@@ -1,18 +1,19 @@
-// Pruebas de que reportes y corte de caja excluyen/descuentan
-// devoluciones correctamente: las ventas canceladas no cuentan como
-// ingreso, las parcialmente devueltas cuentan por su monto neto, y el
-// corte de caja descuenta las devoluciones procesadas en el día (sin
-// importar la fecha de la venta original).
+// Pruebas de que los reportes excluyen/descuentan devoluciones
+// correctamente: las ventas canceladas no cuentan como ingreso, y las
+// parcialmente devueltas cuentan por su monto neto. (La cobertura de corte
+// de caja por devoluciones vive ahora en test/caja_controller_test.dart y
+// test/devoluciones_sin_caja_test.dart, contra la caja persistente en vez
+// del corte por día calendario.)
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
-import 'package:pvapp/controllers/cortecaja_controller.dart';
 import 'package:pvapp/controllers/devoluciones_controller.dart';
 import 'package:pvapp/controllers/reporte_controller.dart';
 import 'package:pvapp/core/database/database_helper.dart';
+import 'package:pvapp/core/security/password_hasher.dart';
 
 void main() {
   setUpAll(() {
@@ -24,7 +25,6 @@ void main() {
   late Database db;
   late DevolucionesController devoluciones;
   late ReporteController reportes;
-  late CorteCajaController corteCaja;
 
   setUp(() async {
     tempDir = Directory.systemTemp.createTempSync('pvapp_reportes_devoluciones_test');
@@ -33,7 +33,21 @@ void main() {
     DatabaseHelper.setTestDatabase(db);
     devoluciones = DevolucionesController();
     reportes = ReporteController();
-    corteCaja = CorteCajaController();
+
+    // DevolucionesController exige caja abierta; sin SessionManager.setUser
+    // cae en id_usuario=1 (ver `?? 1`), así que se siembra ese usuario
+    // (requerido por la FK de Cajas.id_usuario) y su caja abierta.
+    await db.insert('Usuarios', {
+      'nombre': 'Sistema',
+      'contra': PasswordHasher.hash('x'),
+      'rol': 'Admin',
+    });
+    await db.insert('Cajas', {
+      'id_usuario': 1,
+      'fecha_apertura': DateTime.now().toIso8601String(),
+      'fondo_inicial': 500,
+      'estado': 'Abierta',
+    });
   });
 
   tearDown(() async {
@@ -59,13 +73,25 @@ void main() {
     });
     await db.insert('Inventario', {'id_producto': idProducto, 'cantidad': 100});
 
+    final total = precio * cantidad;
+
     final idVenta = await db.insert('Ventas', {
       'id_cliente': null,
       'id_usuario': null,
       'fecha': fecha ?? DateTime.now().toIso8601String(),
-      'total': precio * cantidad,
+      'total': total,
       'metodo_pago': metodoPago,
       'estado': 'Activa',
+    });
+
+    // Estas ventas se insertan directo con `db.insert` (sin pasar por
+    // VentasController) para simular datos ya existentes; se agrega la fila
+    // de Venta_Pagos a mano para que quede consistente con lo que dejaría
+    // una venta real.
+    await db.insert('Venta_Pagos', {
+      'id_venta': idVenta,
+      'metodo_pago': metodoPago,
+      'monto': total,
     });
 
     await db.insert('Detalle_Venta', {
@@ -142,49 +168,5 @@ void main() {
     expect(resumen.ventasRecientes, hasLength(1));
     expect(resumen.ventasRecientes.first['estado'], 'Cancelada');
     expect(resumen.ventasRecientes.first['total_neto'], 0.0);
-  });
-
-  test('el corte de caja descuenta devoluciones procesadas hoy del bucket correcto', () async {
-    final idVentaEfectivo = await crearVenta(precio: 100, cantidad: 1, metodoPago: 'efectivo');
-    await crearVenta(precio: 50, cantidad: 1, metodoPago: 'tarjeta');
-    final idProducto = await idProductoDeVenta(idVentaEfectivo);
-
-    await devoluciones.devolverParcial(
-      idVenta: idVentaEfectivo,
-      motivo: 'Devolución de hoy',
-      items: [
-        {'id_producto': idProducto, 'cantidad': 1}, // devuelve los $100 completos
-      ],
-    );
-
-    final resumen = await corteCaja.calcularResumenDelDia(DateTime.now());
-
-    expect(resumen.efectivo, 0.0); // 100 - 100
-    expect(resumen.tarjeta, 50.0);
-    expect(resumen.total, 50.0);
-    expect(resumen.devoluciones, 100.0);
-  });
-
-  test('el corte de caja descuenta una devolución de hoy aunque la venta original sea de otro día', () async {
-    final ayer = DateTime.now().subtract(const Duration(days: 1)).toIso8601String();
-    final idVenta = await crearVenta(precio: 80, cantidad: 1, fecha: ayer);
-    final idProducto = await idProductoDeVenta(idVenta);
-
-    // La venta de ayer no aparece en el corte de hoy...
-    final antes = await corteCaja.calcularResumenDelDia(DateTime.now());
-    expect(antes.efectivo, 0.0);
-
-    // ...pero si se devuelve hoy, el efectivo que sale del cajón hoy sí debe reflejarse.
-    await devoluciones.devolverParcial(
-      idVenta: idVenta,
-      motivo: 'Devolución tardía',
-      items: [
-        {'id_producto': idProducto, 'cantidad': 1},
-      ],
-    );
-
-    final despues = await corteCaja.calcularResumenDelDia(DateTime.now());
-    expect(despues.efectivo, -80.0);
-    expect(despues.devoluciones, 80.0);
   });
 }

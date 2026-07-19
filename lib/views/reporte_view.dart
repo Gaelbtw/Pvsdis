@@ -3,10 +3,15 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../widgets/custom_alert.dart';
+import '../controllers/auditoria_controller.dart';
 import '../controllers/reporte_controller.dart';
+import '../controllers/usuarios_controller.dart';
 import '../core/config/app_config.dart';
 import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
+import '../core/utils/auditoria_helpers.dart';
+import '../models/auditoria_model.dart';
+import '../models/usuarios_model.dart';
 import '../services/ticket_compras_service.dart';
 import '../services/ticket_service.dart';
 import '../widgets/nav_bar.dart';
@@ -21,6 +26,7 @@ class ReporteView extends StatefulWidget {
 
 class _ReporteViewState extends State<ReporteView> {
   final _reporteController = ReporteController();
+  final _auditoriaController = AuditoriaController();
 
   DateTime desde = DateTime.now().subtract(const Duration(days: 6));
   DateTime hasta = DateTime.now();
@@ -38,6 +44,22 @@ class _ReporteViewState extends State<ReporteView> {
   List<Map<String, dynamic>> productosComprados = [];
   List<Map<String, dynamic>> comprasRecientes = [];
 
+  // Movimientos por usuario (solo Administrador): reutiliza Auditorias, sin
+  // duplicar ningún registro.
+  List<Usuarios> usuarios = [];
+  List<Auditoria> movimientos = [];
+  bool cargandoMovimientos = false;
+  int? filtroUsuarioId;
+  String? filtroAccion;
+  String? filtroTabla;
+  DateTime? filtroDesde;
+  DateTime? filtroHasta;
+
+  // Cuentas por pagar (solo Administrador): de solo lectura aquí; registrar
+  // abonos vive en CuentasPorPagarView para no duplicar esa acción en dos
+  // pantallas.
+  ReporteCuentasPorPagarResumen? cuentasPorPagar;
+
   bool get esCajero =>
       SessionManager.currentUserRole == "Cajero";
   int? get usuarioId =>
@@ -45,8 +67,12 @@ class _ReporteViewState extends State<ReporteView> {
 
   String get rangoTexto => '${_formatDate(desde)} - ${_formatDate(hasta)}';
 
-  String get tituloReporte =>
-      paginaSeleccionada == 0 ? 'Reporte de Ventas' : 'Reporte de Compras';
+  String get tituloReporte => switch (paginaSeleccionada) {
+        0 => 'Reporte de Ventas',
+        1 => 'Reporte de Compras',
+        2 => 'Movimientos por usuario',
+        _ => 'Cuentas por pagar',
+      };
 
   String _formatDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
@@ -56,6 +82,34 @@ class _ReporteViewState extends State<ReporteView> {
   void initState() {
     super.initState();
     _cargarReportes();
+    if (!esCajero) {
+      _cargarUsuarios();
+      _cargarMovimientos();
+    }
+  }
+
+  Future<void> _cargarUsuarios() async {
+    final data = await UsuariosController().obtenerTodos();
+    if (!mounted) return;
+    setState(() => usuarios = data);
+  }
+
+  Future<void> _cargarMovimientos() async {
+    setState(() => cargandoMovimientos = true);
+
+    final data = await _auditoriaController.obtenerFiltradas(
+      idUsuario: filtroUsuarioId,
+      accion: filtroAccion,
+      tabla: filtroTabla,
+      desde: filtroDesde,
+      hasta: filtroHasta,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      movimientos = data;
+      cargandoMovimientos = false;
+    });
   }
 
   Future<void> _cargarReportes() async {
@@ -64,11 +118,24 @@ class _ReporteViewState extends State<ReporteView> {
     try {
       await _cargarReportesVentas();
       await _cargarReportesCompras();
+      if (!esCajero) {
+        await _cargarCuentasPorPagar();
+      }
     } finally {
       if (mounted) {
         setState(() => cargando = false);
       }
     }
+  }
+
+  Future<void> _cargarCuentasPorPagar() async {
+    final resumen = await _reporteController.obtenerReporteCuentasPorPagar(
+      desde: desde,
+      hasta: hasta,
+    );
+
+    if (!mounted) return;
+    setState(() => cuentasPorPagar = resumen);
   }
 
 Future<void> _cargarReportesVentas() async {
@@ -307,6 +374,7 @@ Future<void> _cargarReportesVentas() async {
 ) async {
   final carrito = await _reporteController.obtenerDetalleVentaParaTicket(idVenta);
   final totales = await _reporteController.obtenerTotalesVentaParaTicket(idVenta);
+  final pagos = await _reporteController.obtenerPagosVenta(idVenta);
 
   if (!mounted) return;
 
@@ -331,9 +399,8 @@ Future<void> _cargarReportesVentas() async {
           total: totales.total,
           subtotal: totales.subtotal,
           descuento: totales.descuentoTotal,
-          metodoPago: metodoPago,
-          recibido: totales.total,
-          cambio: 0,
+          pagos: pagos,
+          cambio: totales.cambio,
         );
 
         await Printing.layoutPdf(
@@ -410,6 +477,417 @@ Future<void> _cargarReportesVentas() async {
   );
 }
 
+  // Solo lectura: registrar abonos vive en CuentasPorPagarView (evita
+  // duplicar esa acción en dos pantallas). Reutiliza el mismo rango de
+  // fechas (desde/hasta) que Ventas/Compras.
+  Widget _buildCuentasPorPagarTab() {
+    final resumen = cuentasPorPagar;
+    if (resumen == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return ListView(
+      children: [
+        Row(
+          children: [
+            _statCard('Deuda total', resumen.deudaTotal, AppColors.error),
+            const SizedBox(width: 16),
+            _statCard(
+              'Salidas de caja (efectivo) en el rango',
+              resumen.salidasCajaEfectivo,
+              AppColors.warning,
+            ),
+            const SizedBox(width: 16),
+            _statCardEntero('Compras vencidas', resumen.comprasVencidas.length, AppColors.error),
+            const SizedBox(width: 16),
+            _statCardEntero(
+              'Próximos vencimientos (7 días)',
+              resumen.proximosVencimientos.length,
+              AppColors.warning,
+            ),
+          ],
+        ),
+        const SizedBox(height: 24),
+        _seccionCuentasPorPagar(
+          'Deuda por proveedor',
+          resumen.deudaPorProveedor.map((r) {
+            final saldo = (r['saldo'] as num).toDouble();
+            return '${r['proveedor'] ?? 'Sin proveedor'} — \$${saldo.toStringAsFixed(2)} (${r['compras']} compra(s))';
+          }).toList(),
+        ),
+        const SizedBox(height: 16),
+        _seccionCuentasPorPagar(
+          'Compras vencidas',
+          resumen.comprasVencidas.map((r) {
+            final saldo = (r['saldo'] as num).toDouble();
+            return 'Compra #${r['id_compra']} · ${r['proveedor'] ?? 'Sin proveedor'} — Saldo \$${saldo.toStringAsFixed(2)}';
+          }).toList(),
+        ),
+        const SizedBox(height: 16),
+        _seccionCuentasPorPagar(
+          'Próximos vencimientos',
+          resumen.proximosVencimientos.map((r) {
+            final saldo = (r['saldo'] as num).toDouble();
+            return 'Compra #${r['id_compra']} · ${r['proveedor'] ?? 'Sin proveedor'} — Vence ${r['fecha_vencimiento']} — Saldo \$${saldo.toStringAsFixed(2)}';
+          }).toList(),
+        ),
+        const SizedBox(height: 16),
+        _seccionCuentasPorPagar(
+          'Pagos realizados en el rango',
+          resumen.pagosRealizados.map((r) {
+            final monto = (r['monto'] as num).toDouble();
+            return '${r['proveedor'] ?? 'Sin proveedor'} — \$${monto.toStringAsFixed(2)} · ${r['usuario'] ?? ''}';
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _statCard(String label, double valor, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            const SizedBox(height: 4),
+            Text('\$${valor.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: color)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statCardEntero(String label, int valor, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            const SizedBox(height: 4),
+            Text('$valor', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: color)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _seccionCuentasPorPagar(String titulo, List<String> lineas) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(titulo, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 10),
+          if (lineas.isEmpty)
+            const Text('Sin datos en este rango.', style: TextStyle(color: AppColors.textSecondary))
+          else
+            ...lineas.map(
+              (l) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text(l),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMovimientosPorUsuarioTab() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildFiltrosMovimientos(),
+        const SizedBox(height: 16),
+        Expanded(
+          child: cargandoMovimientos
+              ? const Center(child: CircularProgressIndicator())
+              : movimientos.isEmpty
+                  ? _emptyState('No hay movimientos con estos filtros.')
+                  : ListView(
+                      children: [
+                        _tablaMovimientosHeader(),
+                        const SizedBox(height: 8),
+                        ...movimientos.map(_filaMovimiento),
+                      ],
+                    ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFiltrosMovimientos() {
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        _dropdownFiltro<int?>(
+          label: 'Usuario',
+          value: filtroUsuarioId,
+          items: [
+            const DropdownMenuItem(value: null, child: Text('Todos')),
+            ...usuarios.map(
+              (u) => DropdownMenuItem(value: u.idUsuario, child: Text(u.nombre)),
+            ),
+          ],
+          onChanged: (value) {
+            setState(() => filtroUsuarioId = value);
+            _cargarMovimientos();
+          },
+        ),
+        _dropdownFiltro<String?>(
+          label: 'Tipo de movimiento',
+          value: filtroAccion,
+          items: [
+            const DropdownMenuItem(value: null, child: Text('Todos')),
+            ...accionesAuditoria.map(
+              (a) => DropdownMenuItem(value: a, child: Text(a)),
+            ),
+          ],
+          onChanged: (value) {
+            setState(() => filtroAccion = value);
+            _cargarMovimientos();
+          },
+        ),
+        _dropdownFiltro<String?>(
+          label: 'Módulo',
+          value: filtroTabla,
+          items: [
+            const DropdownMenuItem(value: null, child: Text('Todos')),
+            ...modulosAuditoria.map(
+              (t) => DropdownMenuItem(value: t, child: Text(t)),
+            ),
+          ],
+          onChanged: (value) {
+            setState(() => filtroTabla = value);
+            _cargarMovimientos();
+          },
+        ),
+        OutlinedButton.icon(
+          onPressed: _seleccionarFechasMovimientos,
+          icon: const Icon(Icons.date_range, size: 18),
+          label: Text(
+            filtroDesde == null || filtroHasta == null
+                ? 'Rango de fechas'
+                : '${_formatDate(filtroDesde!)} - ${_formatDate(filtroHasta!)}',
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.textPrimary,
+            side: BorderSide(color: AppColors.border),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
+        if (filtroDesde != null || filtroHasta != null)
+          TextButton(
+            onPressed: () {
+              setState(() {
+                filtroDesde = null;
+                filtroHasta = null;
+              });
+              _cargarMovimientos();
+            },
+            child: const Text('Limpiar fechas'),
+          ),
+        ElevatedButton.icon(
+          onPressed: _exportarMovimientosPDF,
+          icon: const Icon(Icons.picture_as_pdf, size: 18),
+          label: const Text('Exportar PDF'),
+          style: ElevatedButton.styleFrom(
+            elevation: 0,
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.onPrimary,
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _dropdownFiltro<T>({
+    required String label,
+    required T value,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<T>(
+          value: value,
+          hint: Text(label),
+          items: items,
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _seleccionarFechasMovimientos() async {
+    final fechaInicio = await showDatePicker(
+      context: context,
+      initialDate: filtroDesde ?? DateTime.now().subtract(const Duration(days: 6)),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+    );
+    if (fechaInicio == null || !mounted) return;
+
+    final fechaFin = await showDatePicker(
+      context: context,
+      initialDate: filtroHasta ?? DateTime.now(),
+      firstDate: fechaInicio,
+      lastDate: DateTime.now(),
+    );
+    if (fechaFin == null) return;
+
+    setState(() {
+      filtroDesde = fechaInicio;
+      // Fin de día, para no excluir movimientos del último día del rango.
+      filtroHasta = DateTime(fechaFin.year, fechaFin.month, fechaFin.day, 23, 59, 59);
+    });
+    await _cargarMovimientos();
+  }
+
+  Widget _tablaMovimientosHeader() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: const Row(
+        children: [
+          Expanded(flex: 16, child: Text("FECHA Y HORA", style: auditoriaHeaderStyle)),
+          Expanded(flex: 14, child: Text("USUARIO", style: auditoriaHeaderStyle)),
+          Expanded(flex: 10, child: Text("ACCION", style: auditoriaHeaderStyle)),
+          Expanded(flex: 12, child: Text("MODULO", style: auditoriaHeaderStyle)),
+          Expanded(flex: 10, child: Text("REGISTRO", style: auditoriaHeaderStyle)),
+          Expanded(flex: 8, child: Text("CAJA", style: auditoriaHeaderStyle)),
+          Expanded(flex: 22, child: Text("DESCRIPCION", style: auditoriaHeaderStyle)),
+        ],
+      ),
+    );
+  }
+
+  Widget _filaMovimiento(Auditoria m) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSubtle,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Row(
+        children: [
+          Expanded(flex: 16, child: Text(formatearFechaHora(m.fechaHora))),
+          Expanded(flex: 14, child: Text(m.usuario)),
+          Expanded(
+            flex: 10,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: colorPorAccionAuditoria(m.accion).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(iconoPorAccionAuditoria(m.accion),
+                        size: 14, color: colorPorAccionAuditoria(m.accion)),
+                    const SizedBox(width: 4),
+                    Text(
+                      m.accion,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: colorPorAccionAuditoria(m.accion),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Expanded(flex: 12, child: Text(m.tabla)),
+          Expanded(flex: 10, child: Text(m.idRegistro?.toString() ?? '-')),
+          Expanded(flex: 8, child: Text(m.idCaja?.toString() ?? '-')),
+          Expanded(
+            flex: 22,
+            child: Text(m.descripcion, overflow: TextOverflow.ellipsis),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _exportarMovimientosPDF() async {
+    if (movimientos.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay movimientos para exportar.')),
+      );
+      return;
+    }
+
+    final pdf = pw.Document();
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        build: (context) => [
+          pw.Header(level: 0, text: 'Movimientos por usuario'),
+          pw.Paragraph(text: 'Generado el ${DateTime.now().toLocal()}'),
+          pw.SizedBox(height: 10),
+          pw.Table.fromTextArray(
+            headers: [
+              'Fecha y hora',
+              'Usuario',
+              'Acción',
+              'Módulo',
+              'Registro',
+              'Caja',
+              'Descripción',
+            ],
+            data: movimientos.map((m) {
+              return [
+                formatearFechaHora(m.fechaHora),
+                m.usuario,
+                m.accion,
+                m.tabla,
+                m.idRegistro?.toString() ?? '-',
+                m.idCaja?.toString() ?? '-',
+                m.descripcion,
+              ];
+            }).toList(),
+            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+            cellAlignment: pw.Alignment.centerLeft,
+            headerDecoration: const pw.BoxDecoration(color: PdfColors.amber100),
+            cellStyle: const pw.TextStyle(fontSize: 9),
+          ),
+        ],
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => pdf.save(),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -424,36 +902,36 @@ Future<void> _cargarReportesVentas() async {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(28),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x11000000),
-                      blurRadius: 18,
-                      offset: Offset(0, 8),
-                    ),
-                  ],
+                  boxShadow: AppColors.cardShadow,
                 ),
                 child: Column(
                   children: [
                     _buildToolbar(),
                     const SizedBox(height: 20),
-                    _buildResumen(),
-                    const SizedBox(height: 20),
-                    Expanded(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(
-                            flex: 4,
-                            child: _buildProductosPanel(),
-                          ),
-                          const SizedBox(width: 20),
-                          Expanded(
-                            flex: 6,
-                            child: _buildMovimientosPanel(),
-                          ),
-                        ],
+                    if (paginaSeleccionada == 2)
+                      Expanded(child: _buildMovimientosPorUsuarioTab())
+                    else if (paginaSeleccionada == 3)
+                      Expanded(child: _buildCuentasPorPagarTab())
+                    else ...[
+                      _buildResumen(),
+                      const SizedBox(height: 20),
+                      Expanded(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              flex: 4,
+                              child: _buildProductosPanel(),
+                            ),
+                            const SizedBox(width: 20),
+                            Expanded(
+                              flex: 6,
+                              child: _buildMovimientosPanel(),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -477,14 +955,30 @@ Future<void> _cargarReportesVentas() async {
           selected: paginaSeleccionada == 1,
           onTap: () => setState(() => paginaSeleccionada = 1),
         ),
+        if (!esCajero) ...[
+          const SizedBox(width: 10),
+          _buildTabButton(
+            label: 'Movimientos por usuario',
+            icon: Icons.manage_accounts_outlined,
+            selected: paginaSeleccionada == 2,
+            onTap: () => setState(() => paginaSeleccionada = 2),
+          ),
+          const SizedBox(width: 10),
+          _buildTabButton(
+            label: 'Cuentas por pagar',
+            icon: Icons.account_balance_wallet_outlined,
+            selected: paginaSeleccionada == 3,
+            onTap: () => setState(() => paginaSeleccionada = 3),
+          ),
+        ],
         const SizedBox(width: 18),
-        if (!esCajero)
+        if (!esCajero && paginaSeleccionada != 2 && paginaSeleccionada != 3)
         _buildRangeButton('7 dias', () => _seleccionarRango(7)),
         const SizedBox(width: 8),
-        if (!esCajero)
+        if (!esCajero && paginaSeleccionada != 2 && paginaSeleccionada != 3)
         _buildRangeButton('30 dias', () => _seleccionarRango(30)),
         const SizedBox(width: 8),
-        if (!esCajero)
+        if (!esCajero && paginaSeleccionada != 2 && paginaSeleccionada != 3)
         OutlinedButton.icon(
           onPressed: _seleccionarFechasPersonalizadas,
           icon: const Icon(Icons.date_range, size: 18),
@@ -499,7 +993,7 @@ Future<void> _cargarReportesVentas() async {
           ),
         ),
         const Spacer(),
-        if (!esCajero)
+        if (!esCajero && paginaSeleccionada != 2 && paginaSeleccionada != 3)
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
@@ -518,7 +1012,7 @@ Future<void> _cargarReportesVentas() async {
           ),
         ),
         const SizedBox(width: 12),
-        if (!esCajero)
+        if (!esCajero && paginaSeleccionada != 2 && paginaSeleccionada != 3)
         ElevatedButton.icon(
           onPressed: _imprimirReporte,
           icon: const Icon(Icons.print, size: 18),
@@ -856,8 +1350,8 @@ Future<void> _cargarReportesVentas() async {
     VoidCallback? onDetalle,
   }) {
     final colorEstado = switch (estado) {
-      'Cancelada' => Colors.red,
-      'Parcialmente devuelta' => Colors.orange,
+      'Cancelada' => AppColors.error,
+      'Parcialmente devuelta' => AppColors.warning,
       _ => null,
     };
 

@@ -47,6 +47,12 @@ void main() {
       'contra': PasswordHasher.hash('x'),
       'rol': 'Admin',
     });
+    await db.insert('Cajas', {
+      'id_usuario': 1,
+      'fecha_apertura': DateTime.now().toIso8601String(),
+      'fondo_inicial': 500,
+      'estado': 'Abierta',
+    });
   });
 
   tearDown(() async {
@@ -102,7 +108,9 @@ void main() {
           'descuento_valor': 10.0,
         },
       ],
-      metodoPago: 'efectivo',
+      pagos: const [
+        {'metodo_pago': 'Efectivo', 'monto': 18.0},
+      ],
     );
 
     final venta = await ventaGuardada(idVenta);
@@ -137,7 +145,9 @@ void main() {
           'descuento_valor': 5.0,
         },
       ],
-      metodoPago: 'efectivo',
+      pagos: const [
+        {'metodo_pago': 'Efectivo', 'monto': 35.0},
+      ],
     );
 
     final venta = await ventaGuardada(idVenta);
@@ -152,7 +162,9 @@ void main() {
       carrito: [
         {'id_producto': idProducto, 'nombre': 'Producto de prueba', 'precio': 10.0, 'cantidad': 3},
       ],
-      metodoPago: 'efectivo',
+      pagos: const [
+        {'metodo_pago': 'Efectivo', 'monto': 27.0},
+      ],
       descuentoGlobalTipo: TipoDescuento.porcentaje,
       descuentoGlobalValor: 10,
     );
@@ -172,7 +184,9 @@ void main() {
       carrito: [
         {'id_producto': idProducto, 'nombre': 'Producto de prueba', 'precio': 10.0, 'cantidad': 4},
       ],
-      metodoPago: 'efectivo',
+      pagos: const [
+        {'metodo_pago': 'Efectivo', 'monto': 32.0},
+      ],
       descuentoGlobalTipo: TipoDescuento.fijo,
       descuentoGlobalValor: 8,
     );
@@ -196,7 +210,9 @@ void main() {
           'descuento_valor': 10.0, // -10
         },
       ],
-      metodoPago: 'efectivo',
+      pagos: const [
+        {'metodo_pago': 'Efectivo', 'monto': 81.0},
+      ],
       descuentoGlobalTipo: TipoDescuento.fijo,
       descuentoGlobalValor: 9, // sobre 90 -> 81
     );
@@ -225,7 +241,9 @@ void main() {
               'descuento_valor': 150.0,
             },
           ],
-          metodoPago: 'efectivo',
+          pagos: const [
+            {'metodo_pago': 'Efectivo', 'monto': 10.0},
+          ],
         ),
         throwsA(isA<Exception>()),
       );
@@ -248,7 +266,9 @@ void main() {
               'descuento_valor': 50.0,
             },
           ],
-          metodoPago: 'efectivo',
+          pagos: const [
+            {'metodo_pago': 'Efectivo', 'monto': 10.0},
+          ],
         ),
         throwsA(isA<Exception>()),
       );
@@ -269,7 +289,9 @@ void main() {
               'descuento_valor': -1.0,
             },
           ],
-          metodoPago: 'efectivo',
+          pagos: const [
+            {'metodo_pago': 'Efectivo', 'monto': 10.0},
+          ],
         ),
         throwsA(isA<Exception>()),
       );
@@ -294,7 +316,9 @@ void main() {
               'descuento_valor': 5.0,
             },
           ],
-          metodoPago: 'efectivo',
+          pagos: const [
+            {'metodo_pago': 'Efectivo', 'monto': 10.0},
+          ],
         ),
         throwsA(
           isA<Exception>().having((e) => e.toString(), 'mensaje', contains('permiso')),
@@ -317,7 +341,9 @@ void main() {
               'descuento_valor': 30.0, // > umbral 20%
             },
           ],
-          metodoPago: 'efectivo',
+          pagos: const [
+            {'metodo_pago': 'Efectivo', 'monto': 100.0},
+          ],
           // descuentoMotivo omitido a propósito
         ),
         throwsA(
@@ -342,7 +368,9 @@ void main() {
               'descuento_valor': 30.0,
             },
           ],
-          metodoPago: 'efectivo',
+          pagos: const [
+            {'metodo_pago': 'Efectivo', 'monto': 100.0},
+          ],
           descuentoMotivo: 'Cliente frecuente',
           // descuentoAutorizadoPor omitido: debe rechazar
         ),
@@ -357,6 +385,12 @@ void main() {
       final idAdmin = await crearUsuario('Admin', nombre: 'Jefa');
       final idCajero = await crearUsuario('Cajero', nombre: 'Cajero1');
       SessionManager.setUser(id: idCajero, nombre: 'Cajero1', rol: 'Cajero');
+      await db.insert('Cajas', {
+        'id_usuario': idCajero,
+        'fecha_apertura': DateTime.now().toIso8601String(),
+        'fondo_inicial': 500,
+        'estado': 'Abierta',
+      });
 
       final idVenta = await controller.insertarVentaCompleta(
         carrito: [
@@ -369,7 +403,9 @@ void main() {
             'descuento_valor': 30.0,
           },
         ],
-        metodoPago: 'efectivo',
+        pagos: const [
+          {'metodo_pago': 'Efectivo', 'monto': 70.0},
+        ],
         descuentoMotivo: 'Cliente frecuente',
         descuentoAutorizadoPor: idAdmin,
       );
@@ -390,6 +426,12 @@ void main() {
       final idProducto = await crearProducto(precio: 100, stock: 50);
       final idAdmin = await crearUsuario('Admin', nombre: 'Jefa');
       SessionManager.setUser(id: idAdmin, nombre: 'Jefa', rol: 'Admin');
+      await db.insert('Cajas', {
+        'id_usuario': idAdmin,
+        'fecha_apertura': DateTime.now().toIso8601String(),
+        'fondo_inicial': 500,
+        'estado': 'Abierta',
+      });
 
       // No debería lanzar aunque no se pase motivo: solo aplica a Cajero.
       // (El controlador exige motivo para CUALQUIER rol cuando se supera el
@@ -405,7 +447,9 @@ void main() {
             'descuento_valor': 30.0,
           },
         ],
-        metodoPago: 'efectivo',
+        pagos: const [
+          {'metodo_pago': 'Efectivo', 'monto': 70.0},
+        ],
         descuentoMotivo: 'Ajuste administrativo',
       );
 
@@ -431,15 +475,20 @@ void main() {
           },
           {'id_producto': idProductoB, 'nombre': 'B', 'precio': 5.0, 'cantidad': 3},
         ],
-        metodoPago: 'efectivo',
+        pagos: const [
+          {'metodo_pago': 'Efectivo', 'monto': 33.0},
+        ],
       ),
       throwsA(isA<Exception>()),
     );
 
     // Ni la venta ni el detalle de la primera línea (ya "procesada" antes
-    // de fallar en la segunda) deben haber quedado guardados.
+    // de fallar en la segunda) deben haber quedado guardados, y tampoco el
+    // pago (se inserta antes del loop de Detalle_Venta, en la misma
+    // transacción).
     expect(await db.query('Ventas'), isEmpty);
     expect(await db.query('Detalle_Venta'), isEmpty);
+    expect(await db.query('Venta_Pagos'), isEmpty);
 
     final stockA = await db.query('Inventario', where: 'id_producto = ?', whereArgs: [idProductoA]);
     expect(stockA.first['cantidad'], 50); // no se descontó nada

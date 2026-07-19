@@ -22,6 +22,8 @@ Future<void> confirmarAccion({
       mensaje: mensajeConfirmar,
       icono: iconoConfirmar,
       textoConfirmar: textoConfirmar,
+      textoCancelar: 'Cancelar',
+      esDestructivo: true,
       onConfirm: () async {
         await accion();
         if (!context.mounted) return;

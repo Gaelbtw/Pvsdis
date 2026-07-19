@@ -32,6 +32,7 @@ class CarritoVenta {
         "id_producto": producto.idProducto,
         "nombre": producto.nombre,
         "precio": producto.precio,
+        "id_categoria": producto.categoriaId,
         "cantidad": 1,
         "descuento_tipo": null,
         "descuento_valor": 0.0,

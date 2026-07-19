@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_colors.dart';
+import '../core/utils/pagos_mixtos.dart';
 import '../controllers/producto_controller.dart';
 import '../controllers/proveedor_controller.dart';
 import '../controllers/compras_controller.dart';
@@ -36,6 +37,15 @@ class _ComprasViewState extends State<ComprasView> {
 
   String busqueda = "";
   bool cargando = true;
+
+  // 💳 Forma de pago de la compra (de contado no es un caso especial: es
+  // simplemente un pago inicial igual al total; a crédito puede llevar un
+  // pago inicial parcial, o ninguno).
+  String formaPago = 'Contado';
+  String metodoPagoInicial = metodosPagoDisponibles.first;
+  DateTime? fechaVencimiento;
+  final folioFacturaCtrl = TextEditingController();
+  final montoInicialCtrl = TextEditingController(text: '0');
 
   @override
   void initState() {
@@ -98,17 +108,34 @@ class _ComprasViewState extends State<ComprasView> {
   return;
 }
 
+    final esContado = formaPago == 'Contado';
+    final montoInicial = esContado ? total : (double.tryParse(montoInicialCtrl.text) ?? 0);
+    final pagosIniciales = montoInicial > 0
+        ? [
+            {'metodo_pago': metodoPagoInicial, 'monto': montoInicial}
+          ]
+        : null;
+
     try {
       await comprasController.insertarCompraCompleta(
         carrito,
         total,
         proveedorSeleccionado!.idProveedor!,
+        formaPago: formaPago,
+        fechaVencimiento: esContado ? null : fechaVencimiento,
+        folioFactura: folioFacturaCtrl.text,
+        montoInicialPagado: montoInicial,
+        pagosIniciales: pagosIniciales,
       );
 
       await imprimirTicket();
 
       setState(() {
         carrito.clear();
+        formaPago = 'Contado';
+        fechaVencimiento = null;
+        folioFacturaCtrl.clear();
+        montoInicialCtrl.text = '0';
       });
 
       showDialog(
@@ -162,13 +189,7 @@ class _ComprasViewState extends State<ComprasView> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(28),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x11000000),
-                            blurRadius: 18,
-                            offset: Offset(0, 8),
-                          ),
-                        ],
+                        boxShadow: AppColors.cardShadow,
                       ),
 
                       child: Column(
@@ -294,11 +315,9 @@ class _ComprasViewState extends State<ComprasView> {
 
                                             style: ElevatedButton.styleFrom(
                                               elevation: 0,
-                                              backgroundColor: const Color(
-                                                0xFFF2C500,
-                                              ),
+                                              backgroundColor: AppColors.primary,
 
-                                              foregroundColor: Colors.black,
+                                              foregroundColor: AppColors.onPrimary,
 
                                               padding:
                                                   const EdgeInsets.symmetric(
@@ -336,13 +355,7 @@ class _ComprasViewState extends State<ComprasView> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(28),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Color(0x11000000),
-                            blurRadius: 18,
-                            offset: Offset(0, 8),
-                          ),
-                        ],
+                        boxShadow: AppColors.cardShadow,
                       ),
 
                       child: Column(
@@ -407,6 +420,10 @@ class _ComprasViewState extends State<ComprasView> {
                               });
                             },
                           ),
+
+                          const SizedBox(height: 16),
+
+                          _formaPagoSection(),
 
                           const SizedBox(height: 24),
 
@@ -673,6 +690,144 @@ class _ComprasViewState extends State<ComprasView> {
     );
   }
 
+  // 💳 FORMA DE PAGO: de contado (se paga el total ahora) o a crédito
+  // (fecha límite opcional + pago inicial opcional). El folio de factura
+  // aplica a cualquiera de las dos.
+  Widget _formaPagoSection() {
+    final esContado = formaPago == 'Contado';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(child: _formaPagoBtn('Contado')),
+            const SizedBox(width: 10),
+            Expanded(child: _formaPagoBtn('Credito', label: 'Crédito')),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (esContado)
+          DropdownButtonFormField<String>(
+            initialValue: metodoPagoInicial,
+            decoration: InputDecoration(
+              labelText: 'Método de pago',
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+            ),
+            items: metodosPagoDisponibles
+                .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                .toList(),
+            onChanged: (v) => setState(() => metodoPagoInicial = v!),
+          )
+        else ...[
+          InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () async {
+              final fecha = await showDatePicker(
+                context: context,
+                initialDate: DateTime.now().add(const Duration(days: 30)),
+                firstDate: DateTime.now(),
+                lastDate: DateTime.now().add(const Duration(days: 365)),
+              );
+              if (fecha != null) setState(() => fechaVencimiento = fecha);
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.event_outlined, size: 18),
+                  const SizedBox(width: 10),
+                  Text(
+                    fechaVencimiento == null
+                        ? 'Fecha límite de pago (opcional)'
+                        : '${fechaVencimiento!.day}/${fechaVencimiento!.month}/${fechaVencimiento!.year}',
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: montoInicialCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: 'Pago inicial (opcional)',
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            initialValue: metodoPagoInicial,
+            decoration: InputDecoration(
+              labelText: 'Método del pago inicial',
+              filled: true,
+              fillColor: AppColors.surface,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide.none,
+              ),
+            ),
+            items: metodosPagoDisponibles
+                .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                .toList(),
+            onChanged: (v) => setState(() => metodoPagoInicial = v!),
+          ),
+        ],
+        const SizedBox(height: 12),
+        TextField(
+          controller: folioFacturaCtrl,
+          decoration: InputDecoration(
+            labelText: 'Folio de factura (opcional)',
+            filled: true,
+            fillColor: AppColors.surface,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide.none,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _formaPagoBtn(String valor, {String? label}) {
+    final seleccionado = formaPago == valor;
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => setState(() => formaPago = valor),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: seleccionado ? AppColors.primary : AppColors.surface,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Text(
+          label ?? valor,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: seleccionado ? AppColors.onPrimary : AppColors.textPrimary,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _cantidadBtn({required IconData icon, required VoidCallback onTap}) {
     return InkWell(
       onTap: onTap,
@@ -699,6 +854,8 @@ class _ComprasViewState extends State<ComprasView> {
     for (var c in controllers.values) {
       c.dispose();
     }
+    folioFacturaCtrl.dispose();
+    montoInicialCtrl.dispose();
 
     super.dispose();
   }

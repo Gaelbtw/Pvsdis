@@ -6,6 +6,8 @@ class Auditoria {
   final String accion;
   final int? idRegistro;
   final String descripcion;
+  final int? idUsuario;
+  final int? idCaja;
 
   Auditoria({
     required this.idAuditoria,
@@ -15,6 +17,8 @@ class Auditoria {
     required this.accion,
     required this.idRegistro,
     required this.descripcion,
+    this.idUsuario,
+    this.idCaja,
   });
 
   Map<String, dynamic> toMap() {
@@ -26,6 +30,8 @@ class Auditoria {
       "accion": accion,
       "id_registro": idRegistro,
       "descripcion": descripcion,
+      "id_usuario": idUsuario,
+      "id_caja": idCaja,
     };
   }
 
@@ -38,6 +44,8 @@ class Auditoria {
       accion: map["accion"] ?? "",
       idRegistro: map["id_registro"],
       descripcion: map["descripcion"] ?? "",
+      idUsuario: map["id_usuario"],
+      idCaja: map["id_caja"],
     );
   }
 }

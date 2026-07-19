@@ -38,13 +38,7 @@ class MenuCard extends StatelessWidget {
 
             borderRadius: BorderRadius.circular(28),
 
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x11000000),
-                blurRadius: 12,
-                offset: Offset(0, 6),
-              ),
-            ],
+            boxShadow: AppColors.cardShadow,
           ),
 
           child: Column(
@@ -87,7 +81,7 @@ class MenuCard extends StatelessWidget {
 
                 style: TextStyle(
                   fontSize: tablet ? 13 : 12,
-                  color: const Color(0xFF4E4A46),
+                  color: AppColors.textSecondary,
                   height: 1.4,
                 ),
               ),

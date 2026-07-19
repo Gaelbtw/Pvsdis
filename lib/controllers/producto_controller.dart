@@ -158,6 +158,8 @@ class ProductoController {
         p.id_categoria,
         p.codigo_barras,
         IFNULL(i.cantidad, 0) as cantidad,
+        IFNULL(i.cantidad_reservada, 0) as cantidad_reservada,
+        IFNULL(i.cantidad, 0) - IFNULL(i.cantidad_reservada, 0) as disponible,
         c.nombre as categoria_nombre
       FROM Producto p
       LEFT JOIN Inventario i ON p.id_producto = i.id_producto
@@ -245,6 +247,20 @@ class ProductoController {
     };
   }
 
+  /// Igual que [obtenerStockMap] pero resta lo ya reservado por Apartados
+  /// (`cantidad - cantidad_reservada`): es lo que debe usarse para decidir
+  /// cuánto se le puede vender a un cliente ahora mismo, para no ofrecer
+  /// unidades que ya están comprometidas con otro cliente.
+  Future<Map<int, int>> obtenerDisponibleMap() async {
+    final db = await DatabaseHelper().database;
+    final res = await db.query('Inventario');
+    return {
+      for (var row in res)
+        (row['id_producto'] as int):
+            (row['cantidad'] as int? ?? 0) - (row['cantidad_reservada'] as int? ?? 0)
+    };
+  }
+
   /// Descuenta stock sin lanzar excepción. Si no hay suficiente, deja en 0.
   /// Si [executor] se recibe (por ejemplo, una transacción de
   /// PedidosController), la operación participa en ella en vez de abrir su
@@ -275,6 +291,55 @@ class ProductoController {
       SET cantidad = cantidad + ?
       WHERE id_producto = ?
     ''', [cantidad, idProducto]);
+  }
+
+  /// Reserva stock para un Apartado recién creado: NO toca la existencia
+  /// física (`cantidad`), solo marca esas unidades como comprometidas para
+  /// que ninguna otra venta/apartado pueda ofrecerlas mientras tanto.
+  Future<void> reservarStock(
+    int idProducto,
+    int cantidad, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await DatabaseHelper().database;
+    await db.rawUpdate('''
+      UPDATE Inventario
+      SET cantidad_reservada = cantidad_reservada + ?
+      WHERE id_producto = ?
+    ''', [cantidad, idProducto]);
+  }
+
+  /// Libera una reserva sin tocar la existencia física — se usa al cancelar
+  /// un apartado o cuando uno vencido pierde su garantía de reserva.
+  Future<void> liberarReserva(
+    int idProducto,
+    int cantidad, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await DatabaseHelper().database;
+    await db.rawUpdate('''
+      UPDATE Inventario
+      SET cantidad_reservada = MAX(0, cantidad_reservada - ?)
+      WHERE id_producto = ?
+    ''', [cantidad, idProducto]);
+  }
+
+  /// Convierte una reserva en una salida de stock definitiva (al liquidar
+  /// un apartado): resta de la existencia física Y libera la reserva en el
+  /// mismo `UPDATE`, para no duplicar movimientos de inventario (una reserva
+  /// que se liquida nunca debe, además, volver a descontarse por separado).
+  Future<void> confirmarReserva(
+    int idProducto,
+    int cantidad, {
+    DatabaseExecutor? executor,
+  }) async {
+    final db = executor ?? await DatabaseHelper().database;
+    await db.rawUpdate('''
+      UPDATE Inventario
+      SET cantidad = cantidad - ?,
+          cantidad_reservada = MAX(0, cantidad_reservada - ?)
+      WHERE id_producto = ?
+    ''', [cantidad, cantidad, idProducto]);
   }
 
   Future<String> _obtenerNombreProducto(dynamic db, int idProducto) async {

@@ -41,6 +41,27 @@ class AppColors {
   static const textSecondary = Color(0xFF6E6A64);
   static const textMuted = Color(0xFF3C3935);
 
+  // Colores semánticos (fijos, NO son color de marca): estado de la
+  // operación, nunca deben derivarse de `primary`. Los valores igualan a
+  // los `Colors.red/green/orange` que ya se usaban sueltos en varias
+  // pantallas (stock, ventas canceladas, apartados, cajas, pagos), solo
+  // que ahora centralizados en un único lugar.
+  static const error = Color(0xFFD32F2F); // Colors.red.shade700
+  static const success = Color(0xFF2E7D32); // Colors.green.shade700 (~700)
+  static const warning = Color(0xFFEF6C00); // Colors.orange.shade800
+  static final disabled = Colors.grey.shade400;
+
+  /// Sombra estándar de tarjeta, repetida antes como
+  /// `BoxShadow(color: Color(0x11000000), ...)` en más de una decena de
+  /// pantallas.
+  static const List<BoxShadow> cardShadow = [
+    BoxShadow(
+      color: Color(0x11000000),
+      blurRadius: 18,
+      offset: Offset(0, 8),
+    ),
+  ];
+
   static Color _sombrear(Color color, double cantidad) {
     final hsl = HSLColor.fromColor(color);
     final l = (hsl.lightness + cantidad).clamp(0.0, 1.0);
