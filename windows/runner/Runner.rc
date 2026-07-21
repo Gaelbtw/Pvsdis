@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "POS" "\0"
+            VALUE "CompanyName", "2A2G Company" "\0"
+            VALUE "FileDescription", "Pv Control - Punto de Venta" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "POS" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
+            VALUE "InternalName", "PvControl" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 2A2G Company. All rights reserved." "\0"
             VALUE "OriginalFilename", "pvapp.exe" "\0"
-            VALUE "ProductName", "POS" "\0"
+            VALUE "ProductName", "Pv Control" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
