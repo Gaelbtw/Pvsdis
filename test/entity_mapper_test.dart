@@ -261,12 +261,15 @@ void main() {
     });
 
     test('paraEntidad lanza ArgumentError para una entidad no registrada', () {
-      expect(() => EntityMapperRegistry.paraEntidad('Venta'), throwsArgumentError);
+      // 'Venta' ya no sirve como ejemplo de "no registrada" desde 3c (ver
+      // entity_mapper_3c_test.dart) -- se usa una entidad que no existe ni
+      // existirá en el registro del backend.
+      expect(() => EntityMapperRegistry.paraEntidad('EntidadQueNoExiste'), throwsArgumentError);
     });
 
     test('tieneMapper distingue entidades registradas de no registradas', () {
       expect(EntityMapperRegistry.tieneMapper('Cliente'), isTrue);
-      expect(EntityMapperRegistry.tieneMapper('Venta'), isFalse);
+      expect(EntityMapperRegistry.tieneMapper('EntidadQueNoExiste'), isFalse);
     });
 
     test('ordenPull incluye las 3 entidades de esta sub-fase', () {

@@ -79,6 +79,19 @@ class FkResolver {
     _guidAIdLocal.putIfAbsent(tablaLocal, () => {})[guid] = idLocal;
     _idLocalAGuid.putIfAbsent(tablaLocal, () => {})[idLocal] = guid;
   }
+
+  /// `sucursal_id` (Guid del backend) resuelto para este dispositivo, o
+  /// `null` si todavía no se ha resuelto (ver `Sync_Config` en
+  /// `database_helper.dart` y `SucursalResolver`, sub-fase 3d). Mappers que
+  /// necesiten `SucursalId` en su payload de push (Venta, CajaSesion,
+  /// Movimiento*) lo leen de acá en vez de recibir `db` directo -- mantiene
+  /// [FkResolver] como el único objeto de "contexto ambiente" que un
+  /// [EntityMapper] necesita, sin agregar un parámetro más a `aBackend`.
+  Future<String?> sucursalConfigurada() async {
+    final filas = await _db.query('Sync_Config', where: 'id = 1', limit: 1);
+    if (filas.isEmpty) return null;
+    return filas.first['sucursal_id'] as String?;
+  }
 }
 
 /// Contrato que traduce una entidad sincronizable en ambas direcciones:
