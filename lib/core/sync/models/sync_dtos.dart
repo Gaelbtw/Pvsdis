@@ -10,7 +10,7 @@
 /// por campo a las tablas espejo locales (columna `guid_sync`) es el
 /// siguiente paso de esta integración, no esta fase (ver
 /// `lib/core/sync/README-fase2.md`).
-
+///
 /// Espejo de `SyncPullResponseDto`. Respuesta de
 /// `GET /api/sync/{entidad}?desde=&limite=`.
 class SyncPullResponse {

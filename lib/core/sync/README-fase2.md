@@ -68,26 +68,51 @@ ni persiste nada localmente todavía — eso es el siguiente paso.
   `ErrorRespuestaApi`, conservando el mensaje real del backend
   ("Credenciales inválidas.", "La cuenta está temporalmente bloqueada...").
 
-## Sin verificar — necesita el SDK de Flutter
+## Verificado
 
-Este código se escribió **sin poder compilarlo**: el SDK de Flutter no
-estaba instalado en el entorno donde se hizo este trabajo. Antes de darlo
-por bueno hace falta, en orden:
+El SDK de Flutter se instaló después (clon de `flutter/flutter` rama
+`stable`, ver `C:\flutter`) y este código quedó verificado de verdad:
 
 ```bash
-flutter pub get
-flutter analyze
-flutter test
+flutter pub get     # OK -- http agregado como dependencia directa
+flutter analyze     # 0 issues en lib/core/sync y lib/core/config
+flutter test        # 302/302 (267 preexistentes + 35 nuevos), todo verde
 ```
 
-Se revisó a mano campo por campo contra los DTOs reales del backend
-(`EsqPos.Application/DTOs/AuthDtos.cs` y `SyncDtos.cs`) y contra
-`AuthController.cs`/`SyncController.cs` para los endpoints exactos, y se
-corrigieron en revisión un `rethrow` inválido dentro de un operador
-ternario (no compila en Dart) y el bug de mensaje-de-error incorrecto en
-login descrito arriba. Aun así, sin el SDK no hay garantía de que compile
-limpio en la primera pasada — típicamente quedan detalles de imports o
-tipos que solo el analizador atrapa.
+Antes de tener el SDK se revisó a mano campo por campo contra los DTOs
+reales del backend (`EsqPos.Application/DTOs/AuthDtos.cs` y `SyncDtos.cs`)
+y contra `AuthController.cs`/`SyncController.cs` para los endpoints
+exactos, y se corrigieron en esa revisión un `rethrow` inválido dentro de
+un operador ternario (no compila en Dart) y el bug de tipo de excepción en
+login descrito arriba. Al correr los tests reales tras instalar el SDK
+apareció un tercer bug, más serio, que la revisión manual no podía haber
+detectado:
+
+**Bug de encoding (corregido):** `ApiHttpClient` usaba `respuesta.body`
+para leer el cuerpo de cada respuesta. Ese getter de `package:http` cae a
+**latin1** cuando el `Content-Type` no trae un `charset` explícito, y
+corrompe en silencio cualquier tilde o `ñ` ("inválidas" → "invÃ¡lidas").
+Como toda esta app habla español, esto habría afectado cualquier mensaje
+de error del backend y cualquier campo de texto sincronizado (nombres de
+producto, categoría, promoción, etc.). Se corrigió decodificando
+`respuesta.bodyBytes` como UTF-8 de forma explícita, sin depender de que
+el backend (o algún proxy/gateway en el medio) mande el charset. Cubierto
+por tests en `test/api_http_client_test.dart` (mensajes con tildes en
+título/detail de un 401/400 simulado).
+
+**Tests nuevos** (`test/jwt_utils_test.dart`, `test/sesion_sync_test.dart`,
+`test/api_http_client_test.dart`, `test/auth_service_test.dart`): cubren
+`JwtUtils`, el vencimiento/roundtrip de `SesionSync`, la traducción de
+código HTTP → excepción en `ApiHttpClient` (con `http.Client` falso vía
+`http.BaseClient`, sin red real), y el flujo completo de `AuthService`
+(login, logout best-effort, refresco proactivo del access token, y sus
+casos de error). **No** hay test unitario de `TokenStorage` ni de
+`ConectividadProbe` todavía: `TokenStorage` depende de `path_provider`
+(plugin nativo) y este proyecto no tiene un patrón establecido para
+mockearlo -- el que sí existe (`DatabaseHelper.abrirEnRuta`,
+`@visibleForTesting`) resuelve el mismo problema exponiendo un método que
+recibe la ruta directamente en vez de pedirla a `path_provider`; sería
+natural aplicarle el mismo patrón a `TokenStorage` en un pase futuro.
 
 ## Siguiente paso
 

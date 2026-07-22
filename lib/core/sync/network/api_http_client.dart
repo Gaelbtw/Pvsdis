@@ -75,10 +75,18 @@ class ApiHttpClient {
   dynamic _procesarRespuesta(http.Response respuesta) {
     final exito = respuesta.statusCode >= 200 && respuesta.statusCode < 300;
 
+    // Se decodifica `bodyBytes` como UTF-8 explícitamente en vez de usar
+    // `respuesta.body`: ese getter de package:http cae a latin1 si el
+    // backend no manda un charset explícito en `Content-Type`, y esta app
+    // habla español con acentos/ñ en todas partes (nombres de productos,
+    // mensajes de error de FluentValidation, etc.) -- un charset mal
+    // detectado los corrompería en silencio ("inválidas" -> "invÃ¡lidas").
+    final cuerpoTexto = utf8.decode(respuesta.bodyBytes, allowMalformed: true);
+
     dynamic decodificado;
-    if (respuesta.body.isNotEmpty) {
+    if (cuerpoTexto.isNotEmpty) {
       try {
-        decodificado = jsonDecode(respuesta.body);
+        decodificado = jsonDecode(cuerpoTexto);
       } catch (_) {
         // Cuerpo no-JSON (ej. una página de error de IIS/nginx delante del
         // API): se ignora el parseo y se usa el mensaje genérico de abajo.
@@ -103,7 +111,7 @@ class ApiHttpClient {
     }
 
     final mensaje = _extraerMensajeDeError(decodificado) ?? 'Error del servidor (${respuesta.statusCode}).';
-    throw ErrorRespuestaApi(respuesta.statusCode, mensaje, cuerpo: respuesta.body);
+    throw ErrorRespuestaApi(respuesta.statusCode, mensaje, cuerpo: cuerpoTexto);
   }
 
   /// ASP.NET Core (ProblemDetails / FluentValidation) devuelve la razón del

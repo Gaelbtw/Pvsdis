@@ -3,7 +3,7 @@
 /// llama necesita reaccionar distinto -- un error de red no es un error de
 /// datos, y una sesión expirada dispara un refresh/relogin, no un mensaje
 /// de validación.
-
+///
 /// Error base de cualquier llamada al backend. Los demás tipos de esta
 /// jerarquía lo extienden; capturar `on ErrorApi` alcanza para manejar
 /// cualquier falla de sincronización de forma genérica.
@@ -22,7 +22,7 @@ class ErrorApi implements Exception {
 /// el tratamiento es el mismo: mostrar "sin conexión" y seguir operando
 /// con los datos locales.
 class ErrorRed extends ErrorApi {
-  ErrorRed([String mensaje = 'No se pudo conectar con el servidor. Verifica tu conexión.']) : super(mensaje);
+  ErrorRed([super.mensaje = 'No se pudo conectar con el servidor. Verifica tu conexión.']);
 }
 
 /// El backend respondió pero con un código de error HTTP (4xx/5xx) que no
@@ -41,6 +41,5 @@ class ErrorRespuestaApi extends ErrorApi {
 /// el backend -- no confundir con el login local de cajeros
 /// (`AuthController`/`Usuarios`), que sigue funcionando sin esto.
 class SesionExpiradaException extends ErrorApi {
-  SesionExpiradaException([String mensaje = 'La sesión con el servidor expiró. Vuelve a iniciar sesión.'])
-      : super(mensaje);
+  SesionExpiradaException([super.mensaje = 'La sesión con el servidor expiró. Vuelve a iniciar sesión.']);
 }
