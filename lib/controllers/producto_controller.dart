@@ -24,9 +24,9 @@ class ProductoController {
 
     final id = await ejecutarConMensajeDeDuplicado(
       () => db.transaction((txn) async {
-        final nuevoId = await txn.insert('Producto', producto.toMap());
+        final nuevoId = await DatabaseHelper.insertarConGuidSync(txn, 'Producto', producto.toMap());
 
-        await txn.insert('Inventario', {
+        await DatabaseHelper.insertarConGuidSync(txn, 'Inventario', {
           "id_producto": nuevoId,
           "cantidad": stockInicial,
         });

@@ -8,7 +8,7 @@ class ClienteController {
 
   Future<int> insertar(Cliente cliente) async {
     final db = await DatabaseHelper().database;
-    final id = await db.insert('Clientes', cliente.toMap());
+    final id = await DatabaseHelper.insertarConGuidSync(db, 'Clientes', cliente.toMap());
 
     await _auditoriaController.registrar(
       tabla: 'Clientes',

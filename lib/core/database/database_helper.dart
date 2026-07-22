@@ -862,6 +862,29 @@ class DatabaseHelper {
     'Venta_Promociones': 'id_venta_promocion',
   };
 
+  /// Inserta en una tabla que participa en la sincronización con el backend
+  /// (ver [_tablasConGuidSync]) asignándole un `guid_sync` nuevo de una vez,
+  /// en vez de dejarlo en `NULL` hasta el próximo backfill de
+  /// [_ensureGuidSyncColumns] (que corre en cada apertura de la app, pero no
+  /// hace falta esperar a eso: una venta o producto creado ahora mismo ya
+  /// queda listo para sincronizarse). Punto único de esta lógica para que
+  /// ningún controlador la repita ni la olvide -- llamar a `db.insert(...)`
+  /// directo sobre una de esas tablas sigue funcionando (la fila solo queda
+  /// sin `guid_sync` hasta el backfill), así que un controlador nuevo que se
+  /// olvide de usar este helper no rompe nada, solo pierde el "de una vez".
+  static Future<int> insertarConGuidSync(
+    DatabaseExecutor db,
+    String tabla,
+    Map<String, Object?> values, {
+    ConflictAlgorithm? conflictAlgorithm,
+  }) {
+    return db.insert(
+      tabla,
+      {...values, 'guid_sync': GuidGenerator.nuevo()},
+      conflictAlgorithm: conflictAlgorithm,
+    );
+  }
+
   /// Agrega `guid_sync` (nullable) a cada tabla de [_tablasConGuidSync] y
   /// rellena con un GUID nuevo cualquier fila que todavía no tenga uno
   /// ([GuidGenerator], nunca el mismo valor para dos filas).

@@ -88,7 +88,7 @@ class CajaController {
 
       final observacionesLimpias = observaciones?.trim();
 
-      final idCaja = await txn.insert('Cajas', {
+      final idCaja = await DatabaseHelper.insertarConGuidSync(txn, 'Cajas', {
         'id_usuario': idUsuario,
         'fecha_apertura': DateTime.now().toIso8601String(),
         'fondo_inicial': fondoInicial,

@@ -5,7 +5,7 @@ class CategoriaController {
 
   Future<int> insertar(Categoria categoria) async {
     final db = await DatabaseHelper().database;
-    return await db.insert('Categorias', categoria.toMap());
+    return await DatabaseHelper.insertarConGuidSync(db, 'Categorias', categoria.toMap());
   }
 
   Future<List<Categoria>> obtenerTodos() async {

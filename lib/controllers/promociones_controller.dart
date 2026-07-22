@@ -16,7 +16,7 @@ class PromocionesController {
     final db = await DatabaseHelper().database;
 
     final id = await db.transaction((txn) async {
-      final nuevoId = await txn.insert('Promociones', promocion.toMap());
+      final nuevoId = await DatabaseHelper.insertarConGuidSync(txn, 'Promociones', promocion.toMap());
       await _guardarParticipantes(txn, nuevoId, promocion);
       return nuevoId;
     });

@@ -25,24 +25,31 @@ Migración v17 → v18 en `lib/core/database/database_helper.dart`:
 - Tabla `Sync_Outbox` (esqueleto): cola de cambios locales pendientes de
   subir. Nadie escribe en ella todavía.
 
+**Ya conectado** — cada controlador que crea una fila en una tabla
+sincronizable le asigna `guid_sync` de inmediato, sin esperar al backfill de
+la próxima apertura de la app:
+`DatabaseHelper.insertarConGuidSync(db, tabla, values)` es el punto único
+de esta lógica (envuelve `db.insert` agregando un GUID nuevo), usado en
+`CategoriaController`, `ClienteController`, `ProveedorController`,
+`ProductoController` (Producto + Inventario), `CajaController`
+(`abrirCaja`), `PromocionesController`, `VentasController`
+(Ventas/Detalle_Venta/Venta_Pagos/Venta_Promociones) y
+`ApartadosController` (al liquidar, que crea una Venta real). Cubierto por
+`test/guid_sync_en_creacion_test.dart`. Llamar a `db.insert(...)` directo
+sobre una de estas tablas sigue funcionando (la fila solo queda sin
+`guid_sync` hasta el próximo backfill), así que un controlador nuevo que se
+olvide de usar el helper no rompe nada, solo pierde el "de una vez".
+
 **Deliberadamente fuera de esta migración** (documentado, no un olvido):
 
-1. **Generar `guid_sync` en el momento de crear una fila nueva.** Esta
-   migración solo deja la columna lista y backfillea lo que ya existía;
-   una venta o producto creado HOY sigue con `guid_sync = NULL` hasta que
-   se reabra la app (que lo backfillea de nuevo, es idempotente) o hasta
-   que se conecte la generación en el punto de inserción de cada
-   controlador (`ProductoController`, `VentasController`, `CajaController`,
-   etc.). Eso es una migración/cambio aparte, con su propio alcance: tocar
-   cada controlador es mucho más grande que agregar una columna.
-2. **`MovimientoInventario`, `MovimientoCaja`, `CorteCaja`** (sí
+1. **`MovimientoInventario`, `MovimientoCaja`, `CorteCaja`** (sí
    sincronizables del lado del backend) no tienen tabla local equivalente
    hoy: `Inventario.cantidad` se ajusta directo sin bitácora de movimientos,
    y `Cajas` guarda los totales de cierre ya agregados en vez de filas de
    movimiento individuales. Necesitan una decisión de diseño propia (¿tabla
    nueva para bitácora, o reconciliar contra lo agregado?) antes de poder
    sincronizarse.
-3. **Tablas puente/detalle de promociones** (`Promocion_Productos`,
+2. **Tablas puente/detalle de promociones** (`Promocion_Productos`,
    `Promocion_Categorias`, `Promocion_Combo_Items`,
    `Venta_Promociones_Detalle`): aunque el backend también las trata como
    filas con identidad propia, se asumió que se van a repoblar completas
@@ -124,7 +131,7 @@ El SDK de Flutter se instaló después (clon de `flutter/flutter` rama
 ```bash
 flutter pub get     # OK -- http agregado como dependencia directa
 flutter analyze     # 0 issues en lib/core/sync y lib/core/config
-flutter test        # 307/307 (267 preexistentes + 40 nuevos: red + guid_sync), todo verde
+flutter test        # 315/315 (267 preexistentes + 48 nuevos: red + guid_sync + creación), todo verde
 ```
 
 Antes de tener el SDK se revisó a mano campo por campo contra los DTOs

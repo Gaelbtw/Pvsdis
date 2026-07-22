@@ -353,7 +353,7 @@ class ApartadosController {
     );
     final idCajaLiquidacion = ultimoAbono.isNotEmpty ? ultimoAbono.first['id_caja'] as int? : null;
 
-    final idVenta = await txn.insert('Ventas', {
+    final idVenta = await DatabaseHelper.insertarConGuidSync(txn, 'Ventas', {
       'id_cliente': apartado['id_cliente'],
       'id_usuario': idUsuario,
       'id_caja': idCajaLiquidacion,
@@ -371,7 +371,7 @@ class ApartadosController {
     });
 
     for (final detalle in detalles) {
-      await txn.insert('Detalle_Venta', {
+      await DatabaseHelper.insertarConGuidSync(txn, 'Detalle_Venta', {
         'id_venta': idVenta,
         'id_producto': detalle['id_producto'],
         'cantidad': detalle['cantidad'],

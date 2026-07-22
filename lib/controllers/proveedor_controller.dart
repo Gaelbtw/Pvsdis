@@ -15,7 +15,8 @@ class ProveedorController {
     // 🔥 QUITAR ID SI ES NULL (CLAVE)
     data.remove('id_proveedor');
 
-    final result = await db.insert(
+    final result = await DatabaseHelper.insertarConGuidSync(
+      db,
       'Proveedores',
       data,
       conflictAlgorithm: ConflictAlgorithm.replace,

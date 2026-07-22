@@ -16,7 +16,7 @@ class VentasController {
 
   Future<int> insertar(Ventas venta) async {
     final db = await dbHelper.database;
-    return await db.insert('Ventas', venta.toMap());
+    return await DatabaseHelper.insertarConGuidSync(db, 'Ventas', venta.toMap());
   }
 
   /// Registra la venta completa (líneas, descuentos, stock y auditoría) en
@@ -108,7 +108,7 @@ class VentasController {
       }
       final idCaja = cajaAbierta.first['id_caja'] as int;
 
-      final idVenta = await txn.insert('Ventas', {
+      final idVenta = await DatabaseHelper.insertarConGuidSync(txn, 'Ventas', {
         "id_cliente": idCliente,
         "id_usuario": idUsuario,
         "id_caja": idCaja,
@@ -125,7 +125,7 @@ class VentasController {
       });
 
       for (final pago in pagos) {
-        await txn.insert('Venta_Pagos', {
+        await DatabaseHelper.insertarConGuidSync(txn, 'Venta_Pagos', {
           "id_venta": idVenta,
           "metodo_pago": pago['metodo_pago'],
           "monto": redondearMoneda((pago['monto'] as num).toDouble()),
@@ -159,7 +159,7 @@ class VentasController {
           );
         }
 
-        final idDetalleVenta = await txn.insert('Detalle_Venta', {
+        final idDetalleVenta = await DatabaseHelper.insertarConGuidSync(txn, 'Detalle_Venta', {
           "id_venta": idVenta,
           "id_producto": linea.idProducto,
           "cantidad": linea.cantidad,
@@ -186,7 +186,7 @@ class VentasController {
       // `Promociones`), para que editar o borrar la promoción después no
       // altere esta venta ya cerrada.
       for (final aplicacion in resultadoPromociones.aplicaciones) {
-        final idVentaPromocion = await txn.insert('Venta_Promociones', {
+        final idVentaPromocion = await DatabaseHelper.insertarConGuidSync(txn, 'Venta_Promociones', {
           "id_venta": idVenta,
           "id_promocion": aplicacion.idPromocion,
           "nombre_snapshot": aplicacion.nombre,
