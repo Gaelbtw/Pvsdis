@@ -1,11 +1,59 @@
-# Fase 2 — Fundación de red (cliente de sincronización)
+# Fase 2 — Fundación de red + esquema local (cliente de sincronización)
 
 Primer paso para convertir esta app en el cliente offline-first de EsqPOS
 (ver `docs/sync-desktop-fase2.md` en el repo `EsqueletoPOS`, que describe el
-contrato completo del lado del servidor). Esta fase construye **solo la capa
-de red**: login/refresh/logout contra el backend y las llamadas al contrato
-`/api/sync`. **No toca el esquema SQLite** (`lib/core/database/database_helper.dart`)
-ni persiste nada localmente todavía — eso es el siguiente paso.
+contrato completo del lado del servidor). Cubre dos piezas: la **capa de
+red** (login/refresh/logout contra el backend y las llamadas al contrato
+`/api/sync`) y la **fundación del esquema local** (columna `guid_sync` +
+tabla `Sync_Outbox`, ver más abajo). Ninguna de las dos conecta todavía con
+la otra: no hay motor de sync real, solo la infraestructura que ese motor
+va a necesitar.
+
+## Esquema local: guid_sync + Sync_Outbox
+
+Migración v17 → v18 en `lib/core/database/database_helper.dart`:
+
+- Columna `guid_sync TEXT` (nullable, índice único) agregada a las tablas
+  locales que espejan una entidad sincronizable del backend con
+  correspondencia 1:1 clara: `Categorias`, `Producto`, `Clientes`,
+  `Proveedores`, `Inventario`, `Ventas`, `Detalle_Venta`, `Venta_Pagos`,
+  `Cajas`, `Promociones`, `Venta_Promociones`. Las filas existentes se
+  backfillean con un GUID nuevo (`lib/core/utils/guid_generator.dart`, un
+  generador v4 propio de ~15 líneas sobre `Random.secure()` — se evitó sumar
+  un paquete `uuid` solo para esto, mismo criterio que el resto de la
+  Fase 2).
+- Tabla `Sync_Outbox` (esqueleto): cola de cambios locales pendientes de
+  subir. Nadie escribe en ella todavía.
+
+**Deliberadamente fuera de esta migración** (documentado, no un olvido):
+
+1. **Generar `guid_sync` en el momento de crear una fila nueva.** Esta
+   migración solo deja la columna lista y backfillea lo que ya existía;
+   una venta o producto creado HOY sigue con `guid_sync = NULL` hasta que
+   se reabra la app (que lo backfillea de nuevo, es idempotente) o hasta
+   que se conecte la generación en el punto de inserción de cada
+   controlador (`ProductoController`, `VentasController`, `CajaController`,
+   etc.). Eso es una migración/cambio aparte, con su propio alcance: tocar
+   cada controlador es mucho más grande que agregar una columna.
+2. **`MovimientoInventario`, `MovimientoCaja`, `CorteCaja`** (sí
+   sincronizables del lado del backend) no tienen tabla local equivalente
+   hoy: `Inventario.cantidad` se ajusta directo sin bitácora de movimientos,
+   y `Cajas` guarda los totales de cierre ya agregados en vez de filas de
+   movimiento individuales. Necesitan una decisión de diseño propia (¿tabla
+   nueva para bitácora, o reconciliar contra lo agregado?) antes de poder
+   sincronizarse.
+3. **Tablas puente/detalle de promociones** (`Promocion_Productos`,
+   `Promocion_Categorias`, `Promocion_Combo_Items`,
+   `Venta_Promociones_Detalle`): aunque el backend también las trata como
+   filas con identidad propia, se asumió que se van a repoblar completas
+   junto con su fila padre en cada pull en vez de rastrearse una por una.
+   Si el motor de sync termina necesitando otra cosa, agregarles
+   `guid_sync` es una migración aparte.
+
+Test de migración en `test/guid_sync_migration_test.dart` (mismo patrón que
+`test/venta_pagos_migration_test.dart`): reconstruye a mano el esquema v17,
+migra a v18, y verifica columna + backfill + índice único + no-reasignación
+al reabrir. `test/guid_generator_test.dart` cubre el formato del GUID.
 
 ## Qué hay
 
@@ -76,7 +124,7 @@ El SDK de Flutter se instaló después (clon de `flutter/flutter` rama
 ```bash
 flutter pub get     # OK -- http agregado como dependencia directa
 flutter analyze     # 0 issues en lib/core/sync y lib/core/config
-flutter test        # 302/302 (267 preexistentes + 35 nuevos), todo verde
+flutter test        # 307/307 (267 preexistentes + 40 nuevos: red + guid_sync), todo verde
 ```
 
 Antes de tener el SDK se revisó a mano campo por campo contra los DTOs

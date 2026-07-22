@@ -7,6 +7,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../security/password_hasher.dart';
+import '../utils/guid_generator.dart';
 import '../utils/pagos_mixtos.dart';
 
 class DatabaseHelper {
@@ -59,7 +60,7 @@ class DatabaseHelper {
 
   // Inicializar la base de datos
 
-  static const _databaseVersion = 17;
+  static const _databaseVersion = 18;
 
   Future<Database> _initDB() async {
     final path = await getDatabasePath();
@@ -460,6 +461,8 @@ class DatabaseHelper {
     await _ensureAbonosTables(db);
     await _ensureCajasPagosProveedoresColumn(db);
     await _backfillAbonosComprasExistentes(db);
+    await _ensureGuidSyncColumns(db);
+    await _ensureSyncOutboxTable(db);
     await _crearIndices(db);
 
     // No se siembra ningún usuario por defecto: la primera cuenta de
@@ -507,6 +510,8 @@ class DatabaseHelper {
     await _ensureAbonosTables(db);
     await _ensureCajasPagosProveedoresColumn(db);
     await _backfillAbonosComprasExistentes(db);
+    await _ensureGuidSyncColumns(db);
+    await _ensureSyncOutboxTable(db);
 
     if (oldVersion < 7) {
       // SQLite no permite modificar una FOREIGN KEY ya existente con
@@ -829,6 +834,100 @@ class DatabaseHelper {
         'monto': total,
       });
     }
+  }
+
+  /// Tabla local -> nombre de la columna de llave primaria, para cada tabla
+  /// que espeja una entidad sincronizable del backend (ver
+  /// `SyncEntidadRegistry` en `EsqueletoPOS/src/EsqPos.Infrastructure/
+  /// Persistence/SyncService.cs`). Deliberadamente NO incluye las tablas
+  /// puente/detalle de promociones (`Promocion_Productos`,
+  /// `Promocion_Categorias`, `Promocion_Combo_Items`,
+  /// `Venta_Promociones_Detalle`): aunque el backend también las trata como
+  /// filas con identidad propia, acá se van a repoblar completas junto con su
+  /// fila padre en cada pull en vez de sincronizarse una por una -- si el
+  /// motor de sync que se construya después necesita tratarlas distinto,
+  /// agregarles `guid_sync` es una migración aparte, no una reescritura de
+  /// esta.
+  static const Map<String, String> _tablasConGuidSync = {
+    'Categorias': 'id_categoria',
+    'Producto': 'id_producto',
+    'Clientes': 'id_cliente',
+    'Proveedores': 'id_proveedor',
+    'Inventario': 'id_inventario',
+    'Ventas': 'id_venta',
+    'Detalle_Venta': 'id_detalleV',
+    'Venta_Pagos': 'id',
+    'Cajas': 'id_caja',
+    'Promociones': 'id_promocion',
+    'Venta_Promociones': 'id_venta_promocion',
+  };
+
+  /// Agrega `guid_sync` (nullable) a cada tabla de [_tablasConGuidSync] y
+  /// rellena con un GUID nuevo cualquier fila que todavía no tenga uno
+  /// ([GuidGenerator], nunca el mismo valor para dos filas).
+  ///
+  /// Esto es SOLO el esquema: dejar la columna lista y las filas existentes
+  /// ya identificables. Generar un `guid_sync` para las filas NUEVAS que se
+  /// creen de aquí en adelante (al vender, dar de alta un producto, etc.)
+  /// requiere tocar el punto de inserción de cada controlador
+  /// correspondiente -- deliberadamente fuera de esta migración, es el
+  /// siguiente paso de la integración con EsqPOS (ver
+  /// `lib/core/sync/README-fase2.md`). Hasta que eso exista, toda fila
+  /// creada después de esta migración queda con `guid_sync = NULL` igual
+  /// que las históricas, y una futura reapertura de la app la backfillea
+  /// aquí mismo (este método es idempotente y corre en cada `_onOpen`).
+  Future<void> _ensureGuidSyncColumns(Database db) async {
+    for (final entry in _tablasConGuidSync.entries) {
+      final tabla = entry.key;
+      final columnaId = entry.value;
+
+      final info = await db.rawQuery('PRAGMA table_info($tabla)');
+      final columnNames = info.map((row) => row['name']?.toString()).toSet();
+      if (!columnNames.contains('guid_sync')) {
+        await db.execute('ALTER TABLE $tabla ADD COLUMN guid_sync TEXT;');
+      }
+
+      final filasSinGuid = await db.query(tabla, columns: [columnaId], where: 'guid_sync IS NULL');
+      if (filasSinGuid.isEmpty) continue;
+
+      final batch = db.batch();
+      for (final fila in filasSinGuid) {
+        batch.update(
+          tabla,
+          {'guid_sync': GuidGenerator.nuevo()},
+          where: '$columnaId = ?',
+          whereArgs: [fila[columnaId]],
+        );
+      }
+      await batch.commit(noResult: true);
+    }
+  }
+
+  /// Cola de cambios locales pendientes de subir al backend (`POST
+  /// /api/sync/push`, ver `SyncClient` en `lib/core/sync/sync_client.dart`
+  /// y el contrato en `docs/sync-desktop-fase2.md`). Tabla nueva, sin datos
+  /// que migrar.
+  ///
+  /// Solo el esquema por ahora: nadie escribe en esta tabla todavía (eso es
+  /// el motor de sync, siguiente paso de la integración) ni hay un proceso
+  /// que la vacíe empujando al backend. `datos_json` guarda el payload ya
+  /// armado a encolar (snapshot al momento de la operación) en vez de
+  /// recalcularlo desde el estado actual de la fila al momento de subirlo,
+  /// para que un cambio posterior sobre la misma fila no altere lo que ya
+  /// estaba pendiente de subir.
+  Future<void> _ensureSyncOutboxTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Sync_Outbox (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entidad TEXT NOT NULL,
+        guid_registro TEXT NOT NULL,
+        operacion TEXT CHECK(operacion IN ('CREAR','ACTUALIZAR','ELIMINAR')) NOT NULL,
+        datos_json TEXT NOT NULL,
+        fecha_creacion TEXT NOT NULL,
+        intentos INTEGER NOT NULL DEFAULT 0,
+        ultimo_error TEXT
+      );
+    ''');
   }
 
   /// Liga cada venta a la caja que estaba abierta al momento de cobrarla.
@@ -1407,6 +1506,17 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX IF NOT EXISTS idx_abonos_id_compra ON Abonos(id_compra);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_abonos_id_caja ON Abonos(id_caja);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_abono_pagos_id_abono ON Abono_Pagos(id_abono);');
+
+    // Un índice único por tabla sincronizable: NULL no cuenta como colisión
+    // en SQLite (varias filas sin sincronizar aún pueden convivir en NULL),
+    // pero dos filas no pueden compartir el mismo GUID una vez asignado.
+    for (final tabla in _tablasConGuidSync.keys) {
+      await db.execute(
+        'CREATE UNIQUE INDEX IF NOT EXISTS idx_${tabla.toLowerCase()}_guid_sync ON $tabla(guid_sync);',
+      );
+    }
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_sync_outbox_entidad ON Sync_Outbox(entidad);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_sync_outbox_fecha_creacion ON Sync_Outbox(fecha_creacion);');
   }
 
   /// Migra a hash bcrypt cualquier contraseña que todavía esté en texto
@@ -1460,6 +1570,8 @@ class DatabaseHelper {
     await _ensureAbonosTables(db);
     await _ensureCajasPagosProveedoresColumn(db);
     await _backfillAbonosComprasExistentes(db);
+    await _ensureGuidSyncColumns(db);
+    await _ensureSyncOutboxTable(db);
   }
 
   Future<void> _ensureVentasMetodoPagoColumn(Database db) async {
