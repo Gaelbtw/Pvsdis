@@ -1,11 +1,14 @@
 import '../core/database/database_helper.dart';
+import '../core/sync/auth_service.dart';
+import '../core/sync/outbox/sync_outbox_writer.dart';
 import '../models/categoria_model.dart';
 
 class CategoriaController {
+  final _outboxWriter = SyncOutboxWriter(authService: AuthService.instancia);
 
   Future<int> insertar(Categoria categoria) async {
     final db = await DatabaseHelper().database;
-    return await DatabaseHelper.insertarConGuidSync(db, 'Categorias', categoria.toMap());
+    return await _outboxWriter.crear(db, entidad: 'CategoriaProducto', tabla: 'Categorias', values: categoria.toMap());
   }
 
   Future<List<Categoria>> obtenerTodos() async {
@@ -47,12 +50,18 @@ class CategoriaController {
   Future<int> actualizar(Categoria categoria) async {
     final db = await DatabaseHelper().database;
 
-    return await db.update(
+    final rows = await db.update(
       'Categorias',
       categoria.toMap(),
       where: 'id_categoria = ?',
       whereArgs: [categoria.idCategoria],
     );
+
+    if (rows > 0 && categoria.idCategoria != null) {
+      await _outboxWriter.actualizar(db, entidad: 'CategoriaProducto', tabla: 'Categorias', idLocal: categoria.idCategoria!);
+    }
+
+    return rows;
   }
 
   Future<int> eliminar(int id) async {

@@ -1,6 +1,8 @@
 import 'package:sqflite/sqflite.dart';
 
 import '../core/database/database_helper.dart';
+import '../core/sync/auth_service.dart';
+import '../core/sync/outbox/sync_outbox_writer.dart';
 import '../core/utils/descuento_utils.dart';
 import '../models/promocion_model.dart';
 import 'auditoria_controller.dart';
@@ -10,13 +12,14 @@ import 'auditoria_controller.dart';
 /// consumen `ventas_view.dart` y `VentasController.insertarVentaCompleta`.
 class PromocionesController {
   final _auditoriaController = AuditoriaController();
+  final _outboxWriter = SyncOutboxWriter(authService: AuthService.instancia);
 
   Future<int> crear(Promocion promocion) async {
     _validar(promocion);
     final db = await DatabaseHelper().database;
 
     final id = await db.transaction((txn) async {
-      final nuevoId = await DatabaseHelper.insertarConGuidSync(txn, 'Promociones', promocion.toMap());
+      final nuevoId = await _outboxWriter.crear(txn, entidad: 'Promocion', tabla: 'Promociones', values: promocion.toMap());
       await _guardarParticipantes(txn, nuevoId, promocion);
       return nuevoId;
     });
@@ -55,6 +58,7 @@ class PromocionesController {
         await txn.delete('Promocion_Categorias', where: 'id_promocion = ?', whereArgs: [id]);
         await txn.delete('Promocion_Combo_Items', where: 'id_promocion = ?', whereArgs: [id]);
         await _guardarParticipantes(txn, id, promocion);
+        await _outboxWriter.actualizar(txn, entidad: 'Promocion', tabla: 'Promociones', idLocal: id);
       }
 
       return filas;
@@ -92,6 +96,7 @@ class PromocionesController {
         idRegistro: id,
         descripcion: 'Promoción #$id ${activo ? 'activada' : 'desactivada'}',
       );
+      await _outboxWriter.actualizar(db, entidad: 'Promocion', tabla: 'Promociones', idLocal: id);
     }
 
     return rows;

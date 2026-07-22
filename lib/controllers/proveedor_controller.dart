@@ -1,11 +1,15 @@
 import 'package:sqflite/sqflite.dart';
+
 import '../core/database/database_helper.dart';
 import '../core/database/db_exceptions.dart';
+import '../core/sync/auth_service.dart';
+import '../core/sync/outbox/sync_outbox_writer.dart';
 import '../models/proveedores_model.dart';
 import 'auditoria_controller.dart';
 
 class ProveedorController {
   final _auditoriaController = AuditoriaController();
+  final _outboxWriter = SyncOutboxWriter(authService: AuthService.instancia);
 
   Future<int> insertar(Proveedores proveedor) async {
     final db = await DatabaseHelper().database;
@@ -15,10 +19,11 @@ class ProveedorController {
     // 🔥 QUITAR ID SI ES NULL (CLAVE)
     data.remove('id_proveedor');
 
-    final result = await DatabaseHelper.insertarConGuidSync(
+    final result = await _outboxWriter.crear(
       db,
-      'Proveedores',
-      data,
+      entidad: 'Proveedor',
+      tabla: 'Proveedores',
+      values: data,
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
 
@@ -56,6 +61,9 @@ class ProveedorController {
         idRegistro: proveedor.idProveedor,
         descripcion: 'Proveedor ${proveedor.nombre} actualizado',
       );
+      if (proveedor.idProveedor != null) {
+        await _outboxWriter.actualizar(db, entidad: 'Proveedor', tabla: 'Proveedores', idLocal: proveedor.idProveedor!);
+      }
     }
 
     return rows;

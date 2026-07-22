@@ -3,6 +3,8 @@ import 'package:sqflite/sqflite.dart';
 import '../core/config/app_config.dart';
 import '../core/database/database_helper.dart';
 import '../core/session/session_manager.dart';
+import '../core/sync/auth_service.dart';
+import '../core/sync/outbox/sync_outbox_writer.dart';
 import '../core/utils/descuento_utils.dart';
 import '../core/utils/money.dart';
 import '../core/utils/pagos_mixtos.dart';
@@ -22,6 +24,7 @@ class ApartadosController {
   final dbHelper = DatabaseHelper();
   final _promocionesController = PromocionesController();
   final _productoController = ProductoController();
+  final _outboxWriter = SyncOutboxWriter(authService: AuthService.instancia);
 
   /// Crea el apartado: evalúa promociones + calcula subtotal/descuento/total
   /// exactamente como una venta (snapshot inmutable), reserva el stock de
@@ -353,7 +356,7 @@ class ApartadosController {
     );
     final idCajaLiquidacion = ultimoAbono.isNotEmpty ? ultimoAbono.first['id_caja'] as int? : null;
 
-    final idVenta = await DatabaseHelper.insertarConGuidSync(txn, 'Ventas', {
+    final idVenta = await _outboxWriter.crear(txn, entidad: 'Venta', tabla: 'Ventas', values: {
       'id_cliente': apartado['id_cliente'],
       'id_usuario': idUsuario,
       'id_caja': idCajaLiquidacion,
@@ -371,7 +374,7 @@ class ApartadosController {
     });
 
     for (final detalle in detalles) {
-      await DatabaseHelper.insertarConGuidSync(txn, 'Detalle_Venta', {
+      await _outboxWriter.crear(txn, entidad: 'VentaDetalle', tabla: 'Detalle_Venta', values: {
         'id_venta': idVenta,
         'id_producto': detalle['id_producto'],
         'cantidad': detalle['cantidad'],

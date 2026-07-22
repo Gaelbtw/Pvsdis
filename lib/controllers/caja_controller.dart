@@ -2,7 +2,9 @@ import 'package:sqflite/sqflite.dart';
 
 import '../core/database/database_helper.dart';
 import '../core/session/session_manager.dart';
+import '../core/sync/auth_service.dart';
 import '../core/sync/bitacoras/corte_caja_logger.dart';
+import '../core/sync/outbox/sync_outbox_writer.dart';
 import '../core/utils/money.dart';
 import '../models/caja_model.dart';
 
@@ -61,6 +63,7 @@ class ResumenCaja {
 class CajaController {
   final dbHelper = DatabaseHelper();
   final _corteCajaLogger = CorteCajaLogger();
+  final _outboxWriter = SyncOutboxWriter(authService: AuthService.instancia);
 
   /// Abre una caja nueva para el usuario actual. Falla si ya tiene una
   /// `Abierta` (un usuario no puede tener dos cajas abiertas a la vez); la
@@ -90,7 +93,7 @@ class CajaController {
 
       final observacionesLimpias = observaciones?.trim();
 
-      final idCaja = await DatabaseHelper.insertarConGuidSync(txn, 'Cajas', {
+      final idCaja = await _outboxWriter.crear(txn, entidad: 'CajaSesion', tabla: 'Cajas', values: {
         'id_usuario': idUsuario,
         'fecha_apertura': DateTime.now().toIso8601String(),
         'fondo_inicial': fondoInicial,
@@ -291,6 +294,8 @@ class CajaController {
         where: 'id_caja = ?',
         whereArgs: [idCaja],
       );
+
+      await _outboxWriter.actualizar(txn, entidad: 'CajaSesion', tabla: 'Cajas', idLocal: idCaja);
 
       await txn.insert('Auditorias', {
         'fecha_hora': DateTime.now().toIso8601String(),

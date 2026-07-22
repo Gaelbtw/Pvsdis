@@ -2,7 +2,9 @@ import 'package:sqflite/sqflite.dart';
 
 import '../core/database/database_helper.dart';
 import '../core/database/db_exceptions.dart';
+import '../core/sync/auth_service.dart';
 import '../core/sync/bitacoras/movimiento_inventario_logger.dart';
+import '../core/sync/outbox/sync_outbox_writer.dart';
 import '../models/producto_model.dart';
 import 'auditoria_controller.dart';
 
@@ -12,6 +14,7 @@ import 'auditoria_controller.dart';
 class ProductoController {
   final _auditoriaController = AuditoriaController();
   final _movimientoInventarioLogger = MovimientoInventarioLogger();
+  final _outboxWriter = SyncOutboxWriter(authService: AuthService.instancia);
 
   Future<int> insertar(Producto producto, int stockInicial) async {
     final db = await DatabaseHelper().database;
@@ -26,8 +29,13 @@ class ProductoController {
 
     final id = await ejecutarConMensajeDeDuplicado(
       () => db.transaction((txn) async {
-        final nuevoId = await DatabaseHelper.insertarConGuidSync(txn, 'Producto', producto.toMap());
+        final nuevoId = await _outboxWriter.crear(txn, entidad: 'Producto', tabla: 'Producto', values: producto.toMap());
 
+        // Inventario NO pasa por _outboxWriter: `Stock` es pull-only del
+        // lado del backend (ver stock_mapper.dart), así que esta fila sigue
+        // usando insertarConGuidSync directo -- encolarla en Sync_Outbox
+        // solo produciría un push que el mapper rechazaría con
+        // UnsupportedError.
         await DatabaseHelper.insertarConGuidSync(txn, 'Inventario', {
           "id_producto": nuevoId,
           "cantidad": stockInicial,
@@ -100,6 +108,9 @@ class ProductoController {
         idRegistro: producto.idProducto,
         descripcion: 'Producto ${producto.nombre} modificado',
       );
+      if (producto.idProducto != null) {
+        await _outboxWriter.actualizar(db, entidad: 'Producto', tabla: 'Producto', idLocal: producto.idProducto!);
+      }
     }
 
     return rows;

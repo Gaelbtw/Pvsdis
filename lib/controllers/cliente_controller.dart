@@ -1,14 +1,17 @@
 import '../core/database/database_helper.dart';
 import '../core/database/db_exceptions.dart';
+import '../core/sync/auth_service.dart';
+import '../core/sync/outbox/sync_outbox_writer.dart';
 import '../models/cliente_model.dart';
 import 'auditoria_controller.dart';
 
 class ClienteController {
   final _auditoriaController = AuditoriaController();
+  final _outboxWriter = SyncOutboxWriter(authService: AuthService.instancia);
 
   Future<int> insertar(Cliente cliente) async {
     final db = await DatabaseHelper().database;
-    final id = await DatabaseHelper.insertarConGuidSync(db, 'Clientes', cliente.toMap());
+    final id = await _outboxWriter.crear(db, entidad: 'Cliente', tabla: 'Clientes', values: cliente.toMap());
 
     await _auditoriaController.registrar(
       tabla: 'Clientes',
@@ -74,6 +77,9 @@ class ClienteController {
         idRegistro: cliente.idCliente,
         descripcion: 'Cliente ${cliente.nombre} actualizado',
       );
+      if (cliente.idCliente != null) {
+        await _outboxWriter.actualizar(db, entidad: 'Cliente', tabla: 'Clientes', idLocal: cliente.idCliente!);
+      }
     }
 
     return rows;

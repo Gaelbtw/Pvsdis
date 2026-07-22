@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'models/sync_auth_models.dart';
 import 'network/api_exceptions.dart';
 import 'network/api_http_client.dart';
@@ -19,6 +21,19 @@ class AuthService {
       : _http = http ?? ApiHttpClient(),
         _storage = storage ?? TokenStorage();
 
+  /// Instancia única compartida por toda la app (mismo criterio que
+  /// `DatabaseHelper()`/`AppConfig`/`SessionManager`: este proyecto no usa
+  /// inyección de dependencias real). Necesaria porque `_sesionActual` es un
+  /// campo de INSTANCIA, no estático -- a diferencia de `DatabaseHelper`, dos
+  /// `AuthService()` distintos no compartirían la sesión en memoria aunque
+  /// lean el mismo archivo de `TokenStorage` en disco. Cada controlador que
+  /// necesita encolar cambios de sync (vía `SyncOutboxWriter`) usa esta
+  /// instancia, para que todos vean la misma sesión sin volver a leerla de
+  /// disco en cada operación. Quien construya la pantalla de login de sync
+  /// (siguiente fase del roadmap, fuera de esta) debe operar sobre esta
+  /// misma instancia, no crear una nueva.
+  static final AuthService instancia = AuthService();
+
   final ApiHttpClient _http;
   final TokenStorage _storage;
 
@@ -29,6 +44,18 @@ class AuthService {
   /// login/refresh/logout; para leerla desde disco al arrancar la app usa
   /// [inicializar].
   SesionSync? get sesionActual => _sesionActual;
+
+  /// Fuerza la sesión en memoria de [instancia] sin pasar por
+  /// [TokenStorage] (que depende de `path_provider`, sin mock de canal de
+  /// plataforma en `flutter test`). Mismo criterio que
+  /// `DatabaseHelper.setTestDatabase`: una puerta trasera solo para
+  /// pruebas, que permite ejercitar controladores reales (que usan
+  /// `AuthService.instancia` internamente, sin inyección) como si hubiera
+  /// una sesión de sync activa.
+  @visibleForTesting
+  static void setSesionDePrueba(SesionSync? sesion) {
+    instancia._sesionActual = sesion;
+  }
 
   bool get estaAutenticado => _sesionActual != null;
 

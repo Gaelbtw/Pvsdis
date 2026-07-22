@@ -1,8 +1,10 @@
 import '../core/config/app_config.dart';
 import '../core/database/database_helper.dart';
 import '../core/session/session_manager.dart';
+import '../core/sync/auth_service.dart';
 import '../core/sync/bitacoras/movimiento_caja_logger.dart';
 import '../core/sync/bitacoras/movimiento_inventario_logger.dart';
+import '../core/sync/outbox/sync_outbox_writer.dart';
 import '../core/utils/descuento_utils.dart';
 import '../core/utils/money.dart';
 import '../core/utils/pagos_mixtos.dart';
@@ -17,10 +19,11 @@ class VentasController {
   final _promocionesController = PromocionesController();
   final _movimientoInventarioLogger = MovimientoInventarioLogger();
   final _movimientoCajaLogger = MovimientoCajaLogger();
+  final _outboxWriter = SyncOutboxWriter(authService: AuthService.instancia);
 
   Future<int> insertar(Ventas venta) async {
     final db = await dbHelper.database;
-    return await DatabaseHelper.insertarConGuidSync(db, 'Ventas', venta.toMap());
+    return await _outboxWriter.crear(db, entidad: 'Venta', tabla: 'Ventas', values: venta.toMap());
   }
 
   /// Registra la venta completa (líneas, descuentos, stock y auditoría) en
@@ -112,7 +115,7 @@ class VentasController {
       }
       final idCaja = cajaAbierta.first['id_caja'] as int;
 
-      final idVenta = await DatabaseHelper.insertarConGuidSync(txn, 'Ventas', {
+      final idVenta = await _outboxWriter.crear(txn, entidad: 'Venta', tabla: 'Ventas', values: {
         "id_cliente": idCliente,
         "id_usuario": idUsuario,
         "id_caja": idCaja,
@@ -132,7 +135,7 @@ class VentasController {
         final metodoPago = pago['metodo_pago'] as String;
         final monto = redondearMoneda((pago['monto'] as num).toDouble());
 
-        await DatabaseHelper.insertarConGuidSync(txn, 'Venta_Pagos', {
+        await _outboxWriter.crear(txn, entidad: 'VentaPago', tabla: 'Venta_Pagos', values: {
           "id_venta": idVenta,
           "metodo_pago": metodoPago,
           "monto": monto,
@@ -175,7 +178,7 @@ class VentasController {
           );
         }
 
-        final idDetalleVenta = await DatabaseHelper.insertarConGuidSync(txn, 'Detalle_Venta', {
+        final idDetalleVenta = await _outboxWriter.crear(txn, entidad: 'VentaDetalle', tabla: 'Detalle_Venta', values: {
           "id_venta": idVenta,
           "id_producto": linea.idProducto,
           "cantidad": linea.cantidad,
@@ -215,7 +218,7 @@ class VentasController {
       // `Promociones`), para que editar o borrar la promoción después no
       // altere esta venta ya cerrada.
       for (final aplicacion in resultadoPromociones.aplicaciones) {
-        final idVentaPromocion = await DatabaseHelper.insertarConGuidSync(txn, 'Venta_Promociones', {
+        final idVentaPromocion = await _outboxWriter.crear(txn, entidad: 'VentaPromocion', tabla: 'Venta_Promociones', values: {
           "id_venta": idVenta,
           "id_promocion": aplicacion.idPromocion,
           "nombre_snapshot": aplicacion.nombre,
