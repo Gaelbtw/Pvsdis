@@ -123,6 +123,21 @@ al reabrir. `test/guid_generator_test.dart` cubre el formato del GUID.
   `ErrorRespuestaApi`, conservando el mensaje real del backend
   ("Credenciales inválidas.", "La cuenta está temporalmente bloqueada...").
 
+## Verificado también contra el backend real (no solo mocks)
+
+Además de los tests con `http.Client` falso, se levantó el backend real vía
+`docker compose` (imagen reconstruida con el código actual de EsqueletoPOS
+-- incluye la Fase 1 de promociones y Cuentas por Pagar) y se corrió un
+smoke test puntual (no committeado, se corrió y se borró) contra
+`http://localhost:5242`: `ConectividadProbe.hayConexion()`,
+`AuthService.login()` con el admin sembrado, `SyncClient.obtenerEntidades()`
+y `SyncClient.pull('Producto')`. Los cuatro respondieron correctamente
+-- login devolvió un JWT real con `tenant_id` decodificado bien, y la lista
+de entidades coincidió exactamente con lo registrado en
+`SyncEntidadRegistry` del backend (18 entidades). Esto prueba que el
+contrato cliente-servidor funciona de punta a punta, no solo contra lo que
+el propio código simula.
+
 ## Verificado
 
 El SDK de Flutter se instaló después (clon de `flutter/flutter` rama
