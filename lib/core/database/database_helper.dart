@@ -60,7 +60,7 @@ class DatabaseHelper {
 
   // Inicializar la base de datos
 
-  static const _databaseVersion = 18;
+  static const _databaseVersion = 19;
 
   Future<Database> _initDB() async {
     final path = await getDatabasePath();
@@ -461,6 +461,8 @@ class DatabaseHelper {
     await _ensureAbonosTables(db);
     await _ensureCajasPagosProveedoresColumn(db);
     await _backfillAbonosComprasExistentes(db);
+    await _ensureBitacoraSyncTables(db);
+    await _ensureSyncConfigYPullEstadoTables(db);
     await _ensureGuidSyncColumns(db);
     await _ensureSyncOutboxTable(db);
     await _crearIndices(db);
@@ -510,6 +512,8 @@ class DatabaseHelper {
     await _ensureAbonosTables(db);
     await _ensureCajasPagosProveedoresColumn(db);
     await _backfillAbonosComprasExistentes(db);
+    await _ensureBitacoraSyncTables(db);
+    await _ensureSyncConfigYPullEstadoTables(db);
     await _ensureGuidSyncColumns(db);
     await _ensureSyncOutboxTable(db);
 
@@ -860,7 +864,22 @@ class DatabaseHelper {
     'Cajas': 'id_caja',
     'Promociones': 'id_promocion',
     'Venta_Promociones': 'id_venta_promocion',
+    // Bitácoras de la Fase 3 (motor de sincronización): a diferencia de las
+    // de arriba, estas tablas no existían antes de esta migración -- no hay
+    // datos legacy que backfillear, `_ensureBitacoraSyncTables` ya las crea
+    // con `guid_sync` incluido desde el CREATE TABLE.
+    'Movimiento_Inventario': 'id_movimiento',
+    'Movimiento_Caja': 'id_movimiento_caja',
+    'Corte_Caja': 'id_corte',
   };
+
+  /// Copia inmutable de [_tablasConGuidSync] para consumo fuera de esta
+  /// clase (el motor de sincronización -- `FkResolver`, mappers de entidad --
+  /// necesita saber qué tabla/columna de id usar para traducir un
+  /// `guid_sync` a su fila local sin duplicar este mapa). Único punto de
+  /// verdad: si se agrega una tabla sincronizable nueva, este getter la
+  /// refleja automáticamente.
+  static Map<String, String> get tablasSincronizables => Map.unmodifiable(_tablasConGuidSync);
 
   /// Inserta en una tabla que participa en la sincronización con el backend
   /// (ver [_tablasConGuidSync]) asignándole un `guid_sync` nuevo de una vez,
@@ -949,6 +968,118 @@ class DatabaseHelper {
         fecha_creacion TEXT NOT NULL,
         intentos INTEGER NOT NULL DEFAULT 0,
         ultimo_error TEXT
+      );
+    ''');
+  }
+
+  /// Bitácoras de la Fase 3 (motor de sincronización). El backend sí trata
+  /// `MovimientoInventario`, `MovimientoCaja` y `CorteCaja` como entidades
+  /// sincronizables con identidad propia (filas individuales, no un resumen
+  /// agregado) -- ver `SyncEntidadRegistry` en
+  /// `EsqueletoPOS/src/EsqPos.Infrastructure/Persistence/SyncService.cs`.
+  /// Antes de esta migración el Flutter no tenía tabla equivalente: el stock
+  /// se ajustaba directo sobre `Inventario.cantidad` sin dejar rastro, y
+  /// `Cajas` solo guarda los totales de cierre ya agregados. Estas 3 tablas
+  /// nuevas son la bitácora línea-por-línea que le falta al Flutter para
+  /// poder sincronizar esas 3 entidades; ver `lib/core/sync/README-fase3.md`
+  /// para quién las llena (los loggers de `lib/core/sync/bitacoras/`, no
+  /// esta clase).
+  ///
+  /// Tablas completamente nuevas, sin datos legacy que migrar: `guid_sync`
+  /// se declara directo en el CREATE TABLE (a diferencia de las 11 tablas
+  /// preexistentes en [_tablasConGuidSync], que lo recibieron vía ALTER
+  /// TABLE + backfill en [_ensureGuidSyncColumns]). Deben registrarse en
+  /// [_tablasConGuidSync] para que [insertarConGuidSync] y el índice único
+  /// de [_crearIndices] las traten igual que a las demás; como ya nacen con
+  /// la columna, [_ensureGuidSyncColumns] no tiene nada que hacer sobre
+  /// ellas salvo confirmar que la columna ya existe (no-op idempotente).
+  Future<void> _ensureBitacoraSyncTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Movimiento_Inventario (
+        id_movimiento INTEGER PRIMARY KEY AUTOINCREMENT,
+        guid_sync TEXT,
+        id_producto INTEGER NOT NULL,
+        tipo_movimiento TEXT NOT NULL CHECK(tipo_movimiento IN (
+          'EntradaCompra','SalidaVenta','AjustePositivo','AjusteNegativo',
+          'TransferenciaEntrada','TransferenciaSalida','DevolucionVenta','DevolucionCompra'
+        )),
+        cantidad INTEGER NOT NULL,
+        cantidad_anterior INTEGER NOT NULL,
+        cantidad_nueva INTEGER NOT NULL,
+        motivo TEXT,
+        referencia_tipo TEXT,
+        referencia_id INTEGER,
+        id_usuario INTEGER,
+        fecha TEXT NOT NULL,
+        FOREIGN KEY (id_producto) REFERENCES Producto(id_producto) ON DELETE RESTRICT
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Movimiento_Caja (
+        id_movimiento_caja INTEGER PRIMARY KEY AUTOINCREMENT,
+        guid_sync TEXT,
+        id_caja INTEGER NOT NULL,
+        tipo_movimiento TEXT NOT NULL CHECK(tipo_movimiento IN (
+          'VentaEfectivo','VentaTarjeta','VentaTransferencia','EntradaManual',
+          'SalidaManual','DevolucionEfectivo','AbonoCuentaCobrar','AbonoCuentaPagar'
+        )),
+        monto REAL NOT NULL,
+        concepto TEXT,
+        fecha TEXT NOT NULL,
+        id_venta_referencia INTEGER,
+        id_usuario INTEGER,
+        FOREIGN KEY (id_caja) REFERENCES Cajas(id_caja) ON DELETE RESTRICT
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Corte_Caja (
+        id_corte INTEGER PRIMARY KEY AUTOINCREMENT,
+        guid_sync TEXT,
+        id_caja INTEGER NOT NULL,
+        total_efectivo_sistema REAL NOT NULL,
+        total_tarjeta_sistema REAL NOT NULL,
+        total_transferencia_sistema REAL NOT NULL,
+        total_efectivo_contado REAL NOT NULL,
+        diferencia REAL NOT NULL,
+        fecha_corte TEXT NOT NULL,
+        id_usuario INTEGER,
+        FOREIGN KEY (id_caja) REFERENCES Cajas(id_caja) ON DELETE RESTRICT
+      );
+    ''');
+  }
+
+  /// Estado propio del motor de sincronización (Fase 3), sin relación con la
+  /// tabla `configuracion` (modelo de negocio, con su propia pantalla) --
+  /// mezclar infraestructura de sync ahí le agregaría una responsabilidad
+  /// que no tiene hoy.
+  ///
+  /// `Sync_Config` es una fila única (`id = 1`, mismo patrón que
+  /// `configuracion`) que cachea la sucursal resuelta para este dispositivo
+  /// (ver `SucursalResolver` en `lib/core/sync/sucursal/`): el login puede
+  /// devolver `sucursalId: null` si el usuario no tiene sucursal asignada,
+  /// así que el motor resuelve una vía `GET /api/sucursales` la primera vez
+  /// y la cachea aquí para no repetir esa llamada de red en cada ciclo.
+  ///
+  /// `Sync_Pull_Estado` guarda, por entidad sincronizable, la
+  /// `ultima_fecha_modificacion` ya aplicada localmente -- el cursor que le
+  /// permite a `SyncClient.pull(entidad, desde: ...)` pedir solo lo nuevo en
+  /// vez de traer el catálogo completo en cada ciclo.
+  Future<void> _ensureSyncConfigYPullEstadoTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Sync_Config (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        sucursal_id TEXT,
+        sucursal_nombre TEXT,
+        actualizado_en TEXT
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Sync_Pull_Estado (
+        entidad TEXT PRIMARY KEY,
+        ultima_fecha_modificacion TEXT
       );
     ''');
   }
@@ -1593,6 +1724,8 @@ class DatabaseHelper {
     await _ensureAbonosTables(db);
     await _ensureCajasPagosProveedoresColumn(db);
     await _backfillAbonosComprasExistentes(db);
+    await _ensureBitacoraSyncTables(db);
+    await _ensureSyncConfigYPullEstadoTables(db);
     await _ensureGuidSyncColumns(db);
     await _ensureSyncOutboxTable(db);
   }
