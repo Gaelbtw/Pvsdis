@@ -42,6 +42,12 @@ dependencies:
   printing: ^5.13.0
   bcrypt: ^1.2.0
   file_picker: ^11.0.2
+  # Fase 2 (sync desktop): cliente HTTP para el contrato /api/sync y
+  # /api/auth del backend EsqPos.API (ver docs/sync-desktop-fase2.md en el
+  # repo EsqueletoPOS). No se agrega `dio` (más pesado, con interceptores
+  # que no hacen falta todavía) ni `connectivity_plus`/`flutter_secure_storage`
+  # -- ver lib/core/sync/README-fase2.md para el detalle de esas decisiones.
+  http: ^1.2.2
 
 dev_dependencies:
   flutter_test:
