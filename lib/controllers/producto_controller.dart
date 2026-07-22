@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../core/database/database_helper.dart';
 import '../core/database/db_exceptions.dart';
+import '../core/sync/bitacoras/movimiento_inventario_logger.dart';
 import '../models/producto_model.dart';
 import 'auditoria_controller.dart';
 
@@ -10,6 +11,7 @@ import 'auditoria_controller.dart';
 /// separados; se unificaron aquí.)
 class ProductoController {
   final _auditoriaController = AuditoriaController();
+  final _movimientoInventarioLogger = MovimientoInventarioLogger();
 
   Future<int> insertar(Producto producto, int stockInicial) async {
     final db = await DatabaseHelper().database;
@@ -30,6 +32,16 @@ class ProductoController {
           "id_producto": nuevoId,
           "cantidad": stockInicial,
         });
+
+        await _movimientoInventarioLogger.registrar(
+          txn,
+          idProducto: nuevoId,
+          tipoMovimiento: 'AjustePositivo',
+          cantidad: stockInicial,
+          cantidadAnterior: 0,
+          cantidadNueva: stockInicial,
+          motivo: 'Alta de producto',
+        );
 
         return nuevoId;
       }),
@@ -109,6 +121,18 @@ class ProductoController {
       where: "id_producto = ?",
       whereArgs: [idProducto],
     );
+
+    if (cantidadNueva != stockAnterior) {
+      await _movimientoInventarioLogger.registrar(
+        db,
+        idProducto: idProducto,
+        tipoMovimiento: cantidadNueva > stockAnterior ? 'AjustePositivo' : 'AjusteNegativo',
+        cantidad: (cantidadNueva - stockAnterior).abs(),
+        cantidadAnterior: stockAnterior,
+        cantidadNueva: cantidadNueva,
+        motivo: 'Ajuste manual de stock',
+      );
+    }
 
     await _auditoriaController.registrar(
       tabla: 'Inventario',
@@ -229,6 +253,16 @@ class ProductoController {
 
     final nuevo = actual + cantidadNueva;
 
+    await _movimientoInventarioLogger.registrar(
+      db,
+      idProducto: idProducto,
+      tipoMovimiento: 'AjustePositivo',
+      cantidad: cantidadNueva,
+      cantidadAnterior: actual,
+      cantidadNueva: nuevo,
+      motivo: 'Entrada manual de stock',
+    );
+
     await _auditoriaController.registrar(
       tabla: 'Inventario',
       accion: 'EDIT',
@@ -271,26 +305,63 @@ class ProductoController {
     DatabaseExecutor? executor,
   }) async {
     final db = executor ?? await DatabaseHelper().database;
+    final anterior = await _obtenerStockActual(db, idProducto);
+
     await db.rawUpdate('''
       UPDATE Inventario
       SET cantidad = MAX(0, cantidad - ?)
       WHERE id_producto = ?
     ''', [cantidad, idProducto]);
+
+    final nueva = await _obtenerStockActual(db, idProducto);
+    await _movimientoInventarioLogger.registrar(
+      db,
+      idProducto: idProducto,
+      tipoMovimiento: 'AjusteNegativo',
+      cantidad: anterior - nueva,
+      cantidadAnterior: anterior,
+      cantidadNueva: nueva,
+      motivo: 'Pedido entregado',
+      referenciaTipo: 'Pedido',
+    );
   }
 
-  /// Restaura stock (usado al cancelar un pedido ya entregado). Acepta
-  /// [executor] por el mismo motivo que [deducirStockPedido].
+  /// Restaura stock (usado al cancelar un pedido ya entregado, o al
+  /// reingresar mercancía por una devolución -- ver
+  /// `DevolucionesController`). [tipoMovimiento]/[referenciaTipo]/
+  /// [referenciaId]/[motivo] dejan que cada llamador describa correctamente
+  /// el porqué del reingreso en la bitácora; los valores por default cubren
+  /// el caso más común (cancelación de pedido).
   Future<void> restaurarStockPedido(
     int idProducto,
     int cantidad, {
     DatabaseExecutor? executor,
+    String tipoMovimiento = 'AjustePositivo',
+    String? referenciaTipo = 'Pedido',
+    int? referenciaId,
+    String motivo = 'Cancelación de pedido',
   }) async {
     final db = executor ?? await DatabaseHelper().database;
+    final anterior = await _obtenerStockActual(db, idProducto);
+
     await db.rawUpdate('''
       UPDATE Inventario
       SET cantidad = cantidad + ?
       WHERE id_producto = ?
     ''', [cantidad, idProducto]);
+
+    final nueva = await _obtenerStockActual(db, idProducto);
+    await _movimientoInventarioLogger.registrar(
+      db,
+      idProducto: idProducto,
+      tipoMovimiento: tipoMovimiento,
+      cantidad: nueva - anterior,
+      cantidadAnterior: anterior,
+      cantidadNueva: nueva,
+      motivo: motivo,
+      referenciaTipo: referenciaTipo,
+      referenciaId: referenciaId,
+    );
   }
 
   /// Reserva stock para un Apartado recién creado: NO toca la existencia
@@ -334,12 +405,26 @@ class ProductoController {
     DatabaseExecutor? executor,
   }) async {
     final db = executor ?? await DatabaseHelper().database;
+    final anterior = await _obtenerStockActual(db, idProducto);
+
     await db.rawUpdate('''
       UPDATE Inventario
       SET cantidad = cantidad - ?,
           cantidad_reservada = MAX(0, cantidad_reservada - ?)
       WHERE id_producto = ?
     ''', [cantidad, cantidad, idProducto]);
+
+    final nueva = await _obtenerStockActual(db, idProducto);
+    await _movimientoInventarioLogger.registrar(
+      db,
+      idProducto: idProducto,
+      tipoMovimiento: 'AjusteNegativo',
+      cantidad: anterior - nueva,
+      cantidadAnterior: anterior,
+      cantidadNueva: nueva,
+      motivo: 'Apartado liquidado',
+      referenciaTipo: 'Apartado',
+    );
   }
 
   Future<String> _obtenerNombreProducto(dynamic db, int idProducto) async {

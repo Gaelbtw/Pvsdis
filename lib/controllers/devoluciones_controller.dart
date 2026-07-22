@@ -1,5 +1,6 @@
 import '../core/database/database_helper.dart';
 import '../core/session/session_manager.dart';
+import '../core/sync/bitacoras/movimiento_caja_logger.dart';
 import '../core/utils/money.dart';
 import 'producto_controller.dart';
 
@@ -60,6 +61,7 @@ class ComprobanteDevolucion {
 /// aún esté pendiente de cada producto.
 class DevolucionesController {
   final _productoController = ProductoController();
+  final _movimientoCajaLogger = MovimientoCajaLogger();
 
   Future<VentaDetalle> obtenerDetalleVenta(int idVenta) async {
     final db = await DatabaseHelper().database;
@@ -358,6 +360,19 @@ class DevolucionesController {
         'importe': importeTotal,
       });
 
+      // El reembolso sale del efectivo de la caja actual (ver el comentario
+      // más abajo sobre por qué siempre es en efectivo) -- se registra en
+      // negativo, mismo criterio que AbonoCuentaPagar del backend para
+      // salidas de dinero (ver EsqPos.Domain.Enums.TipoMovimientoCaja).
+      await _movimientoCajaLogger.registrar(
+        txn,
+        idCaja: idCaja,
+        tipoMovimiento: 'DevolucionEfectivo',
+        monto: -importeTotal,
+        concepto: 'Devolución de venta #$idVenta',
+        idVentaReferencia: idVenta,
+      );
+
       for (final item in itemsAProcesar) {
         final idProducto = item['id_producto'] as int;
         final cantidad = item['cantidad'] as int;
@@ -377,6 +392,10 @@ class DevolucionesController {
           idProducto,
           cantidad,
           executor: txn,
+          tipoMovimiento: 'DevolucionVenta',
+          referenciaTipo: 'Venta',
+          referenciaId: idVenta,
+          motivo: 'Devolución de venta #$idVenta',
         );
       }
 

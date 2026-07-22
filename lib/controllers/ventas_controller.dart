@@ -1,6 +1,8 @@
 import '../core/config/app_config.dart';
 import '../core/database/database_helper.dart';
 import '../core/session/session_manager.dart';
+import '../core/sync/bitacoras/movimiento_caja_logger.dart';
+import '../core/sync/bitacoras/movimiento_inventario_logger.dart';
 import '../core/utils/descuento_utils.dart';
 import '../core/utils/money.dart';
 import '../core/utils/pagos_mixtos.dart';
@@ -13,6 +15,8 @@ class VentasController {
   final dbHelper = DatabaseHelper();
   final _auditoriaController = AuditoriaController();
   final _promocionesController = PromocionesController();
+  final _movimientoInventarioLogger = MovimientoInventarioLogger();
+  final _movimientoCajaLogger = MovimientoCajaLogger();
 
   Future<int> insertar(Ventas venta) async {
     final db = await dbHelper.database;
@@ -125,11 +129,23 @@ class VentasController {
       });
 
       for (final pago in pagos) {
+        final metodoPago = pago['metodo_pago'] as String;
+        final monto = redondearMoneda((pago['monto'] as num).toDouble());
+
         await DatabaseHelper.insertarConGuidSync(txn, 'Venta_Pagos', {
           "id_venta": idVenta,
-          "metodo_pago": pago['metodo_pago'],
-          "monto": redondearMoneda((pago['monto'] as num).toDouble()),
+          "metodo_pago": metodoPago,
+          "monto": monto,
         });
+
+        await _movimientoCajaLogger.registrar(
+          txn,
+          idCaja: idCaja,
+          tipoMovimiento: MovimientoCajaLogger.tipoMovimientoParaMetodoPago(metodoPago),
+          monto: monto,
+          concepto: 'Venta #$idVenta',
+          idVentaReferencia: idVenta,
+        );
       }
 
       // Se guarda el id de cada Detalle_Venta insertado, en el mismo orden
@@ -179,6 +195,19 @@ class VentasController {
           linea.cantidad,
           linea.idProducto,
         ]);
+
+        final cantidadAnterior = stock.first['cantidad'] as int;
+        await _movimientoInventarioLogger.registrar(
+          txn,
+          idProducto: linea.idProducto,
+          tipoMovimiento: 'SalidaVenta',
+          cantidad: linea.cantidad,
+          cantidadAnterior: cantidadAnterior,
+          cantidadNueva: cantidadAnterior - linea.cantidad,
+          motivo: 'Venta #$idVenta',
+          referenciaTipo: 'Venta',
+          referenciaId: idVenta,
+        );
       }
 
       // Snapshot inmutable de las promociones aplicadas: se guarda el

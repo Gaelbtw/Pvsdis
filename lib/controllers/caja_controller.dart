@@ -2,6 +2,7 @@ import 'package:sqflite/sqflite.dart';
 
 import '../core/database/database_helper.dart';
 import '../core/session/session_manager.dart';
+import '../core/sync/bitacoras/corte_caja_logger.dart';
 import '../core/utils/money.dart';
 import '../models/caja_model.dart';
 
@@ -59,6 +60,7 @@ class ResumenCaja {
 /// el usuario actual (ver `VentasController`/`DevolucionesController`).
 class CajaController {
   final dbHelper = DatabaseHelper();
+  final _corteCajaLogger = CorteCajaLogger();
 
   /// Abre una caja nueva para el usuario actual. Falla si ya tiene una
   /// `Abierta` (un usuario no puede tener dos cajas abiertas a la vez); la
@@ -302,6 +304,16 @@ class CajaController {
         'id_usuario': caja.idUsuario,
         'id_caja': idCaja,
       });
+
+      await _corteCajaLogger.registrar(
+        txn,
+        idCaja: idCaja,
+        totalEfectivoSistema: resumen.efectivoEsperado,
+        totalTarjetaSistema: resumen.ventasTarjeta,
+        totalTransferenciaSistema: resumen.ventasTransferencia,
+        totalEfectivoContado: efectivoContado,
+        diferencia: diferencia,
+      );
 
       return idCaja;
     });

@@ -1,10 +1,12 @@
 import '../core/database/database_helper.dart';
 import '../core/database/db_exceptions.dart';
 import '../core/session/session_manager.dart';
+import '../core/sync/bitacoras/movimiento_inventario_logger.dart';
 import 'cuentas_por_pagar_controller.dart';
 
 class ComprasController {
   final _cuentasPorPagarController = CuentasPorPagarController();
+  final _movimientoInventarioLogger = MovimientoInventarioLogger();
 
   // INSERTAR COMPRA COMPLETA
   //
@@ -62,6 +64,13 @@ class ComprasController {
         });
 
         // actualizar inventario (SUMA STOCK)
+        final stockAntes = await txn.rawQuery(
+          'SELECT cantidad FROM Inventario WHERE id_producto = ?',
+          [item['id_producto']],
+        );
+        final cantidadAnterior = stockAntes.isEmpty ? 0 : (stockAntes.first['cantidad'] as int? ?? 0);
+        final cantidadRecibida = item['cantidad'] as int;
+
         await txn.rawUpdate(
           '''
           UPDATE Inventario
@@ -72,6 +81,17 @@ class ComprasController {
             item['cantidad'],
             item['id_producto'],
           ],
+        );
+
+        await _movimientoInventarioLogger.registrar(
+          txn,
+          idProducto: item['id_producto'] as int,
+          tipoMovimiento: 'EntradaCompra',
+          cantidad: cantidadRecibida,
+          cantidadAnterior: cantidadAnterior,
+          cantidadNueva: cantidadAnterior + cantidadRecibida,
+          motivo: 'Compra #$idCompra',
+          referenciaTipo: 'Compra',
         );
       }
 
@@ -128,6 +148,13 @@ class ComprasController {
 
         // revertir inventario
         for (var item in detalles) {
+          final stockAntes = await txn.rawQuery(
+            'SELECT cantidad FROM Inventario WHERE id_producto = ?',
+            [item['id_producto']],
+          );
+          final cantidadAnterior = stockAntes.isEmpty ? 0 : (stockAntes.first['cantidad'] as int? ?? 0);
+          final cantidadRevertida = (item['cantidad'] as int?) ?? 0;
+
           await txn.rawUpdate(
             '''
             UPDATE Inventario
@@ -138,6 +165,17 @@ class ComprasController {
               item['cantidad'] ?? 0,
               item['id_producto'],
             ],
+          );
+
+          await _movimientoInventarioLogger.registrar(
+            txn,
+            idProducto: item['id_producto'] as int,
+            tipoMovimiento: 'AjusteNegativo',
+            cantidad: cantidadRevertida,
+            cantidadAnterior: cantidadAnterior,
+            cantidadNueva: cantidadAnterior - cantidadRevertida,
+            motivo: 'Compra #$idCompra eliminada',
+            referenciaTipo: 'Compra',
           );
         }
 
