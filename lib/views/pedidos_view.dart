@@ -481,7 +481,7 @@ class _PedidosViewState extends State<PedidosView> {
                   _estadoChip(estado),
                   const SizedBox(height: 8),
                   Text(
-                    '${AppConfig.formatoMoneda(total)}',
+                    AppConfig.formatoMoneda(total),
                     style: const TextStyle(
                         fontWeight: FontWeight.bold, fontSize: AppText.subtitle),
                   ),

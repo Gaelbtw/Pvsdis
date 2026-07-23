@@ -157,7 +157,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
               ),
               const SizedBox(height: 4),
               Text(
-                "${AppConfig.formatoMoneda(deudaTotal)}",
+                AppConfig.formatoMoneda(deudaTotal),
                 style: const TextStyle(fontSize: AppText.display, fontWeight: FontWeight.w900),
               ),
             ],
@@ -383,7 +383,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
         children: [
           Text(label, style: const TextStyle(fontSize: AppText.overline, color: AppColors.textSecondary)),
           Text(
-            '${AppConfig.formatoMoneda(valor)}',
+            AppConfig.formatoMoneda(valor),
             style: TextStyle(
               fontWeight: FontWeight.w800,
               color: destacar ? AppColors.error : AppColors.textPrimary,

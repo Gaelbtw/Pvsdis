@@ -378,7 +378,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                             BorderRadius.circular(AppRadius.pill),
                                       ),
                                       child: Text(
-                                        '${AppConfig.formatoMoneda(producto.precio)}',
+                                        AppConfig.formatoMoneda(producto.precio),
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: AppText.small,
@@ -560,7 +560,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                         ),
                                         const Spacer(),
                                         Text(
-                                          '${AppConfig.formatoMoneda((producto.precio * cantidad))}',
+                                          AppConfig.formatoMoneda((producto.precio * cantidad)),
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: AppText.bodyLg,
@@ -588,7 +588,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                       ),
                       const Spacer(),
                       Text(
-                        '${AppConfig.formatoMoneda(total)}',
+                        AppConfig.formatoMoneda(total),
                         style: const TextStyle(
                           fontSize: AppText.display,
                           fontWeight: FontWeight.bold,

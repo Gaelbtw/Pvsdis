@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:pdf/pdf.dart';
-import 'package:printing/printing.dart';
 
 import '../controllers/caja_controller.dart';
 import '../core/config/app_config.dart';
@@ -8,6 +6,7 @@ import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
 import '../models/caja_model.dart';
 import '../services/ticket_cierre_caja_service.dart';
+import '../services/impresion_service.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/custom_alert.dart';
 import '../widgets/form_dialog.dart';
@@ -194,7 +193,7 @@ class _CajaViewState extends State<CajaView> {
         observacionesApertura: caja.observacionesApertura,
       );
 
-      await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => pdf.save());
+      await ImpresionService.imprimir(pdf);
 
       await cargar();
 
@@ -359,7 +358,7 @@ class _CajaViewState extends State<CajaView> {
                     children: [
                       const Text("Diferencia", style: TextStyle(color: AppColors.textSecondary)),
                       Text(
-                        "${AppConfig.formatoMoneda(diferencia)}",
+                        AppConfig.formatoMoneda(diferencia),
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: AppText.subtitle,
@@ -413,7 +412,7 @@ class _CajaViewState extends State<CajaView> {
           Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: AppText.caption, fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
           Text(
-            "${AppConfig.formatoMoneda(value)}",
+            AppConfig.formatoMoneda(value),
             style: const TextStyle(fontSize: AppText.subtitle, fontWeight: FontWeight.w800, color: AppColors.textStrong),
           ),
         ],

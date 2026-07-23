@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:pdf/pdf.dart';
 
 import '../../models/configuracion_model.dart';
 import '../../services/configuracion_service.dart';
@@ -35,6 +36,11 @@ class AppConfig {
   static String formatoMoneda(num valor) {
     return '${actual.simboloMoneda}${valor.toStringAsFixed(2)}';
   }
+
+  /// Formato de página del ticket según el ancho de rollo térmico configurado
+  /// ('58mm' → `roll57`, cualquier otro → `roll80`).
+  static PdfPageFormat get formatoPapel =>
+      actual.tamanoPapel == '58mm' ? PdfPageFormat.roll57 : PdfPageFormat.roll80;
 
   static int? _aMinutos(String hhmm) {
     final partes = hhmm.split(':');

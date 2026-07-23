@@ -25,9 +25,8 @@ import '../models/cliente_model.dart';
 import '../widgets/nav_bar.dart';
 import 'caja_view.dart';
 
-import 'package:printing/printing.dart';
-import 'package:pdf/pdf.dart';
 import '../services/ticket_service.dart';
+import '../services/impresion_service.dart';
 
 class VentasView extends StatefulWidget {
   final Cliente? cliente;
@@ -515,9 +514,7 @@ class _VentasViewState extends State<VentasView> {
       ahorroPromociones: promocionesVenta.ahorroTotal,
     );
 
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
-    );
+    await ImpresionService.imprimir(pdf);
   }
 
   @override
@@ -687,7 +684,7 @@ class _VentasViewState extends State<VentasView> {
 
                                         // 💰 PRECIO
                                         Text(
-                                          "${AppConfig.formatoMoneda(p.precio)}",
+                                          AppConfig.formatoMoneda(p.precio),
                                           style:
                                               const TextStyle(
                                             fontSize: AppText.subtitle,
@@ -1030,7 +1027,7 @@ class _VentasViewState extends State<VentasView> {
                                                   final montoLinea = lineaCalculada.subtotalLinea -
                                                       lineaCalculada.descuentoMonto;
                                                   return Text(
-                                                    "${AppConfig.formatoMoneda(montoLinea)}",
+                                                    AppConfig.formatoMoneda(montoLinea),
                                                     style: const TextStyle(
                                                       fontWeight: FontWeight.bold,
                                                     ),
@@ -1119,7 +1116,7 @@ class _VentasViewState extends State<VentasView> {
       child: Column(
         children: [
           if (c.descuentoTotal > 0) ...[
-            _lineaResumen("Subtotal", "${AppConfig.formatoMoneda(c.subtotal)}"),
+            _lineaResumen("Subtotal", AppConfig.formatoMoneda(c.subtotal)),
             const SizedBox(height: 6),
             _lineaResumen("Descuento", "-${AppConfig.formatoMoneda(c.descuentoTotal)}", color: AppColors.error),
             const SizedBox(height: 12),
@@ -1147,7 +1144,7 @@ class _VentasViewState extends State<VentasView> {
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerRight,
                   child: Text(
-                    "${AppConfig.formatoMoneda(c.total)}",
+                    AppConfig.formatoMoneda(c.total),
                     style: const TextStyle(
                       fontSize: 38,
                       fontWeight: FontWeight.w900,

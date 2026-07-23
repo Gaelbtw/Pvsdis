@@ -233,7 +233,7 @@ class _PagosMixtosSectionState extends State<PagosMixtosSection> {
         children: [
           Text(etiqueta, style: TextStyle(color: color ?? Colors.black87)),
           Text(
-            "${AppConfig.formatoMoneda(valor)}",
+            AppConfig.formatoMoneda(valor),
             style: TextStyle(fontWeight: FontWeight.bold, color: color ?? Colors.black87),
           ),
         ],

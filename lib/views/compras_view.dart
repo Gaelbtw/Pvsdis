@@ -11,9 +11,8 @@ import '../models/proveedores_model.dart';
 import '../widgets/custom_alert.dart';
 import '../widgets/nav_bar.dart';
 
-import 'package:printing/printing.dart';
-import 'package:pdf/pdf.dart';
 import '../services/ticket_compras_service.dart';
+import '../services/impresion_service.dart';
 
 class ComprasView extends StatefulWidget {
   const ComprasView({super.key});
@@ -162,9 +161,7 @@ class _ComprasViewState extends State<ComprasView> {
       proveedor: proveedorSeleccionado!.nombre,
     );
 
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
-    );
+    await ImpresionService.imprimir(pdf);
   }
 
   @override
@@ -293,7 +290,7 @@ class _ComprasViewState extends State<ComprasView> {
 
                                         // PRECIO
                                         Text(
-                                          "${AppConfig.formatoMoneda((p.precioCompra ?? 0))}",
+                                          AppConfig.formatoMoneda((p.precioCompra ?? 0)),
 
                                           style: const TextStyle(
                                             fontSize: AppText.subtitle,
@@ -616,7 +613,7 @@ class _ComprasViewState extends State<ComprasView> {
                                 ),
 
                                 Text(
-                                  "${AppConfig.formatoMoneda(total)}",
+                                  AppConfig.formatoMoneda(total),
 
                                   style: const TextStyle(
                                     fontSize: AppText.heading,

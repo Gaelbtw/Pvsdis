@@ -145,7 +145,7 @@ class _ProveedorDetalleViewState extends State<ProveedorDetalleView> {
           children: [
             Text(label, style: const TextStyle(fontSize: AppText.overline, color: AppColors.textSecondary)),
             const SizedBox(height: 4),
-            Text('${AppConfig.formatoMoneda(numero)}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: AppText.subtitle)),
+            Text(AppConfig.formatoMoneda(numero), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: AppText.subtitle)),
           ],
         ),
       ),
@@ -196,7 +196,7 @@ class _ProveedorDetalleViewState extends State<ProveedorDetalleView> {
               '${fecha == null ? '' : '  ·  ${fecha.day}/${fecha.month}/${fecha.year}'}',
             ),
           ),
-          Text('${AppConfig.formatoMoneda(total)}', style: const TextStyle(fontWeight: FontWeight.w700)),
+          Text(AppConfig.formatoMoneda(total), style: const TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(width: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),

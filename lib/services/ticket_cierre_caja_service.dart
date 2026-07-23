@@ -30,7 +30,7 @@ class TicketCierreCajaService {
 
     pdf.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat.roll80, // térmico
+        pageFormat: AppConfig.formatoPapel, // térmico
         build: (context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,

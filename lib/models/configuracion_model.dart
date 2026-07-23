@@ -24,6 +24,19 @@ class Configuracion {
   final String mensajeTicket;
   final int colorPrimario;
 
+  // Impresión de tickets.
+  /// Ancho del rollo térmico: '58mm' o '80mm'.
+  final String tamanoPapel;
+
+  /// Si es `true`, el ticket se imprime directo en [impresoraNombre] al cobrar,
+  /// sin abrir el diálogo de impresión. Requiere una impresora seleccionada.
+  final bool autoImprimirTicket;
+
+  /// Impresora guardada para auto-impresión (identificador y nombre visible del
+  /// paquete `printing`). `null` = no se ha elegido ninguna.
+  final String? impresoraUrl;
+  final String? impresoraNombre;
+
   // Descuentos: ver DevolucionesController/VentasController y
   // core/utils/descuento_utils.dart para cómo se usan.
   final double descuentoMaximoPorcentaje;
@@ -48,6 +61,10 @@ class Configuracion {
     this.mostrarIvaDesglosado = false,
     required this.mensajeTicket,
     required this.colorPrimario,
+    this.tamanoPapel = '80mm',
+    this.autoImprimirTicket = false,
+    this.impresoraUrl,
+    this.impresoraNombre,
     this.descuentoMaximoPorcentaje = 20,
     this.descuentoCajeroPuedeAplicar = true,
     this.descuentoCajeroRequiereAutorizacion = true,
@@ -75,6 +92,10 @@ class Configuracion {
       mostrarIvaDesglosado: false,
       mensajeTicket: "¡Gracias por su compra!",
       colorPrimario: 0xFFF2C500,
+      tamanoPapel: '80mm',
+      autoImprimirTicket: false,
+      impresoraUrl: null,
+      impresoraNombre: null,
       descuentoMaximoPorcentaje: 20,
       descuentoCajeroPuedeAplicar: true,
       descuentoCajeroRequiereAutorizacion: true,
@@ -108,6 +129,12 @@ class Configuracion {
           : (map['mostrar_iva_desglosado'] as num) != 0,
       mensajeTicket: map['mensaje_ticket'] as String? ?? base.mensajeTicket,
       colorPrimario: (map['color_primario'] as num?)?.toInt() ?? base.colorPrimario,
+      tamanoPapel: map['tamano_papel'] as String? ?? base.tamanoPapel,
+      autoImprimirTicket: map['auto_imprimir_ticket'] == null
+          ? base.autoImprimirTicket
+          : (map['auto_imprimir_ticket'] as num) != 0,
+      impresoraUrl: map['impresora_url'] as String?,
+      impresoraNombre: map['impresora_nombre'] as String?,
       descuentoMaximoPorcentaje: (map['descuento_maximo_porcentaje'] as num?)?.toDouble() ??
           base.descuentoMaximoPorcentaje,
       descuentoCajeroPuedeAplicar: map['descuento_cajero_puede_aplicar'] == null
@@ -138,6 +165,10 @@ class Configuracion {
       'mostrar_iva_desglosado': mostrarIvaDesglosado ? 1 : 0,
       'mensaje_ticket': mensajeTicket,
       'color_primario': colorPrimario,
+      'tamano_papel': tamanoPapel,
+      'auto_imprimir_ticket': autoImprimirTicket ? 1 : 0,
+      'impresora_url': impresoraUrl,
+      'impresora_nombre': impresoraNombre,
       'descuento_maximo_porcentaje': descuentoMaximoPorcentaje,
       'descuento_cajero_puede_aplicar': descuentoCajeroPuedeAplicar ? 1 : 0,
       'descuento_cajero_requiere_autorizacion': descuentoCajeroRequiereAutorizacion ? 1 : 0,
@@ -162,6 +193,10 @@ class Configuracion {
     bool? mostrarIvaDesglosado,
     String? mensajeTicket,
     int? colorPrimario,
+    String? tamanoPapel,
+    bool? autoImprimirTicket,
+    String? impresoraUrl,
+    String? impresoraNombre,
     double? descuentoMaximoPorcentaje,
     bool? descuentoCajeroPuedeAplicar,
     bool? descuentoCajeroRequiereAutorizacion,
@@ -184,6 +219,10 @@ class Configuracion {
       mostrarIvaDesglosado: mostrarIvaDesglosado ?? this.mostrarIvaDesglosado,
       mensajeTicket: mensajeTicket ?? this.mensajeTicket,
       colorPrimario: colorPrimario ?? this.colorPrimario,
+      tamanoPapel: tamanoPapel ?? this.tamanoPapel,
+      autoImprimirTicket: autoImprimirTicket ?? this.autoImprimirTicket,
+      impresoraUrl: impresoraUrl ?? this.impresoraUrl,
+      impresoraNombre: impresoraNombre ?? this.impresoraNombre,
       descuentoMaximoPorcentaje: descuentoMaximoPorcentaje ?? this.descuentoMaximoPorcentaje,
       descuentoCajeroPuedeAplicar: descuentoCajeroPuedeAplicar ?? this.descuentoCajeroPuedeAplicar,
       descuentoCajeroRequiereAutorizacion:

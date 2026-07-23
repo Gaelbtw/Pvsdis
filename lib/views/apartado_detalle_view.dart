@@ -1,14 +1,13 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:printing/printing.dart';
-import 'package:pdf/pdf.dart';
 
 import '../controllers/apartados_controller.dart';
 import '../core/theme/app_colors.dart';
 import '../core/config/app_config.dart';
 import '../core/utils/pagos_mixtos.dart';
 import '../services/ticket_apartado_service.dart';
+import '../services/impresion_service.dart';
 import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
 import '../widgets/nav_bar.dart';
@@ -206,7 +205,7 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
       saldoPendiente: saldoPendienteActual,
     );
 
-    await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => pdf.save());
+    await ImpresionService.imprimir(pdf);
   }
 
   Future<void> _cancelar() async {
@@ -331,7 +330,7 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(child: Text('${abono['tipo']} · ${abono['fecha']} · $desglose')),
-                        Text('${AppConfig.formatoMoneda((abono['monto'] as num))}'),
+                        Text(AppConfig.formatoMoneda((abono['monto'] as num))),
                       ],
                     ),
                   );
@@ -384,7 +383,7 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
         children: [
           Text(etiqueta, style: TextStyle(fontWeight: destacado ? FontWeight.bold : FontWeight.normal)),
           Text(
-            '${AppConfig.formatoMoneda(valor)}',
+            AppConfig.formatoMoneda(valor),
             style: TextStyle(fontWeight: destacado ? FontWeight.bold : FontWeight.normal, color: color),
           ),
         ],

@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:pdf/pdf.dart';
-import 'package:printing/printing.dart';
 
 import '../controllers/devoluciones_controller.dart';
 import '../core/config/app_config.dart';
 import '../core/theme/app_colors.dart';
 import '../services/ticket_devolucion_service.dart';
+import '../services/impresion_service.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/custom_alert.dart';
 import '../widgets/form_dialog.dart';
@@ -179,9 +178,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
         onConfirm: () async {
           final comprobante = await _controller.obtenerComprobante(idDevolucion);
           final pdf = await TicketDevolucionService.generarTicket(comprobante);
-          await Printing.layoutPdf(
-            onLayout: (PdfPageFormat format) async => pdf.save(),
-          );
+          await ImpresionService.imprimir(pdf);
         },
       ),
     );

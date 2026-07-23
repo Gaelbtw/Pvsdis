@@ -443,6 +443,10 @@ class DatabaseHelper {
         mostrar_iva_desglosado INTEGER DEFAULT 0,
         mensaje_ticket TEXT,
         color_primario INTEGER,
+        tamano_papel TEXT DEFAULT '80mm',
+        auto_imprimir_ticket INTEGER DEFAULT 0,
+        impresora_url TEXT,
+        impresora_nombre TEXT,
         descuento_maximo_porcentaje REAL DEFAULT 20,
         descuento_cajero_puede_aplicar INTEGER DEFAULT 1,
         descuento_cajero_requiere_autorizacion INTEGER DEFAULT 1
@@ -1393,6 +1397,10 @@ class DatabaseHelper {
 
     const columnasNuevas = {
       'mostrar_iva_desglosado': 'INTEGER DEFAULT 0',
+      'tamano_papel': "TEXT DEFAULT '80mm'",
+      'auto_imprimir_ticket': 'INTEGER DEFAULT 0',
+      'impresora_url': 'TEXT',
+      'impresora_nombre': 'TEXT',
     };
 
     for (final entry in columnasNuevas.entries) {

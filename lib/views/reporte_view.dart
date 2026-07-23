@@ -256,7 +256,7 @@ Future<void> _cargarReportesVentas() async {
               pw.SizedBox(width: 12),
               _pdfResumen(
                 esVentas ? 'Ingresos' : 'Gastos',
-                '${AppConfig.formatoMoneda((esVentas ? ingresosTotales : gastoTotal))}',
+                AppConfig.formatoMoneda((esVentas ? ingresosTotales : gastoTotal)),
               ),
             ],
           ),
@@ -347,7 +347,7 @@ Future<void> _cargarReportesVentas() async {
             item['cliente']?.toString() ?? 'Final',
             item['metodo_pago']?.toString() ?? 'efectivo',
             item['estado']?.toString() ?? 'Activa',
-            '${AppConfig.formatoMoneda(totalNeto)}',
+            AppConfig.formatoMoneda(totalNeto),
           ];
         }
 
@@ -553,7 +553,7 @@ Future<void> _cargarReportesVentas() async {
           children: [
             Text(label, style: const TextStyle(fontSize: AppText.overline, color: AppColors.textSecondary)),
             const SizedBox(height: 4),
-            Text('${AppConfig.formatoMoneda(valor)}', style: TextStyle(fontWeight: FontWeight.w900, fontSize: AppText.subtitle, color: color)),
+            Text(AppConfig.formatoMoneda(valor), style: TextStyle(fontWeight: FontWeight.w900, fontSize: AppText.subtitle, color: color)),
           ],
         ),
       ),
@@ -1086,7 +1086,7 @@ Future<void> _cargarReportesVentas() async {
           icon: esVentas ? Icons.payments_outlined : Icons.account_balance_wallet,
           label: esVentas ? 'Ingresos totales' : 'Gasto total',
           value:
-              '${AppConfig.formatoMoneda((esVentas ? ingresosTotales : gastoTotal))}',
+              AppConfig.formatoMoneda((esVentas ? ingresosTotales : gastoTotal)),
           color: const Color(0xFFE8F0D5),
         ),
         const SizedBox(width: 16),
@@ -1105,7 +1105,7 @@ Future<void> _cargarReportesVentas() async {
     final total = esVentas ? ingresosTotales : gastoTotal;
 
     if (cantidad == 0) return '\$0.00';
-    return '${AppConfig.formatoMoneda((total / cantidad))}';
+    return AppConfig.formatoMoneda((total / cantidad));
   }
 
   Widget _summaryCard({
@@ -1414,7 +1414,7 @@ Future<void> _cargarReportesVentas() async {
           ),
           const SizedBox(width: 12),
           Text(
-            '${AppConfig.formatoMoneda(total)}',
+            AppConfig.formatoMoneda(total),
             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: AppText.bodyLg),
           ),
           const SizedBox(width: 8),

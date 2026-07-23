@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -58,6 +59,11 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
   bool descuentoCajeroRequiereAutorizacion = true;
   bool mostrarIvaDesglosado = false;
 
+  String tamanoPapel = '80mm';
+  bool autoImprimirTicket = false;
+  String? impresoraUrl;
+  String? impresoraNombre;
+
   String? logoPath;
   late Color colorSeleccionado;
 
@@ -101,6 +107,10 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
           ? ''
           : config.tasaImpuestoPorcentaje.toString();
       mostrarIvaDesglosado = config.mostrarIvaDesglosado;
+      tamanoPapel = config.tamanoPapel;
+      autoImprimirTicket = config.autoImprimirTicket;
+      impresoraUrl = config.impresoraUrl;
+      impresoraNombre = config.impresoraNombre;
       mensajeTicketCtrl.text = config.mensajeTicket;
       logoPath = config.logoPath;
       colorSeleccionado = Color(config.colorPrimario);
@@ -142,6 +152,15 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
     return dir.path;
   }
 
+  Future<void> _seleccionarImpresora() async {
+    final printer = await Printing.pickPrinter(context: context);
+    if (printer == null || !mounted) return;
+    setState(() {
+      impresoraUrl = printer.url;
+      impresoraNombre = printer.name;
+    });
+  }
+
   Future<void> guardar() async {
     if (stockCtrl.text.trim().isEmpty ||
         fondoCtrl.text.trim().isEmpty ||
@@ -176,6 +195,10 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
       simboloMoneda: monedaCtrl.text.trim().isEmpty ? r'$' : monedaCtrl.text.trim(),
       tasaImpuestoPorcentaje: double.tryParse(ivaCtrl.text.trim()) ?? 0,
       mostrarIvaDesglosado: mostrarIvaDesglosado,
+      tamanoPapel: tamanoPapel,
+      autoImprimirTicket: autoImprimirTicket,
+      impresoraUrl: impresoraUrl,
+      impresoraNombre: impresoraNombre,
       mensajeTicket: mensajeTicketCtrl.text.trim().isEmpty
           ? Configuracion.porDefecto().mensajeTicket
           : mensajeTicketCtrl.text.trim(),
@@ -692,6 +715,49 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
                               value: mostrarIvaDesglosado,
                               activeThumbColor: AppColors.primary,
                               onChanged: (v) => setState(() => mostrarIvaDesglosado = v),
+                            ),
+                          ],
+                        ),
+                      ),
+                      sectionCard(
+                        icon: Icons.print_outlined,
+                        title: "Impresión",
+                        subtitle: "Tamaño de papel, impresora y auto-impresión del ticket",
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            DropdownButtonFormField<String>(
+                              initialValue: tamanoPapel,
+                              decoration: const InputDecoration(
+                                labelText: "Tamaño de papel",
+                                border: OutlineInputBorder(),
+                              ),
+                              items: const [
+                                DropdownMenuItem(value: '58mm', child: Text("58 mm (angosto)")),
+                                DropdownMenuItem(value: '80mm', child: Text("80 mm (estándar)")),
+                              ],
+                              onChanged: (v) => setState(() => tamanoPapel = v ?? '80mm'),
+                            ),
+                            const SizedBox(height: 8),
+                            ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.print_outlined),
+                              title: Text(impresoraNombre ?? "Sin impresora seleccionada"),
+                              subtitle: const Text("Impresora para auto-imprimir"),
+                              trailing: OutlinedButton(
+                                onPressed: _seleccionarImpresora,
+                                child: const Text("Elegir"),
+                              ),
+                            ),
+                            SwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text("Imprimir automáticamente al cobrar"),
+                              subtitle: const Text(
+                                "Sin diálogo de impresión. Requiere una impresora seleccionada",
+                              ),
+                              value: autoImprimirTicket,
+                              activeThumbColor: AppColors.primary,
+                              onChanged: (v) => setState(() => autoImprimirTicket = v),
                             ),
                           ],
                         ),
