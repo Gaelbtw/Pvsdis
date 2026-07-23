@@ -307,7 +307,7 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
                                       children: [
                                         Text(p.nombre, maxLines: 2, overflow: TextOverflow.ellipsis),
                                         const Spacer(),
-                                        Text('\$${p.precio.toStringAsFixed(2)}',
+                                        Text('${AppConfig.formatoMoneda(p.precio)}',
                                             style: const TextStyle(fontWeight: FontWeight.bold)),
                                         Text('Disponible: $disponible', style: const TextStyle(fontSize: AppText.overline)),
                                       ],
@@ -379,7 +379,7 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 const Text('Total'),
-                                Text('\$${calculo.total.toStringAsFixed(2)}',
+                                Text('${AppConfig.formatoMoneda(calculo.total)}',
                                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppText.subtitle)),
                               ],
                             ),

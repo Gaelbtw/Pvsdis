@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../controllers/cuentas_por_pagar_controller.dart';
 import '../core/theme/app_colors.dart';
+import '../core/config/app_config.dart';
 import '../models/proveedores_model.dart';
 import '../widgets/nav_bar.dart';
 import 'cuentas_por_pagar_view.dart';
@@ -144,7 +145,7 @@ class _ProveedorDetalleViewState extends State<ProveedorDetalleView> {
           children: [
             Text(label, style: const TextStyle(fontSize: AppText.overline, color: AppColors.textSecondary)),
             const SizedBox(height: 4),
-            Text('\$${numero.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: AppText.subtitle)),
+            Text('${AppConfig.formatoMoneda(numero)}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: AppText.subtitle)),
           ],
         ),
       ),
@@ -195,7 +196,7 @@ class _ProveedorDetalleViewState extends State<ProveedorDetalleView> {
               '${fecha == null ? '' : '  ·  ${fecha.day}/${fecha.month}/${fecha.year}'}',
             ),
           ),
-          Text('\$${total.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w700)),
+          Text('${AppConfig.formatoMoneda(total)}', style: const TextStyle(fontWeight: FontWeight.w700)),
           const SizedBox(width: 12),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -207,7 +208,7 @@ class _ProveedorDetalleViewState extends State<ProveedorDetalleView> {
           ),
           if (saldo > 0) ...[
             const SizedBox(width: 8),
-            Text('Saldo: \$${saldo.toStringAsFixed(2)}', style: const TextStyle(color: AppColors.error, fontSize: AppText.caption)),
+            Text('Saldo: ${AppConfig.formatoMoneda(saldo)}', style: const TextStyle(color: AppColors.error, fontSize: AppText.caption)),
           ],
         ],
       ),

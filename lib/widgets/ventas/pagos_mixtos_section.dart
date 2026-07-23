@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/config/app_config.dart';
 import '../../core/utils/pagos_mixtos.dart';
 
 class _FilaPago {
@@ -232,7 +233,7 @@ class _PagosMixtosSectionState extends State<PagosMixtosSection> {
         children: [
           Text(etiqueta, style: TextStyle(color: color ?? Colors.black87)),
           Text(
-            "\$${valor.toStringAsFixed(2)}",
+            "${AppConfig.formatoMoneda(valor)}",
             style: TextStyle(fontWeight: FontWeight.bold, color: color ?? Colors.black87),
           ),
         ],

@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 
 import '../controllers/apartados_controller.dart';
 import '../core/theme/app_colors.dart';
+import '../core/config/app_config.dart';
 import '../core/utils/pagos_mixtos.dart';
 import '../services/ticket_apartado_service.dart';
 import '../widgets/confirm_action.dart';
@@ -92,7 +93,7 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
                         controller: montoCtrl,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         decoration: InputDecoration(
-                          hintText: 'Monto del abono (saldo: \$${_saldoPendiente.toStringAsFixed(2)})',
+                          hintText: 'Monto del abono (saldo: ${AppConfig.formatoMoneda(_saldoPendiente)})',
                           filled: true,
                           fillColor: AppColors.surface,
                           border: OutlineInputBorder(
@@ -305,7 +306,7 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(child: Text('${item['producto_nombre']}')),
-                        Text('${item['cantidad']} x \$${(item['precio_neto'] as num).toStringAsFixed(2)}'),
+                        Text('${item['cantidad']} x ${AppConfig.formatoMoneda((item['precio_neto'] as num))}'),
                       ],
                     ),
                   )),
@@ -323,14 +324,14 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
               else
                 ...historial.map((abono) {
                   final pagosAbono = abono['pagos'] as List<Map<String, dynamic>>;
-                  final desglose = pagosAbono.map((p) => '${p['metodo_pago']}: \$${(p['monto'] as num).toStringAsFixed(2)}').join(', ');
+                  final desglose = pagosAbono.map((p) => '${p['metodo_pago']}: ${AppConfig.formatoMoneda((p['monto'] as num))}').join(', ');
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(child: Text('${abono['tipo']} · ${abono['fecha']} · $desglose')),
-                        Text('\$${(abono['monto'] as num).toStringAsFixed(2)}'),
+                        Text('${AppConfig.formatoMoneda((abono['monto'] as num))}'),
                       ],
                     ),
                   );
@@ -383,7 +384,7 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
         children: [
           Text(etiqueta, style: TextStyle(fontWeight: destacado ? FontWeight.bold : FontWeight.normal)),
           Text(
-            '\$${valor.toStringAsFixed(2)}',
+            '${AppConfig.formatoMoneda(valor)}',
             style: TextStyle(fontWeight: destacado ? FontWeight.bold : FontWeight.normal, color: color),
           ),
         ],

@@ -150,16 +150,16 @@ class _CajaViewState extends State<CajaView> {
       context: context,
       builder: (_) => CustomAlert(
         titulo: "Cerrar caja",
-        mensaje: "Fondo inicial: \$${r.fondoInicial.toStringAsFixed(2)}\n"
-            "Ventas efectivo: \$${r.ventasEfectivo.toStringAsFixed(2)}\n"
-            "Ventas tarjeta: \$${r.ventasTarjeta.toStringAsFixed(2)}\n"
-            "Ventas transferencia: \$${r.ventasTransferencia.toStringAsFixed(2)}\n"
-            "${r.totalAnticipos > 0 ? 'Anticipos de apartados: \$${r.totalAnticipos.toStringAsFixed(2)}\n' : ''}"
-            "Cambio entregado: \$${r.cambioEntregado.toStringAsFixed(2)}\n"
-            "Devoluciones: \$${r.devoluciones.toStringAsFixed(2)}\n"
-            "Efectivo esperado: \$${r.efectivoEsperado.toStringAsFixed(2)}\n"
-            "Efectivo contado: \$${contado.toStringAsFixed(2)}\n"
-            "Diferencia: \$${diferencia.toStringAsFixed(2)}\n\n"
+        mensaje: "Fondo inicial: ${AppConfig.formatoMoneda(r.fondoInicial)}\n"
+            "Ventas efectivo: ${AppConfig.formatoMoneda(r.ventasEfectivo)}\n"
+            "Ventas tarjeta: ${AppConfig.formatoMoneda(r.ventasTarjeta)}\n"
+            "Ventas transferencia: ${AppConfig.formatoMoneda(r.ventasTransferencia)}\n"
+            "${r.totalAnticipos > 0 ? 'Anticipos de apartados: ${AppConfig.formatoMoneda(r.totalAnticipos)}\n' : ''}"
+            "Cambio entregado: ${AppConfig.formatoMoneda(r.cambioEntregado)}\n"
+            "Devoluciones: ${AppConfig.formatoMoneda(r.devoluciones)}\n"
+            "Efectivo esperado: ${AppConfig.formatoMoneda(r.efectivoEsperado)}\n"
+            "Efectivo contado: ${AppConfig.formatoMoneda(contado)}\n"
+            "Diferencia: ${AppConfig.formatoMoneda(diferencia)}\n\n"
             "¿Confirmas el cierre? Esta acción no se puede deshacer.",
         icono: Icons.point_of_sale,
         textoCancelar: "Cancelar",
@@ -357,7 +357,7 @@ class _CajaViewState extends State<CajaView> {
                     children: [
                       const Text("Diferencia", style: TextStyle(color: AppColors.textSecondary)),
                       Text(
-                        "\$${diferencia.toStringAsFixed(2)}",
+                        "${AppConfig.formatoMoneda(diferencia)}",
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
                           fontSize: AppText.subtitle,
@@ -411,7 +411,7 @@ class _CajaViewState extends State<CajaView> {
           Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: AppText.caption, fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
           Text(
-            "\$${value.toStringAsFixed(2)}",
+            "${AppConfig.formatoMoneda(value)}",
             style: const TextStyle(fontSize: AppText.subtitle, fontWeight: FontWeight.w800, color: AppColors.textStrong),
           ),
         ],

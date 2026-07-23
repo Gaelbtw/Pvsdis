@@ -256,7 +256,7 @@ Future<void> _cargarReportesVentas() async {
               pw.SizedBox(width: 12),
               _pdfResumen(
                 esVentas ? 'Ingresos' : 'Gastos',
-                '\$${(esVentas ? ingresosTotales : gastoTotal).toStringAsFixed(2)}',
+                '${AppConfig.formatoMoneda((esVentas ? ingresosTotales : gastoTotal))}',
               ),
             ],
           ),
@@ -347,7 +347,7 @@ Future<void> _cargarReportesVentas() async {
             item['cliente']?.toString() ?? 'Final',
             item['metodo_pago']?.toString() ?? 'efectivo',
             item['estado']?.toString() ?? 'Activa',
-            '\$${totalNeto.toStringAsFixed(2)}',
+            '${AppConfig.formatoMoneda(totalNeto)}',
           ];
         }
 
@@ -355,7 +355,7 @@ Future<void> _cargarReportesVentas() async {
           '#${item['id_compra']}',
           fecha == null ? '' : _formatDate(fecha),
           item['proveedor']?.toString() ?? 'Sin proveedor',
-          '\$${((item['total'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}',
+          '${AppConfig.formatoMoneda(((item['total'] as num?)?.toDouble() ?? 0))}',
         ];
       }).toList(),
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
@@ -386,8 +386,8 @@ Future<void> _cargarReportesVentas() async {
           'Cliente: ${cliente.isNotEmpty ? cliente : 'Consumidor final'}\n\n'
           'Fecha: ${_formatDate(DateTime.parse(fecha))}\n'
           'Método: $metodoPago\n\n'
-          '${totales.descuentoTotal > 0 ? 'Subtotal: \$${totales.subtotal.toStringAsFixed(2)}\nDescuento: -\$${totales.descuentoTotal.toStringAsFixed(2)}\n' : ''}'
-          'Total: \$${total.toStringAsFixed(2)}\n\n'
+          '${totales.descuentoTotal > 0 ? 'Subtotal: ${AppConfig.formatoMoneda(totales.subtotal)}\nDescuento: -${AppConfig.formatoMoneda(totales.descuentoTotal)}\n' : ''}'
+          'Total: ${AppConfig.formatoMoneda(total)}\n\n'
           '¿Deseas imprimir el ticket?',
       icono: Icons.receipt_long,
       textoCancelar: 'Cerrar',
@@ -442,7 +442,7 @@ Future<void> _cargarReportesVentas() async {
       titulo: 'Ticket de compra #$idCompra',
       mensaje:
           'Proveedor: $proveedor\n\n'
-          'Total: \$${total.toStringAsFixed(2)}\n\n'
+          'Total: ${AppConfig.formatoMoneda(total)}\n\n'
           '¿Deseas imprimir el ticket de compra?',
       icono: Icons.shopping_bag_outlined,
       textoCancelar: 'Cerrar',
@@ -512,7 +512,7 @@ Future<void> _cargarReportesVentas() async {
           'Deuda por proveedor',
           resumen.deudaPorProveedor.map((r) {
             final saldo = (r['saldo'] as num).toDouble();
-            return '${r['proveedor'] ?? 'Sin proveedor'} — \$${saldo.toStringAsFixed(2)} (${r['compras']} compra(s))';
+            return '${r['proveedor'] ?? 'Sin proveedor'} — ${AppConfig.formatoMoneda(saldo)} (${r['compras']} compra(s))';
           }).toList(),
         ),
         const SizedBox(height: 16),
@@ -520,7 +520,7 @@ Future<void> _cargarReportesVentas() async {
           'Compras vencidas',
           resumen.comprasVencidas.map((r) {
             final saldo = (r['saldo'] as num).toDouble();
-            return 'Compra #${r['id_compra']} · ${r['proveedor'] ?? 'Sin proveedor'} — Saldo \$${saldo.toStringAsFixed(2)}';
+            return 'Compra #${r['id_compra']} · ${r['proveedor'] ?? 'Sin proveedor'} — Saldo ${AppConfig.formatoMoneda(saldo)}';
           }).toList(),
         ),
         const SizedBox(height: 16),
@@ -528,7 +528,7 @@ Future<void> _cargarReportesVentas() async {
           'Próximos vencimientos',
           resumen.proximosVencimientos.map((r) {
             final saldo = (r['saldo'] as num).toDouble();
-            return 'Compra #${r['id_compra']} · ${r['proveedor'] ?? 'Sin proveedor'} — Vence ${r['fecha_vencimiento']} — Saldo \$${saldo.toStringAsFixed(2)}';
+            return 'Compra #${r['id_compra']} · ${r['proveedor'] ?? 'Sin proveedor'} — Vence ${r['fecha_vencimiento']} — Saldo ${AppConfig.formatoMoneda(saldo)}';
           }).toList(),
         ),
         const SizedBox(height: 16),
@@ -536,7 +536,7 @@ Future<void> _cargarReportesVentas() async {
           'Pagos realizados en el rango',
           resumen.pagosRealizados.map((r) {
             final monto = (r['monto'] as num).toDouble();
-            return '${r['proveedor'] ?? 'Sin proveedor'} — \$${monto.toStringAsFixed(2)} · ${r['usuario'] ?? ''}';
+            return '${r['proveedor'] ?? 'Sin proveedor'} — ${AppConfig.formatoMoneda(monto)} · ${r['usuario'] ?? ''}';
           }).toList(),
         ),
       ],
@@ -553,7 +553,7 @@ Future<void> _cargarReportesVentas() async {
           children: [
             Text(label, style: const TextStyle(fontSize: AppText.overline, color: AppColors.textSecondary)),
             const SizedBox(height: 4),
-            Text('\$${valor.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.w900, fontSize: AppText.subtitle, color: color)),
+            Text('${AppConfig.formatoMoneda(valor)}', style: TextStyle(fontWeight: FontWeight.w900, fontSize: AppText.subtitle, color: color)),
           ],
         ),
       ),
@@ -1086,7 +1086,7 @@ Future<void> _cargarReportesVentas() async {
           icon: esVentas ? Icons.payments_outlined : Icons.account_balance_wallet,
           label: esVentas ? 'Ingresos totales' : 'Gasto total',
           value:
-              '\$${(esVentas ? ingresosTotales : gastoTotal).toStringAsFixed(2)}',
+              '${AppConfig.formatoMoneda((esVentas ? ingresosTotales : gastoTotal))}',
           color: const Color(0xFFE8F0D5),
         ),
         const SizedBox(width: 16),
@@ -1105,7 +1105,7 @@ Future<void> _cargarReportesVentas() async {
     final total = esVentas ? ingresosTotales : gastoTotal;
 
     if (cantidad == 0) return '\$0.00';
-    return '\$${(total / cantidad).toStringAsFixed(2)}';
+    return '${AppConfig.formatoMoneda((total / cantidad))}';
   }
 
   Widget _summaryCard({
@@ -1414,7 +1414,7 @@ Future<void> _cargarReportesVentas() async {
           ),
           const SizedBox(width: 12),
           Text(
-            '\$${total.toStringAsFixed(2)}',
+            '${AppConfig.formatoMoneda(total)}',
             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: AppText.bodyLg),
           ),
           const SizedBox(width: 8),

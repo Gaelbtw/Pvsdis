@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../controllers/apartados_controller.dart';
 import '../core/theme/app_colors.dart';
+import '../core/config/app_config.dart';
 import '../widgets/nav_bar.dart';
 import 'apartado_detalle_view.dart';
 import 'nuevo_apartado_view.dart';
@@ -202,8 +203,8 @@ class _ApartadosViewState extends State<ApartadosView> {
                                               ),
                                               const SizedBox(height: 6),
                                               Text(
-                                                'Total: \$${total.toStringAsFixed(2)}   ·   '
-                                                'Saldo: \$${saldo.toStringAsFixed(2)}',
+                                                'Total: ${AppConfig.formatoMoneda(total)}   ·   '
+                                                'Saldo: ${AppConfig.formatoMoneda(saldo)}',
                                                 style: const TextStyle(
                                                     color: AppColors.textSecondary, fontSize: AppText.caption),
                                               ),

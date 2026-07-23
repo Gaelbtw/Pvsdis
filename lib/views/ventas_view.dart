@@ -687,7 +687,7 @@ class _VentasViewState extends State<VentasView> {
 
                                         // 💰 PRECIO
                                         Text(
-                                          "\$${p.precio.toStringAsFixed(2)}",
+                                          "${AppConfig.formatoMoneda(p.precio)}",
                                           style:
                                               const TextStyle(
                                             fontSize: AppText.subtitle,
@@ -1030,7 +1030,7 @@ class _VentasViewState extends State<VentasView> {
                                                   final montoLinea = lineaCalculada.subtotalLinea -
                                                       lineaCalculada.descuentoMonto;
                                                   return Text(
-                                                    "\$${montoLinea.toStringAsFixed(2)}",
+                                                    "${AppConfig.formatoMoneda(montoLinea)}",
                                                     style: const TextStyle(
                                                       fontWeight: FontWeight.bold,
                                                     ),
@@ -1119,9 +1119,9 @@ class _VentasViewState extends State<VentasView> {
       child: Column(
         children: [
           if (c.descuentoTotal > 0) ...[
-            _lineaResumen("Subtotal", "\$${c.subtotal.toStringAsFixed(2)}"),
+            _lineaResumen("Subtotal", "${AppConfig.formatoMoneda(c.subtotal)}"),
             const SizedBox(height: 6),
-            _lineaResumen("Descuento", "-\$${c.descuentoTotal.toStringAsFixed(2)}", color: AppColors.error),
+            _lineaResumen("Descuento", "-${AppConfig.formatoMoneda(c.descuentoTotal)}", color: AppColors.error),
             const SizedBox(height: 12),
             const Divider(height: 1, color: AppColors.border),
             const SizedBox(height: 12),
@@ -1147,7 +1147,7 @@ class _VentasViewState extends State<VentasView> {
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerRight,
                   child: Text(
-                    "\$${c.total.toStringAsFixed(2)}",
+                    "${AppConfig.formatoMoneda(c.total)}",
                     style: const TextStyle(
                       fontSize: 38,
                       fontWeight: FontWeight.w900,

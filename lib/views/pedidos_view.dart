@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_colors.dart';
+import '../core/config/app_config.dart';
 import '../models/cliente_model.dart';
 import '../services/cliente_services.dart';
 import '../controllers/pedidos_controller.dart';
@@ -480,7 +481,7 @@ class _PedidosViewState extends State<PedidosView> {
                   _estadoChip(estado),
                   const SizedBox(height: 8),
                   Text(
-                    '\$${total.toStringAsFixed(2)}',
+                    '${AppConfig.formatoMoneda(total)}',
                     style: const TextStyle(
                         fontWeight: FontWeight.bold, fontSize: AppText.subtitle),
                   ),

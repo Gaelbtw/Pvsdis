@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../controllers/caja_controller.dart';
 import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
+import '../core/config/app_config.dart';
 import '../models/caja_model.dart';
 import '../widgets/nav_bar.dart';
 
@@ -111,7 +112,7 @@ class _HistorialCajasViewState extends State<HistorialCajasView> {
           Expanded(
             flex: 2,
             child: Text(
-              "Fondo: \$${caja.fondoInicial.toStringAsFixed(2)}",
+              "Fondo: ${AppConfig.formatoMoneda(caja.fondoInicial)}",
               style: const TextStyle(color: AppColors.textSecondary),
             ),
           ),
@@ -120,7 +121,7 @@ class _HistorialCajasViewState extends State<HistorialCajasView> {
             child: caja.efectivoEsperado == null
                 ? const Text("—", style: TextStyle(color: AppColors.textSecondary))
                 : Text(
-                    "Esperado: \$${caja.efectivoEsperado!.toStringAsFixed(2)}",
+                    "Esperado: ${AppConfig.formatoMoneda(caja.efectivoEsperado!)}",
                     style: const TextStyle(color: AppColors.textSecondary),
                   ),
           ),
@@ -129,7 +130,7 @@ class _HistorialCajasViewState extends State<HistorialCajasView> {
             child: caja.efectivoContado == null
                 ? const Text("—", style: TextStyle(color: AppColors.textSecondary))
                 : Text(
-                    "Contado: \$${caja.efectivoContado!.toStringAsFixed(2)}",
+                    "Contado: ${AppConfig.formatoMoneda(caja.efectivoContado!)}",
                     style: const TextStyle(color: AppColors.textSecondary),
                   ),
           ),
@@ -138,7 +139,7 @@ class _HistorialCajasViewState extends State<HistorialCajasView> {
             child: diferencia == null
                 ? const Text("—", style: TextStyle(color: AppColors.textSecondary))
                 : Text(
-                    "Dif: \$${diferencia.toStringAsFixed(2)}",
+                    "Dif: ${AppConfig.formatoMoneda(diferencia)}",
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       color: diferencia == 0

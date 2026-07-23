@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_colors.dart';
+import '../core/config/app_config.dart';
 import '../controllers/pedidos_controller.dart';
 import '../models/carrito_pedido.dart';
 import '../models/pedidos_model.dart';
@@ -377,7 +378,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                             BorderRadius.circular(AppRadius.pill),
                                       ),
                                       child: Text(
-                                        '\$${producto.precio.toStringAsFixed(2)}',
+                                        '${AppConfig.formatoMoneda(producto.precio)}',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
                                           fontSize: AppText.small,
@@ -559,7 +560,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                         ),
                                         const Spacer(),
                                         Text(
-                                          '\$${(producto.precio * cantidad).toStringAsFixed(2)}',
+                                          '${AppConfig.formatoMoneda((producto.precio * cantidad))}',
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
                                             fontSize: AppText.bodyLg,
@@ -587,7 +588,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                       ),
                       const Spacer(),
                       Text(
-                        '\$${total.toStringAsFixed(2)}',
+                        '${AppConfig.formatoMoneda(total)}',
                         style: const TextStyle(
                           fontSize: AppText.display,
                           fontWeight: FontWeight.bold,

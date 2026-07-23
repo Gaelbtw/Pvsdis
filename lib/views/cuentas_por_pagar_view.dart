@@ -4,6 +4,7 @@ import '../controllers/cuentas_por_pagar_controller.dart';
 import '../controllers/proveedor_controller.dart';
 import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
+import '../core/config/app_config.dart';
 import '../core/utils/pagos_mixtos.dart';
 import '../models/proveedores_model.dart';
 import '../widgets/custom_alert.dart';
@@ -156,7 +157,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
               ),
               const SizedBox(height: 4),
               Text(
-                "\$${deudaTotal.toStringAsFixed(2)}",
+                "${AppConfig.formatoMoneda(deudaTotal)}",
                 style: const TextStyle(fontSize: AppText.display, fontWeight: FontWeight.w900),
               ),
             ],
@@ -382,7 +383,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
         children: [
           Text(label, style: const TextStyle(fontSize: AppText.overline, color: AppColors.textSecondary)),
           Text(
-            '\$${valor.toStringAsFixed(2)}',
+            '${AppConfig.formatoMoneda(valor)}',
             style: TextStyle(
               fontWeight: FontWeight.w800,
               color: destacar ? AppColors.error : AppColors.textPrimary,
@@ -435,7 +436,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
                     final fecha = DateTime.tryParse(abono['fecha']?.toString() ?? '');
                     return ListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: Text('\$${(abono['monto'] as num).toStringAsFixed(2)}'
+                      title: Text('${AppConfig.formatoMoneda((abono['monto'] as num))}'
                           '  ·  ${abono['metodos'] ?? ''}'),
                       subtitle: Text(
                         '${fecha == null ? '' : _formatDate(fecha)}'
@@ -464,7 +465,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (dialogContext, setDialogState) => FormDialog(
           titulo: 'Registrar abono',
-          subtitulo: '$proveedor · Saldo pendiente: \$${saldoPendiente.toStringAsFixed(2)}',
+          subtitulo: '$proveedor · Saldo pendiente: ${AppConfig.formatoMoneda(saldoPendiente)}',
           campos: [
             TextField(
               controller: montoCtrl,

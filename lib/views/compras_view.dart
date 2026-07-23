@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_colors.dart';
+import '../core/config/app_config.dart';
 import '../core/utils/pagos_mixtos.dart';
 import '../controllers/producto_controller.dart';
 import '../controllers/proveedor_controller.dart';
@@ -292,7 +293,7 @@ class _ComprasViewState extends State<ComprasView> {
 
                                         // PRECIO
                                         Text(
-                                          "\$${(p.precioCompra ?? 0).toStringAsFixed(2)}",
+                                          "${AppConfig.formatoMoneda((p.precioCompra ?? 0))}",
 
                                           style: const TextStyle(
                                             fontSize: AppText.subtitle,
@@ -575,7 +576,7 @@ class _ComprasViewState extends State<ComprasView> {
                                                 const Spacer(),
 
                                                 Text(
-                                                  "\$${((item['precio_compra'] ?? 0) * item['cantidad']).toStringAsFixed(2)}",
+                                                  "${AppConfig.formatoMoneda(((item['precio_compra'] ?? 0) * item['cantidad']))}",
 
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.bold,
@@ -615,7 +616,7 @@ class _ComprasViewState extends State<ComprasView> {
                                 ),
 
                                 Text(
-                                  "\$${total.toStringAsFixed(2)}",
+                                  "${AppConfig.formatoMoneda(total)}",
 
                                   style: const TextStyle(
                                     fontSize: AppText.heading,

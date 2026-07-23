@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/config/app_config.dart';
 import '../../core/utils/promociones_engine.dart';
 
 /// Resumen de qué promociones automáticas se aplicaron al carrito actual y
@@ -51,7 +52,7 @@ class PromocionesAplicadasSection extends StatelessWidget {
                 children: [
                   Expanded(child: Text(a.nombre, style: const TextStyle(fontSize: AppText.small))),
                   Text(
-                    "-\$${a.ahorroTotal.toStringAsFixed(2)}",
+                    "-${AppConfig.formatoMoneda(a.ahorroTotal)}",
                     style: const TextStyle(fontSize: AppText.small, fontWeight: FontWeight.w600, color: AppColors.success),
                   ),
                 ],
@@ -64,7 +65,7 @@ class PromocionesAplicadasSection extends StatelessWidget {
             children: [
               const Text("Ahorro total", style: TextStyle(fontWeight: FontWeight.bold)),
               Text(
-                "-\$${ahorroTotal.toStringAsFixed(2)}",
+                "-${AppConfig.formatoMoneda(ahorroTotal)}",
                 style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success),
               ),
             ],
