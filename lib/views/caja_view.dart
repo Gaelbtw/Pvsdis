@@ -257,7 +257,7 @@ class _CajaViewState extends State<CajaView> {
           const SizedBox(height: 16),
           const Text(
             "No tienes una caja abierta",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textMuted),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textStrong),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -298,7 +298,7 @@ class _CajaViewState extends State<CajaView> {
           children: [
             const Text(
               "Resumen de caja",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textStrong),
             ),
             const SizedBox(height: 4),
             Text(
@@ -324,7 +324,7 @@ class _CajaViewState extends State<CajaView> {
             const SizedBox(height: 20),
             const Text(
               "Cerrar caja",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textMuted),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textStrong),
             ),
             const SizedBox(height: 12),
             SizedBox(
@@ -412,7 +412,7 @@ class _CajaViewState extends State<CajaView> {
           const SizedBox(height: 4),
           Text(
             "\$${value.toStringAsFixed(2)}",
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textMuted),
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textStrong),
           ),
         ],
       ),

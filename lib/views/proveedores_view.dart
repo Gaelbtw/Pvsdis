@@ -341,7 +341,7 @@ void abrirFormulario({Proveedores? proveedor}) {
     const headerStyle = TextStyle(
       fontSize: 11,
       fontWeight: FontWeight.w800,
-      color: AppColors.textMuted,
+      color: AppColors.textStrong,
     );
 
     return Container(

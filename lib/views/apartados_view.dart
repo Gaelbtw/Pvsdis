@@ -55,7 +55,7 @@ class _ApartadosViewState extends State<ApartadosView> {
   Color _colorEstado(String estado) {
     switch (estado) {
       case 'Pendiente':
-        return Colors.blue;
+        return AppColors.info;
       case 'Liquidado':
         return AppColors.success;
       case 'Cancelado':

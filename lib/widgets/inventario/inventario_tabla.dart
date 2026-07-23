@@ -83,7 +83,7 @@ class InventarioTabla extends StatelessWidget {
             flex: 22,
             child: Text(
               p['nombre'],
-              style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textMuted),
+              style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textStrong),
             ),
           ),
           Expanded(flex: 18, child: Text(p['categoria_nombre'] ?? 'Sin categoría')),

@@ -52,7 +52,7 @@ Future<void> mostrarHistorialCambios(
                         style: const TextStyle(
                           fontSize: 24,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.textMuted,
+                          color: AppColors.textStrong,
                         ),
                       ),
                     ),
@@ -137,7 +137,7 @@ Widget _filaCambio(Auditoria cambio) {
                 cambio.descripcion,
                 style: const TextStyle(
                   fontWeight: FontWeight.w800,
-                  color: AppColors.textMuted,
+                  color: AppColors.textStrong,
                 ),
               ),
               const SizedBox(height: 6),

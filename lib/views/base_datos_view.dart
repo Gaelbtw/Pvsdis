@@ -12,7 +12,7 @@ import 'login_view.dart';
 const _databaseHeaderStyle = TextStyle(
   fontSize: 11,
   fontWeight: FontWeight.w800,
-  color: AppColors.textMuted,
+  color: AppColors.textStrong,
 );
 
 enum DatabaseTab { backup, restore }

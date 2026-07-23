@@ -339,7 +339,7 @@ class _UsuariosViewState extends State<UsuariosView> {
               style: TextStyle(
                 fontWeight: FontWeight.w800,
 
-                color: AppColors.textMuted,
+                color: AppColors.textStrong,
 
                 fontSize: 12,
               ),
@@ -355,7 +355,7 @@ class _UsuariosViewState extends State<UsuariosView> {
               style: TextStyle(
                 fontWeight: FontWeight.w800,
 
-                color: AppColors.textMuted,
+                color: AppColors.textStrong,
 
                 fontSize: 12,
               ),
@@ -371,7 +371,7 @@ class _UsuariosViewState extends State<UsuariosView> {
               style: TextStyle(
                 fontWeight: FontWeight.w800,
 
-                color: AppColors.textMuted,
+                color: AppColors.textStrong,
 
                 fontSize: 12,
               ),

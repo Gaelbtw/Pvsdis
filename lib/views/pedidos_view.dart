@@ -520,7 +520,7 @@ class _PedidosViewState extends State<PedidosView> {
         color = AppColors.error;
         break;
       case 'En Proceso':
-        color = Colors.blue;
+        color = AppColors.info;
         break;
       default:
         color = AppColors.warning;

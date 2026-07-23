@@ -87,7 +87,7 @@ class _HistorialCajasViewState extends State<HistorialCajasView> {
               style: TextStyle(
                 fontWeight: FontWeight.w700,
                 fontSize: 12,
-                color: caja.estaAbierta ? AppColors.success : AppColors.textMuted,
+                color: caja.estaAbierta ? AppColors.success : AppColors.textStrong,
               ),
             ),
           ),
@@ -99,7 +99,7 @@ class _HistorialCajasViewState extends State<HistorialCajasView> {
               children: [
                 Text(
                   "Apertura: ${caja.fechaApertura}",
-                  style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textMuted),
+                  style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textStrong),
                 ),
                 Text(
                   caja.fechaCierre != null ? "Cierre: ${caja.fechaCierre}" : "Aún abierta",

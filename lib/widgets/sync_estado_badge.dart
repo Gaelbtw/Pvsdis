@@ -112,7 +112,7 @@ class SyncEstadoBadge extends StatelessWidget {
 
   static const _verde = AppColors.success;
   static const _naranja = AppColors.warning;
-  static const _azul = Color(0xFF2563EB);
+  static const _azul = AppColors.info;
 }
 
 class _VisualEstado {

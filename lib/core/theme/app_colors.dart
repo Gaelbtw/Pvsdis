@@ -39,7 +39,12 @@ class AppColors {
   static const borderLight = Color(0xFFECE5DB);
   static const textPrimary = Color(0xFF2D2B28);
   static const textSecondary = Color(0xFF6E6A64);
-  static const textMuted = Color(0xFF3C3935);
+
+  /// Texto de énfasis: casi tan oscuro como [textPrimary] (más oscuro que
+  /// [textSecondary]), para números/etiquetas en negrita que deben resaltar.
+  /// Antes se llamaba `textMuted`, un nombre que mentía: no es tenue -- para
+  /// texto de verdad tenue usar [textSecondary].
+  static const textStrong = Color(0xFF3C3935);
 
   // Colores semánticos (fijos, NO son color de marca): estado de la
   // operación, nunca deben derivarse de `primary`. Los valores igualan a
@@ -49,6 +54,7 @@ class AppColors {
   static const error = Color(0xFFD32F2F); // Colors.red.shade700
   static const success = Color(0xFF2E7D32); // Colors.green.shade700 (~700)
   static const warning = Color(0xFFEF6C00); // Colors.orange.shade800
+  static const info = Color(0xFF2563EB); // azul informativo/de estado (NO es color de marca)
   static final disabled = Colors.grey.shade400;
 
   /// Sombra estándar de tarjeta, repetida antes como
