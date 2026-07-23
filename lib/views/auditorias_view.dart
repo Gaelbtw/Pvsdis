@@ -235,7 +235,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
                     label,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: Colors.grey.shade800,
+                      color: AppColors.textSecondary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -334,12 +334,12 @@ class _AuditoriasViewState extends State<AuditoriasView> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.fact_check_outlined, size: 70, color: Colors.grey.shade400),
+          Icon(Icons.fact_check_outlined, size: 70, color: AppColors.disabled),
           const SizedBox(height: 14),
           Text(
             "No hay movimientos para mostrar",
             style: TextStyle(
-              color: Colors.grey.shade700,
+              color: AppColors.textSecondary,
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),

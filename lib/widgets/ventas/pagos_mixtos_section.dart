@@ -133,7 +133,7 @@ class _PagosMixtosSectionState extends State<PagosMixtosSection> {
                     decoration: InputDecoration(
                       isDense: true,
                       filled: true,
-                      fillColor: const Color(0xFFF8F6F2),
+                      fillColor: AppColors.surface,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -163,7 +163,7 @@ class _PagosMixtosSectionState extends State<PagosMixtosSection> {
                       isDense: true,
                       hintText: "\$0.00",
                       filled: true,
-                      fillColor: const Color(0xFFF8F6F2),
+                      fillColor: AppColors.surface,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),

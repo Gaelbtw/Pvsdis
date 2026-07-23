@@ -52,7 +52,7 @@ class PromocionesAplicadasSection extends StatelessWidget {
                   Expanded(child: Text(a.nombre, style: const TextStyle(fontSize: 13))),
                   Text(
                     "-\$${a.ahorroTotal.toStringAsFixed(2)}",
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.green),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.success),
                   ),
                 ],
               ),
@@ -65,7 +65,7 @@ class PromocionesAplicadasSection extends StatelessWidget {
               const Text("Ahorro total", style: TextStyle(fontWeight: FontWeight.bold)),
               Text(
                 "-\$${ahorroTotal.toStringAsFixed(2)}",
-                style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.success),
               ),
             ],
           ),

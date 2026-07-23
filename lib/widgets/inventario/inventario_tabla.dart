@@ -134,7 +134,7 @@ class InventarioTabla extends StatelessWidget {
                     decoration: InputDecoration(
                       hintText: "Cant",
                       filled: true,
-                      fillColor: const Color(0xFFF8F6F2),
+                      fillColor: AppColors.surface,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -156,7 +156,7 @@ class InventarioTabla extends StatelessWidget {
                 if (!esCajero)
                   IconButton(
                     tooltip: "Eliminar",
-                    icon: const Icon(Icons.delete_outline, color: Colors.red),
+                    icon: const Icon(Icons.delete_outline, color: AppColors.error),
                     onPressed: () => onEliminar(p),
                   ),
               ],

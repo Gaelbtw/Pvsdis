@@ -153,7 +153,7 @@ class _SetupAdminViewState extends State<SetupAdminView> {
                   const Text(
                     "Crea la cuenta de administrador para empezar a usar el sistema.",
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14, color: Colors.grey),
+                    style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 32),
                   TextField(

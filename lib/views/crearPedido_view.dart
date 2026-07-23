@@ -65,7 +65,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
               '${producto.nombre} no tiene unidades en inventario.\nContacta a tu proveedor.',
           icono: Icons.inventory_2_outlined,
           textoConfirmar: 'Entendido',
-          color: Colors.red,
+          color: AppColors.error,
         ),
       );
       return;
@@ -80,7 +80,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
               'Solo hay $stockDisponible unidad(es) de ${producto.nombre} en inventario y ya las tienes en el pedido.',
           icono: Icons.warning_rounded,
           textoConfirmar: 'Entendido',
-          color: Colors.orange,
+          color: AppColors.warning,
         ),
       );
       return;
@@ -94,7 +94,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
       SnackBar(
         content: Text('${producto.nombre} agregado al pedido'),
         duration: const Duration(seconds: 1),
-        backgroundColor: Colors.green.shade600,
+        backgroundColor: AppColors.success,
       ),
     );
   }
@@ -117,7 +117,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
               'Ya tienes todas las unidades disponibles de ${producto.nombre} ($stockDisponible) en el pedido.',
           icono: Icons.warning_rounded,
           textoConfirmar: 'Entendido',
-          color: Colors.orange,
+          color: AppColors.warning,
         ),
       );
       return;
@@ -271,7 +271,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                 Text(
                                   widget.nombreCliente ?? '',
                                   style: TextStyle(
-                                    color: Colors.grey.shade700,
+                                    color: AppColors.textSecondary,
                                     fontSize: 16,
                                   ),
                                 ),
@@ -392,12 +392,12 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                       ),
                                       decoration: BoxDecoration(
                                         color: sinStock
-                                            ? Colors.red.withValues(alpha: 0.12)
+                                            ? AppColors.error.withValues(alpha: 0.12)
                                             : stockActual <=
                                                     producto.stockMinimo
-                                                ? Colors.orange
+                                                ? AppColors.warning
                                                     .withValues(alpha: 0.12)
-                                                : Colors.green
+                                                : AppColors.success
                                                     .withValues(alpha: 0.12),
                                         borderRadius:
                                             BorderRadius.circular(8),
@@ -410,11 +410,11 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                           fontSize: 11,
                                           fontWeight: FontWeight.bold,
                                           color: sinStock
-                                              ? Colors.red.shade700
+                                              ? AppColors.error
                                               : stockActual <=
                                                       producto.stockMinimo
-                                                  ? Colors.orange.shade800
-                                                  : Colors.green.shade700,
+                                                  ? AppColors.warning
+                                                  : AppColors.success,
                                         ),
                                       ),
                                     ),
@@ -440,7 +440,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    color: Colors.grey.shade600,
+                                    color: AppColors.textSecondary,
                                     fontSize: 12,
                                   ),
                                 ),
@@ -452,7 +452,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                   child: ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: sinStock
-                                          ? Colors.grey.shade300
+                                          ? AppColors.border
                                           : AppColors.primary,
                                       foregroundColor: Colors.black,
                                       padding: const EdgeInsets.symmetric(
@@ -662,7 +662,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.calendar_month, color: Colors.grey),
+                  const Icon(Icons.calendar_month, color: AppColors.textSecondary),
                   const SizedBox(width: 12),
                   Text(
                     _fechaEntrega != null
@@ -671,7 +671,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                     style: TextStyle(
                       color: _fechaEntrega != null
                           ? Colors.black87
-                          : Colors.grey,
+                          : AppColors.textSecondary,
                       fontSize: 16,
                     ),
                   ),
@@ -735,14 +735,14 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                   ? Icons.delivery_dining
                   : Icons.store_outlined,
               size: 18,
-              color: activo ? Colors.black : Colors.grey.shade600,
+              color: activo ? Colors.black : AppColors.textSecondary,
             ),
             const SizedBox(width: 8),
             Text(
               tipo,
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: activo ? Colors.black : Colors.grey.shade700,
+                color: activo ? Colors.black : AppColors.textSecondary,
               ),
             ),
           ],

@@ -82,12 +82,12 @@ void mostrarEditarPedidoDialog(
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.calendar_month, color: Colors.grey, size: 20),
+                      const Icon(Icons.calendar_month, color: AppColors.textSecondary, size: 20),
                       const SizedBox(width: 10),
                       Text(
                         fechaEntregaStr.isEmpty ? 'Seleccionar fecha' : fechaEntregaStr,
                         style: TextStyle(
-                          color: fechaEntregaStr.isEmpty ? Colors.grey : Colors.black,
+                          color: fechaEntregaStr.isEmpty ? AppColors.textSecondary : Colors.black,
                         ),
                       ),
                     ],
@@ -195,7 +195,7 @@ Widget _tipoChipDialog(String label, String selected, ValueChanged<String> onTap
         label,
         style: TextStyle(
           fontWeight: FontWeight.bold,
-          color: activo ? Colors.black : Colors.grey.shade600,
+          color: activo ? Colors.black : AppColors.textSecondary,
         ),
       ),
     ),

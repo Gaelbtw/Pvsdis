@@ -639,8 +639,7 @@ class _VentasViewState extends State<VentasView> {
                                         18,
                                       ),
                                       border: Border.all(
-                                        color: Colors.grey
-                                            .shade200,
+                                        color: AppColors.border,
                                       ),
                                     ),
                                     child: Column(
@@ -675,10 +674,10 @@ class _VentasViewState extends State<VentasView> {
                                             style: TextStyle(
                                               fontSize: 12,
                                               color: s == 0
-                                                  ? Colors.red
+                                                  ? AppColors.error
                                                   : s <= p.stockMinimo
-                                                      ? Colors.orange
-                                                      : Colors.green.shade700,
+                                                      ? AppColors.warning
+                                                      : AppColors.success,
                                               fontWeight: FontWeight.w600,
                                             ),
                                           );
@@ -909,7 +908,7 @@ class _VentasViewState extends State<VentasView> {
                                                         size: 18,
                                                         color: item['descuento_tipo'] != null
                                                             ? AppColors.primaryDark
-                                                            : Colors.grey.shade400,
+                                                            : AppColors.disabled,
                                                       ),
                                                     ),
                                                   ),
@@ -1084,97 +1083,8 @@ class _VentasViewState extends State<VentasView> {
                               ),
                             ),
 
-                          // 💰 SUBTOTAL / DESCUENTO / TOTAL
-                          Builder(builder: (_) {
-                            final c = calculo;
-                            return Column(
-                              children: [
-                                if (c.descuentoTotal > 0) ...[
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text("Subtotal", style: TextStyle(color: Colors.grey.shade700)),
-                                      Text("\$${c.subtotal.toStringAsFixed(2)}"),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Text("Descuento", style: TextStyle(color: Colors.grey.shade700)),
-                                      Text(
-                                        "-\$${c.descuentoTotal.toStringAsFixed(2)}",
-                                        style: const TextStyle(color: Colors.red),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                ],
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text(
-                                      "TOTAL",
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      "\$${c.total.toStringAsFixed(2)}",
-                                      style: const TextStyle(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            );
-                          }),
-
-                          const SizedBox(height: 20),
-
-                          // 💳 PAGOS
-                          PagosMixtosSection(
-                            key: ValueKey(ventaCounter),
-                            total: total,
-                            onCambio: actualizarPagos,
-                          ),
-
-                          const SizedBox(height: 20),
-
-                          //  BOTÓN
-                          SizedBox(
-                            width: double.infinity,
-                            height: 52,
-                            child: ElevatedButton.icon(
-                              onPressed: (carrito.isNotEmpty && resultadoPagos.esValido && _cajaAbierta != null)
-                                  ? iniciarConfirmacionVenta
-                                  : null,
-                              icon: const Icon(
-                                Icons.check_circle,
-                              ),
-                              label: const Text(
-                                "Confirmar Venta",
-                              ),
-                              style:
-                                  ElevatedButton
-                                      .styleFrom(
-                                backgroundColor:
-                                    AppColors.primary,
-                                foregroundColor:
-                                    AppColors.onPrimary,
-                                elevation: 0,
-                                shape:
-                                    RoundedRectangleBorder(
-                                  borderRadius:
-                                      BorderRadius
-                                          .circular(16),
-                                ),
-                              ),
-                            ),
-                          ),
+                          // 💰 ZONA DE COBRO (total dominante + pagos + botón)
+                          _panelCheckout(),
                         ],
                       ),
                     ),
@@ -1188,6 +1098,104 @@ class _VentasViewState extends State<VentasView> {
             ),
     );
   }
+
+  /// Zona de cobro delimitada: subtotal/descuento discretos, el TOTAL como el
+  /// elemento dominante de la pantalla (lo leen cajero y cliente), los pagos y
+  /// el botón de confirmar, todo dentro de un panel para que el ojo aterrice
+  /// aquí de inmediato. Antes vivía suelto tras el listado del carrito, con el
+  /// total en 22px (apenas mayor que el texto normal) y colores hardcodeados.
+  Widget _panelCheckout() {
+    final c = calculo;
+    final habilitado = carrito.isNotEmpty && resultadoPagos.esValido && _cajaAbierta != null;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        children: [
+          if (c.descuentoTotal > 0) ...[
+            _lineaResumen("Subtotal", "\$${c.subtotal.toStringAsFixed(2)}"),
+            const SizedBox(height: 6),
+            _lineaResumen("Descuento", "-\$${c.descuentoTotal.toStringAsFixed(2)}", color: AppColors.error),
+            const SizedBox(height: 12),
+            const Divider(height: 1, color: AppColors.border),
+            const SizedBox(height: 12),
+          ],
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(bottom: 6),
+                child: Text(
+                  "TOTAL",
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    "\$${c.total.toStringAsFixed(2)}",
+                    style: const TextStyle(
+                      fontSize: 38,
+                      fontWeight: FontWeight.w900,
+                      height: 1.0,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          PagosMixtosSection(
+            key: ValueKey(ventaCounter),
+            total: total,
+            onCambio: actualizarPagos,
+          ),
+          const SizedBox(height: 18),
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: ElevatedButton.icon(
+              onPressed: habilitado ? iniciarConfirmacionVenta : null,
+              icon: const Icon(Icons.check_circle),
+              label: const Text(
+                "Confirmar Venta",
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.onPrimary,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _lineaResumen(String etiqueta, String valor, {Color? color}) => Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(etiqueta, style: const TextStyle(color: AppColors.textSecondary)),
+          Text(valor, style: TextStyle(color: color ?? AppColors.textPrimary, fontWeight: FontWeight.w600)),
+        ],
+      );
 
   // 🔐 BANNER SIN CAJA
   Widget _bannerSinCaja() {

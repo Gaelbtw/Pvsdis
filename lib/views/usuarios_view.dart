@@ -478,7 +478,7 @@ class _UsuariosViewState extends State<UsuariosView> {
 
                   icon: const Icon(Icons.edit_outlined),
 
-                  color: Colors.orange.shade800,
+                  color: AppColors.warning,
                 ),
 
                 IconButton(
@@ -486,7 +486,7 @@ class _UsuariosViewState extends State<UsuariosView> {
 
                   icon: const Icon(Icons.delete_outline),
 
-                  color: Colors.red.shade700,
+                  color: AppColors.error,
                 ),
               ],
             ),

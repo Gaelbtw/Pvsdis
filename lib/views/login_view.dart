@@ -184,7 +184,7 @@ void login() async {
                     "Inicia sesión para continuar",
                     style: TextStyle(
                       fontSize: 15,
-                      color: Colors.grey,
+                      color: AppColors.textSecondary,
                     ),
                   ),
 
@@ -274,7 +274,7 @@ void login() async {
                   const Text(
                     "Sistema administrativo",
                     style: TextStyle(
-                      color: Colors.grey,
+                      color: AppColors.textSecondary,
                       fontSize: 13,
                     ),
                   ),

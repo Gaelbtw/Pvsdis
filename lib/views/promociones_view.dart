@@ -579,8 +579,8 @@ class _PromocionesViewState extends State<PromocionesView> {
                                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                             decoration: BoxDecoration(
                                               color: p.activo
-                                                  ? Colors.green.withOpacity(0.12)
-                                                  : Colors.grey.withOpacity(0.15),
+                                                  ? AppColors.success.withOpacity(0.12)
+                                                  : AppColors.textSecondary.withOpacity(0.15),
                                               borderRadius: BorderRadius.circular(30),
                                             ),
                                             child: Text(
@@ -588,7 +588,7 @@ class _PromocionesViewState extends State<PromocionesView> {
                                               style: TextStyle(
                                                 fontSize: 11,
                                                 fontWeight: FontWeight.w700,
-                                                color: p.activo ? Colors.green.shade800 : Colors.grey.shade700,
+                                                color: p.activo ? AppColors.success : AppColors.textSecondary,
                                               ),
                                             ),
                                           ),

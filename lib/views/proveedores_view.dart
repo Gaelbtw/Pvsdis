@@ -442,7 +442,7 @@ void abrirFormulario({Proveedores? proveedor}) {
 
                   icon: const Icon(Icons.edit_outlined),
 
-                  color: Colors.orange.shade800,
+                  color: AppColors.warning,
                 ),
 
                 IconButton(
@@ -461,7 +461,7 @@ void abrirFormulario({Proveedores? proveedor}) {
 
   icon: const Icon(Icons.delete_outline),
 
-  color: Colors.red.shade700,
+  color: AppColors.error,
 ),
               ],
             ),

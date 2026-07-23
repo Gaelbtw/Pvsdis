@@ -237,7 +237,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
@@ -263,7 +263,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        Text(label, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
         const SizedBox(height: 4),
         Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
       ],
@@ -333,7 +333,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
@@ -346,7 +346,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
                 Text(
                   'Vendido: $vendida  ·  Devuelto: $devuelta  ·  Pendiente: $pendiente  ·  '
                   '${huboDescuento ? '${AppConfig.formatoMoneda(precioNeto)} c/u pagado (lista: ${AppConfig.formatoMoneda(precio)})' : '${AppConfig.formatoMoneda(precio)} c/u'}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                 ),
               ],
             ),
@@ -375,7 +375,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
           ] else
             Text(
               pendiente == 0 ? 'Completo' : '—',
-              style: TextStyle(color: Colors.grey.shade500, fontWeight: FontWeight.w700),
+              style: TextStyle(color: AppColors.textSecondary, fontWeight: FontWeight.w700),
             ),
         ],
       ),
@@ -399,7 +399,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
                 ? Center(
                     child: Text(
                       'Sin devoluciones registradas.',
-                      style: TextStyle(color: Colors.grey.shade600),
+                      style: TextStyle(color: AppColors.textSecondary),
                     ),
                   )
                 : ListView.separated(
@@ -415,7 +415,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: Colors.grey.shade200),
+                          border: Border.all(color: AppColors.border),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -436,12 +436,12 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
                             const SizedBox(height: 4),
                             Text(
                               '${item['fecha_hora']}  ·  ${item['usuario_nombre'] ?? 'N/D'}',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               item['motivo']?.toString() ?? '',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                             ),
                           ],
                         ),
@@ -467,8 +467,8 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
             icon: const Icon(Icons.cancel_outlined),
             label: const Text('Cancelar venta'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.red,
-              side: const BorderSide(color: Colors.red),
+              foregroundColor: AppColors.error,
+              side: const BorderSide(color: AppColors.error),
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),

@@ -49,7 +49,7 @@ Future<void> mostrarDescuentoDialog(
               children: [
                 Text(
                   'Base: ${AppConfig.formatoMoneda(base)}',
-                  style: TextStyle(color: Colors.grey.shade600),
+                  style: TextStyle(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -84,7 +84,7 @@ Future<void> mostrarDescuentoDialog(
                 ),
                 const SizedBox(height: 12),
                 if (error != null)
-                  Text(error, style: const TextStyle(color: Colors.red, fontSize: 13))
+                  Text(error, style: const TextStyle(color: AppColors.error, fontSize: 13))
                 else if (valor > 0)
                   Text(
                     'Descuento: -${AppConfig.formatoMoneda(montoPreview)}',
@@ -101,7 +101,7 @@ Future<void> mostrarDescuentoDialog(
                   Navigator.pop(dialogContext);
                   onQuitar();
                 },
-                child: const Text('Quitar descuento', style: TextStyle(color: Colors.red)),
+                child: const Text('Quitar descuento', style: TextStyle(color: AppColors.error)),
               ),
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -155,7 +155,7 @@ Widget _tipoChip({
         label,
         style: TextStyle(
           fontWeight: FontWeight.bold,
-          color: activo ? Colors.black : Colors.grey.shade600,
+          color: activo ? Colors.black : AppColors.textSecondary,
         ),
       ),
     ),

@@ -108,7 +108,7 @@ Future<void> mostrarAutorizacionDescuentoDialog(
                 ],
                 if (error != null) ...[
                   const SizedBox(height: 12),
-                  Text(error!, style: const TextStyle(color: Colors.red, fontSize: 13)),
+                  Text(error!, style: const TextStyle(color: AppColors.error, fontSize: 13)),
                 ],
               ],
             ),

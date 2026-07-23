@@ -646,7 +646,7 @@ class _ClientesViewState extends State<ClientesView> {
   style: ElevatedButton.styleFrom(
     backgroundColor: const Color(0xFFFFE5E5),
 
-    foregroundColor: Colors.red.shade700,
+    foregroundColor: AppColors.error,
 
     elevation: 0,
 

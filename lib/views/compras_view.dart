@@ -248,7 +248,7 @@ class _ComprasViewState extends State<ComprasView> {
                                       borderRadius: BorderRadius.circular(22),
 
                                       border: Border.all(
-                                        color: Colors.grey.shade200,
+                                        color: AppColors.border,
                                       ),
                                     ),
 
@@ -439,7 +439,7 @@ class _ComprasViewState extends State<ComprasView> {
                                         Icon(
                                           Icons.shopping_cart_outlined,
                                           size: 70,
-                                          color: Colors.grey.shade400,
+                                          color: AppColors.disabled,
                                         ),
 
                                         const SizedBox(height: 14),
@@ -448,7 +448,7 @@ class _ComprasViewState extends State<ComprasView> {
                                           "No hay productos",
 
                                           style: TextStyle(
-                                            color: Colors.grey.shade600,
+                                            color: AppColors.textSecondary,
                                             fontSize: 16,
                                           ),
                                         ),
@@ -505,7 +505,7 @@ class _ComprasViewState extends State<ComprasView> {
                                             Text(
                                               "\$${item['precio_compra']}",
                                               style: TextStyle(
-                                                color: Colors.grey.shade700,
+                                                color: AppColors.textSecondary,
                                               ),
                                             ),
 
@@ -841,7 +841,7 @@ class _ComprasViewState extends State<ComprasView> {
           color: Colors.white,
           borderRadius: BorderRadius.circular(10),
 
-          border: Border.all(color: Colors.grey.shade300),
+          border: Border.all(color: AppColors.border),
         ),
 
         child: Icon(icon, size: 18),

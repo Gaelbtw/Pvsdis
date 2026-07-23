@@ -985,7 +985,7 @@ Future<void> _cargarReportesVentas() async {
           label: const Text('Rango'),
           style: OutlinedButton.styleFrom(
             foregroundColor: Colors.black87,
-            side: BorderSide(color: Colors.grey.shade300),
+            side: BorderSide(color: AppColors.border),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14),
@@ -1140,7 +1140,7 @@ Future<void> _cargarReportesVentas() async {
                     label,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: Colors.grey.shade800,
+                      color: AppColors.textSecondary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -1185,7 +1185,7 @@ Future<void> _cargarReportesVentas() async {
                   decoration: BoxDecoration(
                     color: AppColors.surfaceSubtle,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.grey.shade200),
+                    border: Border.all(color: AppColors.border),
                   ),
                   child: Row(
                     children: [
@@ -1360,7 +1360,7 @@ Future<void> _cargarReportesVentas() async {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
@@ -1407,7 +1407,7 @@ Future<void> _cargarReportesVentas() async {
                 Text(
                   subtitle,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.grey.shade700),
+                  style: TextStyle(color: AppColors.textSecondary),
                 ),
               ],
             ),
@@ -1439,13 +1439,13 @@ Future<void> _cargarReportesVentas() async {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.bar_chart, size: 64, color: Colors.grey.shade400),
+          Icon(Icons.bar_chart, size: 64, color: AppColors.disabled),
           const SizedBox(height: 12),
           Text(
             text,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.grey.shade700,
+              color: AppColors.textSecondary,
               fontWeight: FontWeight.w600,
             ),
           ),

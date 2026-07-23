@@ -109,14 +109,14 @@ class _PedidosViewState extends State<PedidosView> {
               icon,
               size: 18,
               color:
-                  activo ? Colors.black : Colors.grey.shade600,
+                  activo ? Colors.black : AppColors.textSecondary,
             ),
             const SizedBox(width: 8),
             Text(
               label,
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: activo ? Colors.black : Colors.grey.shade600,
+                color: activo ? Colors.black : AppColors.textSecondary,
               ),
             ),
           ],
@@ -226,7 +226,7 @@ class _PedidosViewState extends State<PedidosView> {
                               Text(
                                 cliente.telefono.toString(),
                                 style: TextStyle(
-                                    color: Colors.grey.shade700),
+                                    color: AppColors.textSecondary),
                               ),
                               const SizedBox(height: 18),
                               SizedBox(
@@ -235,7 +235,7 @@ class _PedidosViewState extends State<PedidosView> {
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: Colors.black,
                                     side: BorderSide(
-                                        color: Colors.grey.shade300),
+                                        color: AppColors.border),
                                     padding:
                                         const EdgeInsets.symmetric(
                                             vertical: 14),
@@ -350,11 +350,11 @@ class _PedidosViewState extends State<PedidosView> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.receipt_long_outlined,
-                size: 64, color: Colors.grey),
+                size: 64, color: AppColors.textSecondary),
             SizedBox(height: 16),
             Text(
               "No hay pedidos registrados",
-              style: TextStyle(fontSize: 18, color: Colors.grey),
+              style: TextStyle(fontSize: 18, color: AppColors.textSecondary),
             ),
           ],
         ),
@@ -403,7 +403,7 @@ class _PedidosViewState extends State<PedidosView> {
                   children: [
                     const Text('#',
                         style:
-                            TextStyle(fontSize: 11, color: Colors.grey)),
+                            TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                     Text(
                       idPedido.toString(),
                       style: const TextStyle(
@@ -431,11 +431,11 @@ class _PedidosViewState extends State<PedidosView> {
                       children: [
                         Icon(Icons.calendar_today,
                             size: 13,
-                            color: Colors.grey.shade600),
+                            color: AppColors.textSecondary),
                         const SizedBox(width: 4),
                         Text(fecha,
                             style: TextStyle(
-                                color: Colors.grey.shade600,
+                                color: AppColors.textSecondary,
                                 fontSize: 13)),
                         const SizedBox(width: 12),
                         Icon(
@@ -443,12 +443,12 @@ class _PedidosViewState extends State<PedidosView> {
                               ? Icons.delivery_dining
                               : Icons.store_outlined,
                           size: 13,
-                          color: Colors.grey.shade600,
+                          color: AppColors.textSecondary,
                         ),
                         const SizedBox(width: 4),
                         Text(tipo,
                             style: TextStyle(
-                                color: Colors.grey.shade600,
+                                color: AppColors.textSecondary,
                                 fontSize: 13)),
                       ],
                     ),
@@ -457,7 +457,7 @@ class _PedidosViewState extends State<PedidosView> {
                       Text(
                         'Entrega: $fechaEntrega',
                         style: TextStyle(
-                            color: Colors.grey.shade600, fontSize: 13),
+                            color: AppColors.textSecondary, fontSize: 13),
                       ),
                     ],
                     if (direccion.isNotEmpty) ...[
@@ -467,7 +467,7 @@ class _PedidosViewState extends State<PedidosView> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                            color: Colors.grey.shade500, fontSize: 12),
+                            color: AppColors.textSecondary, fontSize: 12),
                       ),
                     ],
                   ],
@@ -585,7 +585,7 @@ class _PedidosViewState extends State<PedidosView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(title,
-              style: TextStyle(color: Colors.grey.shade600)),
+              style: TextStyle(color: AppColors.textSecondary)),
           const SizedBox(height: 6),
           Text(
             value,
