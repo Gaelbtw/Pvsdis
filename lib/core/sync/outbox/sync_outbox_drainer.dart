@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/sync_dtos.dart';
+import '../network/api_exceptions.dart';
 import '../sync_client.dart';
+import 'sync_outbox_deadletter.dart';
 
 /// Contadores de un ciclo de [SyncOutboxDrainer.drenar], útiles para un
 /// futuro badge de UI (fuera de alcance de esta fase construirlo).
@@ -86,15 +88,29 @@ class SyncOutboxDrainer {
       SyncPushResponse respuesta;
       try {
         respuesta = await _syncClient.push(SyncPushRequest(cambios));
+      } on ErrorRespuestaApi catch (e) {
+        // El backend respondió con un error (4xx/5xx no-401): el lote fue
+        // *rechazado*, no es una caída de red. La causa más común es un dato
+        // que el backend no acepta ("poison message") -- reintentarlo para
+        // siempre solo gasta red y nunca avanza. Por eso este camino SÍ cuenta
+        // hacia el dead-letter: tras `maxIntentos` rechazos, la fila se aparta
+        // (`intentos = -2`) para intervención manual y deja de seleccionarse en
+        // el drenado (`where: intentos >= 0`). Limitación conocida: como el
+        // backend falla el POST completo sin decir cuál ítem lo rompió (ver el
+        // doc de la clase), las filas buenas que compartan lote con el poison
+        // también acumulan intentos; se acepta porque un rechazo persistente
+        // del backend necesita revisión humana de todos modos.
+        await _registrarFalloDeLote(db, filas, e.mensaje, progresaDeadLetter: true);
+        fallidos += filas.length;
+        continue;
       } catch (e) {
-        for (final fila in filas) {
-          await db.update(
-            'Sync_Outbox',
-            {'intentos': (fila['intentos'] as int) + 1, 'ultimo_error': e.toString()},
-            where: 'id = ?',
-            whereArgs: [fila['id']],
-          );
-        }
+        // Sin conexión (`ErrorRed`), sesión por re-loguear
+        // (`SesionExpiradaException`), o cualquier otro fallo transitorio: el
+        // dato está bien, lo que falló es el transporte. NO progresa hacia
+        // dead-letter -- solo se registra el motivo y el lote se reintenta
+        // íntegro en el próximo ciclo. Así una tienda que pasa horas sin
+        // internet no termina mandando ventas buenas al dead-letter.
+        await _registrarFalloDeLote(db, filas, e.toString(), progresaDeadLetter: false);
         fallidos += filas.length;
         continue;
       }
@@ -125,5 +141,31 @@ class SyncOutboxDrainer {
       fallidos: fallidos,
       entidadesAPullearDeNuevo: entidadesAPullearDeNuevo,
     );
+  }
+
+  /// Marca cada fila de un lote fallido con el motivo del error. Si
+  /// [progresaDeadLetter] es `true`, incrementa `intentos` y, al alcanzar
+  /// [SyncOutboxDeadLetter.maxIntentos], aparta la fila como fallida permanente
+  /// ([SyncOutboxDeadLetter.intentosFallidaPermanente]). Si es `false`, solo
+  /// registra el motivo sin tocar `intentos` (fallo transitorio, no imputable a
+  /// los datos).
+  Future<void> _registrarFalloDeLote(
+    DatabaseExecutor db,
+    List<Map<String, Object?>> filas,
+    String motivo, {
+    required bool progresaDeadLetter,
+  }) async {
+    for (final fila in filas) {
+      final valores = <String, Object?>{'ultimo_error': motivo};
+
+      if (progresaDeadLetter) {
+        final nuevosIntentos = (fila['intentos'] as int) + 1;
+        valores['intentos'] = nuevosIntentos >= SyncOutboxDeadLetter.maxIntentos
+            ? SyncOutboxDeadLetter.intentosFallidaPermanente
+            : nuevosIntentos;
+      }
+
+      await db.update('Sync_Outbox', valores, where: 'id = ?', whereArgs: [fila['id']]);
+    }
   }
 }

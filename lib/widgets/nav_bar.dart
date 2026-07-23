@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../core/config/app_config.dart';
 import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
+import 'sync_estado_badge.dart';
 
 class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
   final String titulo;
@@ -76,9 +77,11 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
   _topInfo(Icons.calendar_today_outlined, _fechaLarga(now)),
   const SizedBox(width: 16),
   _topInfo(Icons.access_time, _hora(now)),
-  const SizedBox(width: 20),
+  const SizedBox(width: 16),
+  const SyncEstadoBadge(),
+  const SizedBox(width: 12),
   _usuarioBox(),
-  if (extraActions != null) ...extraActions!,
+  ...?extraActions,
   const SizedBox(width: 12),
 ],
     );

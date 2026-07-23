@@ -21,6 +21,7 @@ import 'cuentas_por_pagar_view.dart';
 import 'pedidos_view.dart';
 import 'promociones_view.dart';
 import 'reporte_view.dart';
+import 'sync_config_view.dart';
 import 'usuarios_view.dart';
 
 class ConfiguracionView extends StatefulWidget {
@@ -319,6 +320,16 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const CuentasPorPagarView()),
+        ),
+      ),
+      MenuCard(
+        title: "Sincronización",
+        subtitle: "Conexión con la nube",
+        icon: Icons.cloud_sync_outlined,
+        color: AppColors.primaryLight,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const SyncConfigView()),
         ),
       ),
     ];

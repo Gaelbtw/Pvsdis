@@ -15,6 +15,7 @@ import 'package:pvapp/core/sync/auth_service.dart';
 import 'package:pvapp/core/sync/models/sync_auth_models.dart';
 import 'package:pvapp/core/sync/network/api_http_client.dart';
 import 'package:pvapp/core/sync/network/token_storage.dart';
+import 'package:pvapp/core/sync/outbox/sync_outbox_deadletter.dart';
 import 'package:pvapp/core/sync/outbox/sync_outbox_drainer.dart';
 import 'package:pvapp/core/sync/sync_client.dart';
 
@@ -223,5 +224,54 @@ void main() {
     expect(fakeHttp.llamadas, 0); // nunca se llegó a llamar push, no había nada elegible
     expect(resultado.subidos, 0);
     expect(await db.query('Sync_Outbox'), hasLength(1)); // sigue ahí, sin tocar
+  });
+
+  test('rechazo persistente del backend (poison message): tras maxIntentos va a dead-letter y deja de drenarse', () async {
+    await _encolar(db, entidad: 'Cliente', guid: 'g1');
+
+    final auth = authConSesion();
+    await auth.inicializar();
+    // El backend siempre rechaza con 400 (dato inválido que nunca se acepta).
+    final fakeHttp = _FakeHttpClient((_) async => _respuesta(400, cuerpo: '{"title":"dato inválido"}'));
+    final drainer = SyncOutboxDrainer(syncClient: SyncClient(http: ApiHttpClient(client: fakeHttp), authService: auth));
+
+    for (var i = 1; i < SyncOutboxDeadLetter.maxIntentos; i++) {
+      await drainer.drenar(db);
+      final fila = (await db.query('Sync_Outbox')).single;
+      expect(fila['intentos'], i, reason: 'acumula intentos hasta el tope');
+    }
+
+    // El intento que alcanza el tope aparta la fila como fallida permanente.
+    await drainer.drenar(db);
+    final apartada = (await db.query('Sync_Outbox')).single;
+    expect(apartada['intentos'], SyncOutboxDeadLetter.intentosFallidaPermanente);
+
+    // A partir de acá el drenado ya no la toca ni intenta subirla.
+    final llamadasAntes = fakeHttp.llamadas;
+    final resultado = await drainer.drenar(db);
+    expect(fakeHttp.llamadas, llamadasAntes, reason: 'no se reintenta una fila en dead-letter');
+    expect(resultado.fallidos, 0);
+    expect((await db.query('Sync_Outbox')).single['intentos'], SyncOutboxDeadLetter.intentosFallidaPermanente);
+  });
+
+  test('caída de red (no rechazo del backend) NO progresa hacia dead-letter', () async {
+    await _encolar(db, entidad: 'Cliente', guid: 'g1');
+
+    final auth = authConSesion();
+    await auth.inicializar();
+    // Excepción de transporte -> ApiHttpClient la traduce a ErrorRed.
+    final fakeHttp = _FakeHttpClient((_) async => throw http.ClientException('sin red'));
+    final drainer = SyncOutboxDrainer(syncClient: SyncClient(http: ApiHttpClient(client: fakeHttp), authService: auth));
+
+    // Aunque falle muchas veces, una fila buena atrapada tras un backend
+    // inalcanzable nunca debe terminar en dead-letter.
+    for (var i = 0; i < SyncOutboxDeadLetter.maxIntentos + 2; i++) {
+      final resultado = await drainer.drenar(db);
+      expect(resultado.fallidos, 1);
+    }
+
+    final fila = (await db.query('Sync_Outbox')).single;
+    expect(fila['intentos'], 0, reason: 'la red no cuenta como intento fallido del dato');
+    expect(fila['ultimo_error'], isNotNull);
   });
 }
