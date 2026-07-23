@@ -56,6 +56,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
 
   bool descuentoCajeroPuedeAplicar = true;
   bool descuentoCajeroRequiereAutorizacion = true;
+  bool mostrarIvaDesglosado = false;
 
   String? logoPath;
   late Color colorSeleccionado;
@@ -99,6 +100,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
       ivaCtrl.text = config.tasaImpuestoPorcentaje == 0
           ? ''
           : config.tasaImpuestoPorcentaje.toString();
+      mostrarIvaDesglosado = config.mostrarIvaDesglosado;
       mensajeTicketCtrl.text = config.mensajeTicket;
       logoPath = config.logoPath;
       colorSeleccionado = Color(config.colorPrimario);
@@ -173,6 +175,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
       rfc: rfcCtrl.text.trim().isEmpty ? null : rfcCtrl.text.trim(),
       simboloMoneda: monedaCtrl.text.trim().isEmpty ? r'$' : monedaCtrl.text.trim(),
       tasaImpuestoPorcentaje: double.tryParse(ivaCtrl.text.trim()) ?? 0,
+      mostrarIvaDesglosado: mostrarIvaDesglosado,
       mensajeTicket: mensajeTicketCtrl.text.trim().isEmpty
           ? Configuracion.porDefecto().mensajeTicket
           : mensajeTicketCtrl.text.trim(),
@@ -679,6 +682,17 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
                             ),
                             const SizedBox(height: 12),
                             customInput(controller: mensajeTicketCtrl, hint: "Mensaje al final del ticket"),
+                            const SizedBox(height: 4),
+                            SwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text("Desglosar IVA en el ticket"),
+                              subtitle: const Text(
+                                "Muestra base (sin IVA) e IVA por separado, en vez de solo \"IVA incluido\"",
+                              ),
+                              value: mostrarIvaDesglosado,
+                              activeThumbColor: AppColors.primary,
+                              onChanged: (v) => setState(() => mostrarIvaDesglosado = v),
+                            ),
                           ],
                         ),
                       ),

@@ -440,6 +440,7 @@ class DatabaseHelper {
         rfc TEXT,
         simbolo_moneda TEXT,
         tasa_impuesto REAL,
+        mostrar_iva_desglosado INTEGER DEFAULT 0,
         mensaje_ticket TEXT,
         color_primario INTEGER,
         descuento_maximo_porcentaje REAL DEFAULT 20,
@@ -496,6 +497,7 @@ class DatabaseHelper {
     await _ensureVentasDescuentoColumns(db);
     await _ensureDetalleVentaDescuentoColumns(db);
     await _ensureConfiguracionDescuentoColumns(db);
+    await _ensureConfiguracionTicketColumns(db);
     await _ensureVentaPagosTable(db);
     await _ensureVentasCambioColumn(db);
     await _backfillVentaPagos(db);
@@ -1382,6 +1384,26 @@ class DatabaseHelper {
     }
   }
 
+  /// Agrega a `configuracion` las columnas de opciones de ticket agregadas
+  /// después de la identidad del negocio (hoy solo el toggle de IVA
+  /// desglosado). Idempotente: se llama en cada apertura.
+  Future<void> _ensureConfiguracionTicketColumns(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(configuracion)');
+    final columnNames = info.map((row) => row['name']?.toString()).toSet();
+
+    const columnasNuevas = {
+      'mostrar_iva_desglosado': 'INTEGER DEFAULT 0',
+    };
+
+    for (final entry in columnasNuevas.entries) {
+      if (!columnNames.contains(entry.key)) {
+        await db.execute(
+          'ALTER TABLE configuracion ADD COLUMN ${entry.key} ${entry.value};',
+        );
+      }
+    }
+  }
+
   /// Agrega a `configuracion` las columnas de identidad del negocio
   /// (nombre, logo, dirección, teléfono, correo, RFC, moneda, IVA, mensaje
   /// de ticket, color de marca). No se pierde la fila de configuración ya
@@ -1708,6 +1730,7 @@ class DatabaseHelper {
     await _ensureVentasDescuentoColumns(db);
     await _ensureDetalleVentaDescuentoColumns(db);
     await _ensureConfiguracionDescuentoColumns(db);
+    await _ensureConfiguracionTicketColumns(db);
     await _ensureVentaPagosTable(db);
     await _ensureVentasCambioColumn(db);
     await _backfillVentaPagos(db);

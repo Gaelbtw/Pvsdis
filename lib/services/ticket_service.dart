@@ -86,7 +86,7 @@ class TicketService {
                     ],
                   )),
 
-              if (config.tasaImpuestoPorcentaje > 0) ...[
+              if (config.tasaImpuestoPorcentaje > 0 && !config.mostrarIvaDesglosado) ...[
                 pw.SizedBox(height: 3),
                 pw.Text(
                   "IVA (${config.tasaImpuestoPorcentaje.toStringAsFixed(2)}%) incluido",
@@ -137,6 +137,25 @@ class TicketService {
                   children: [
                     pw.Text("Descuento"),
                     pw.Text("-${AppConfig.formatoMoneda(descuento)}"),
+                  ],
+                ),
+                pw.SizedBox(height: 3),
+              ],
+
+              if (config.mostrarIvaDesglosado && config.tasaImpuestoPorcentaje > 0) ...[
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text("Subtotal (sin IVA)"),
+                    pw.Text(AppConfig.formatoMoneda(total / (1 + config.tasaImpuestoPorcentaje / 100))),
+                  ],
+                ),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text("IVA (${config.tasaImpuestoPorcentaje.toStringAsFixed(2)}%)"),
+                    pw.Text(AppConfig.formatoMoneda(
+                        total - total / (1 + config.tasaImpuestoPorcentaje / 100))),
                   ],
                 ),
                 pw.SizedBox(height: 3),

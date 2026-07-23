@@ -16,6 +16,11 @@ class Configuracion {
   final String? rfc;
   final String simboloMoneda;
   final double tasaImpuestoPorcentaje;
+
+  /// Si es `true`, el ticket desglosa la base (sin IVA) y el monto de IVA a
+  /// partir del total (los precios son IVA-incluido). Si es `false`, solo se
+  /// anota "IVA X% incluido".
+  final bool mostrarIvaDesglosado;
   final String mensajeTicket;
   final int colorPrimario;
 
@@ -40,6 +45,7 @@ class Configuracion {
     this.rfc,
     required this.simboloMoneda,
     required this.tasaImpuestoPorcentaje,
+    this.mostrarIvaDesglosado = false,
     required this.mensajeTicket,
     required this.colorPrimario,
     this.descuentoMaximoPorcentaje = 20,
@@ -66,6 +72,7 @@ class Configuracion {
       rfc: null,
       simboloMoneda: r"$",
       tasaImpuestoPorcentaje: 0,
+      mostrarIvaDesglosado: false,
       mensajeTicket: "¡Gracias por su compra!",
       colorPrimario: 0xFFF2C500,
       descuentoMaximoPorcentaje: 20,
@@ -96,6 +103,9 @@ class Configuracion {
       simboloMoneda: map['simbolo_moneda'] as String? ?? base.simboloMoneda,
       tasaImpuestoPorcentaje:
           (map['tasa_impuesto'] as num?)?.toDouble() ?? base.tasaImpuestoPorcentaje,
+      mostrarIvaDesglosado: map['mostrar_iva_desglosado'] == null
+          ? base.mostrarIvaDesglosado
+          : (map['mostrar_iva_desglosado'] as num) != 0,
       mensajeTicket: map['mensaje_ticket'] as String? ?? base.mensajeTicket,
       colorPrimario: (map['color_primario'] as num?)?.toInt() ?? base.colorPrimario,
       descuentoMaximoPorcentaje: (map['descuento_maximo_porcentaje'] as num?)?.toDouble() ??
@@ -125,6 +135,7 @@ class Configuracion {
       'rfc': rfc,
       'simbolo_moneda': simboloMoneda,
       'tasa_impuesto': tasaImpuestoPorcentaje,
+      'mostrar_iva_desglosado': mostrarIvaDesglosado ? 1 : 0,
       'mensaje_ticket': mensajeTicket,
       'color_primario': colorPrimario,
       'descuento_maximo_porcentaje': descuentoMaximoPorcentaje,
@@ -148,6 +159,7 @@ class Configuracion {
     String? rfc,
     String? simboloMoneda,
     double? tasaImpuestoPorcentaje,
+    bool? mostrarIvaDesglosado,
     String? mensajeTicket,
     int? colorPrimario,
     double? descuentoMaximoPorcentaje,
@@ -169,6 +181,7 @@ class Configuracion {
       rfc: rfc ?? this.rfc,
       simboloMoneda: simboloMoneda ?? this.simboloMoneda,
       tasaImpuestoPorcentaje: tasaImpuestoPorcentaje ?? this.tasaImpuestoPorcentaje,
+      mostrarIvaDesglosado: mostrarIvaDesglosado ?? this.mostrarIvaDesglosado,
       mensajeTicket: mensajeTicket ?? this.mensajeTicket,
       colorPrimario: colorPrimario ?? this.colorPrimario,
       descuentoMaximoPorcentaje: descuentoMaximoPorcentaje ?? this.descuentoMaximoPorcentaje,
