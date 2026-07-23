@@ -99,7 +99,9 @@ class _HistorialCajasViewState extends State<HistorialCajasView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "Apertura: ${caja.fechaApertura}",
+                  AppConfig.turnoDeIso(caja.fechaApertura) == null
+                      ? "Apertura: ${caja.fechaApertura}"
+                      : "Apertura: ${caja.fechaApertura} · ${AppConfig.turnoDeIso(caja.fechaApertura)}",
                   style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textStrong),
                 ),
                 Text(

@@ -302,7 +302,9 @@ class _CajaViewState extends State<CajaView> {
             ),
             const SizedBox(height: 4),
             Text(
-              "Abierta el ${cajaAbierta!.fechaApertura}",
+              AppConfig.turnoDeIso(cajaAbierta!.fechaApertura) == null
+                  ? "Abierta el ${cajaAbierta!.fechaApertura}"
+                  : "Abierta el ${cajaAbierta!.fechaApertura} · Turno ${AppConfig.turnoDeIso(cajaAbierta!.fechaApertura)}",
               style: const TextStyle(color: AppColors.textSecondary, fontSize: AppText.small),
             ),
             const SizedBox(height: 20),
