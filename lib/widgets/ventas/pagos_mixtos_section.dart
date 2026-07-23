@@ -118,7 +118,7 @@ class _PagosMixtosSectionState extends State<PagosMixtosSection> {
       children: [
         const Text(
           "Pagos",
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          style: TextStyle(fontSize: AppText.bodyLg, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 10),
         ..._filas.map(
@@ -136,7 +136,7 @@ class _PagosMixtosSectionState extends State<PagosMixtosSection> {
                       fillColor: AppColors.surface,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
                         borderSide: BorderSide.none,
                       ),
                     ),
@@ -166,7 +166,7 @@ class _PagosMixtosSectionState extends State<PagosMixtosSection> {
                       fillColor: AppColors.surface,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
                         borderSide: BorderSide.none,
                       ),
                     ),
@@ -200,7 +200,7 @@ class _PagosMixtosSectionState extends State<PagosMixtosSection> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: resultado.esValido ? AppColors.success.withOpacity(0.1) : AppColors.error.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           child: Column(
             children: [
@@ -214,7 +214,7 @@ class _PagosMixtosSectionState extends State<PagosMixtosSection> {
                 Text(
                   resultado.mensajeError!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.error, fontSize: 12, fontWeight: FontWeight.w600),
+                  style: const TextStyle(color: AppColors.error, fontSize: AppText.caption, fontWeight: FontWeight.w600),
                 ),
               ],
             ],

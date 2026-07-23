@@ -40,7 +40,7 @@ Future<void> mostrarDescuentoDialog(
         }
 
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
           title: Text(titulo),
           content: SingleChildScrollView(
             child: Column(
@@ -78,13 +78,13 @@ Future<void> mostrarDescuentoDialog(
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
                     labelText: tipo == TipoDescuento.porcentaje ? 'Porcentaje (%)' : 'Monto (\$)',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
                   ),
                   onChanged: (_) => setDialog(() {}),
                 ),
                 const SizedBox(height: 12),
                 if (error != null)
-                  Text(error, style: const TextStyle(color: AppColors.error, fontSize: 13))
+                  Text(error, style: const TextStyle(color: AppColors.error, fontSize: AppText.small))
                 else if (valor > 0)
                   Text(
                     'Descuento: -${AppConfig.formatoMoneda(montoPreview)}',
@@ -149,7 +149,7 @@ Widget _tipoChip({
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: activo ? AppColors.primary : AppColors.surface,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Text(
         label,

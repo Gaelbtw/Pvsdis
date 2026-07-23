@@ -145,7 +145,7 @@ void login() async {
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(AppRadius.pill),
                 boxShadow: AppColors.cardShadow,
               ),
               child: Column(
@@ -157,7 +157,7 @@ void login() async {
                     width: 90,
                     decoration: BoxDecoration(
                       color: AppColors.primary.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
                     ),
                     child: Icon(
                       Icons.storefront_rounded,
@@ -172,7 +172,7 @@ void login() async {
                   const Text(
                     "Punto de Venta",
                     style: TextStyle(
-                      fontSize: 30,
+                      fontSize: AppText.display,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
                     ),
@@ -183,7 +183,7 @@ void login() async {
                   const Text(
                     "Inicia sesión para continuar",
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: AppText.body,
                       color: AppColors.textSecondary,
                     ),
                   ),
@@ -199,7 +199,7 @@ void login() async {
                       filled: true,
                       fillColor: AppColors.surfaceSubtle,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                         borderSide: BorderSide.none,
                       ),
                     ),
@@ -217,7 +217,7 @@ void login() async {
                       filled: true,
                       fillColor: AppColors.surfaceSubtle,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                         borderSide: BorderSide.none,
                       ),
                       suffixIcon: IconButton(
@@ -247,7 +247,7 @@ void login() async {
                         foregroundColor: Colors.black87,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
                         ),
                       ),
                       child: loading
@@ -262,7 +262,7 @@ void login() async {
                           : const Text(
                               "Ingresar",
                               style: TextStyle(
-                                fontSize: 16,
+                                fontSize: AppText.bodyLg,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -275,7 +275,7 @@ void login() async {
                     "Sistema administrativo",
                     style: TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: 13,
+                      fontSize: AppText.small,
                     ),
                   ),
                 ],

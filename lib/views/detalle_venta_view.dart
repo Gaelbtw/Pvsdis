@@ -236,7 +236,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: AppColors.border),
       ),
       child: Row(
@@ -263,9 +263,9 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        Text(label, style: TextStyle(fontSize: AppText.caption, color: AppColors.textSecondary)),
         const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+        Text(value, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: AppText.body)),
       ],
     );
   }
@@ -281,7 +281,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Text(
@@ -298,12 +298,12 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Productos', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+          const Text('Productos', style: TextStyle(fontWeight: FontWeight.w900, fontSize: AppText.bodyLg)),
           const SizedBox(height: 12),
           Expanded(
             child: ListView.separated(
@@ -332,7 +332,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: AppColors.border),
       ),
       child: Row(
@@ -346,7 +346,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
                 Text(
                   'Vendido: $vendida  ·  Devuelto: $devuelta  ·  Pendiente: $pendiente  ·  '
                   '${huboDescuento ? '${AppConfig.formatoMoneda(precioNeto)} c/u pagado (lista: ${AppConfig.formatoMoneda(precio)})' : '${AppConfig.formatoMoneda(precio)} c/u'}',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  style: TextStyle(fontSize: AppText.caption, color: AppColors.textSecondary),
                 ),
               ],
             ),
@@ -387,12 +387,12 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Historial de devoluciones', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+          const Text('Historial de devoluciones', style: TextStyle(fontWeight: FontWeight.w900, fontSize: AppText.bodyLg)),
           const SizedBox(height: 12),
           Expanded(
             child: d.devoluciones.isEmpty
@@ -414,7 +414,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
                           border: Border.all(color: AppColors.border),
                         ),
                         child: Column(
@@ -436,12 +436,12 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
                             const SizedBox(height: 4),
                             Text(
                               '${item['fecha_hora']}  ·  ${item['usuario_nombre'] ?? 'N/D'}',
-                              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              style: TextStyle(fontSize: AppText.caption, color: AppColors.textSecondary),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               item['motivo']?.toString() ?? '',
-                              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                              style: TextStyle(fontSize: AppText.caption, color: AppColors.textSecondary),
                             ),
                           ],
                         ),
@@ -470,7 +470,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
               foregroundColor: AppColors.error,
               side: const BorderSide(color: AppColors.error),
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
             ),
           ),
         ),
@@ -489,7 +489,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
               foregroundColor: Colors.black,
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
             ),
           ),
         ),

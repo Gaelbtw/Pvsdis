@@ -257,7 +257,7 @@ class _CajaViewState extends State<CajaView> {
           const SizedBox(height: 16),
           const Text(
             "No tienes una caja abierta",
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: AppColors.textStrong),
+            style: TextStyle(fontSize: AppText.title, fontWeight: FontWeight.w800, color: AppColors.textStrong),
           ),
           const SizedBox(height: 8),
           const Text(
@@ -274,7 +274,7 @@ class _CajaViewState extends State<CajaView> {
               foregroundColor: AppColors.onPrimary,
               elevation: 0,
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 18),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
             ),
           ),
         ],
@@ -289,7 +289,7 @@ class _CajaViewState extends State<CajaView> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
         boxShadow: AppColors.cardShadow,
       ),
       child: SingleChildScrollView(
@@ -298,12 +298,12 @@ class _CajaViewState extends State<CajaView> {
           children: [
             const Text(
               "Resumen de caja",
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textStrong),
+              style: TextStyle(fontSize: AppText.titleLg, fontWeight: FontWeight.w800, color: AppColors.textStrong),
             ),
             const SizedBox(height: 4),
             Text(
               "Abierta el ${cajaAbierta!.fechaApertura}",
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: AppText.small),
             ),
             const SizedBox(height: 20),
             Wrap(
@@ -324,7 +324,7 @@ class _CajaViewState extends State<CajaView> {
             const SizedBox(height: 20),
             const Text(
               "Cerrar caja",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textStrong),
+              style: TextStyle(fontSize: AppText.subtitle, fontWeight: FontWeight.w800, color: AppColors.textStrong),
             ),
             const SizedBox(height: 12),
             SizedBox(
@@ -350,7 +350,7 @@ class _CajaViewState extends State<CajaView> {
                         : diferencia > 0
                             ? AppColors.success.withValues(alpha: 0.1)
                             : AppColors.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -360,7 +360,7 @@ class _CajaViewState extends State<CajaView> {
                         "\$${diferencia.toStringAsFixed(2)}",
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
-                          fontSize: 18,
+                          fontSize: AppText.subtitle,
                           color: diferencia == 0
                               ? AppColors.textPrimary
                               : diferencia > 0
@@ -385,7 +385,7 @@ class _CajaViewState extends State<CajaView> {
                   backgroundColor: AppColors.primary,
                   foregroundColor: AppColors.onPrimary,
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
                 ),
               ),
             ),
@@ -401,18 +401,18 @@ class _CajaViewState extends State<CajaView> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: AppColors.primaryDark, size: 22),
           const SizedBox(height: 12),
-          Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(title, style: const TextStyle(color: AppColors.textSecondary, fontSize: AppText.caption, fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
           Text(
             "\$${value.toStringAsFixed(2)}",
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textStrong),
+            style: const TextStyle(fontSize: AppText.subtitle, fontWeight: FontWeight.w800, color: AppColors.textStrong),
           ),
         ],
       ),

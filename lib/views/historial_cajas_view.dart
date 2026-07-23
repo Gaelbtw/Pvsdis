@@ -71,7 +71,7 @@ class _HistorialCajasViewState extends State<HistorialCajasView> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: AppColors.border),
       ),
       child: Row(
@@ -80,13 +80,13 @@ class _HistorialCajasViewState extends State<HistorialCajasView> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: caja.estaAbierta ? AppColors.success.withValues(alpha: 0.1) : AppColors.surface,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
             child: Text(
               caja.estado,
               style: TextStyle(
                 fontWeight: FontWeight.w700,
-                fontSize: 12,
+                fontSize: AppText.caption,
                 color: caja.estaAbierta ? AppColors.success : AppColors.textStrong,
               ),
             ),
@@ -103,7 +103,7 @@ class _HistorialCajasViewState extends State<HistorialCajasView> {
                 ),
                 Text(
                   caja.fechaCierre != null ? "Cierre: ${caja.fechaCierre}" : "Aún abierta",
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: AppText.caption),
                 ),
               ],
             ),

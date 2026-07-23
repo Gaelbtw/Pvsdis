@@ -339,7 +339,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -348,7 +348,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
           const Text(
             "Accesos y administración",
             style: TextStyle(
-              fontSize: 17,
+              fontSize: AppText.bodyLg,
               fontWeight: FontWeight.w800,
               color: AppColors.textPrimary,
             ),
@@ -356,7 +356,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
           const SizedBox(height: 4),
           const Text(
             "Módulos administrativos: no aparecen en el inicio para mantenerlo enfocado en la operación diaria.",
-            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            style: TextStyle(fontSize: AppText.small, color: AppColors.textSecondary),
           ),
           const SizedBox(height: 18),
           LayoutBuilder(
@@ -392,7 +392,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -405,7 +405,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
                 height: 42,
                 decoration: BoxDecoration(
                   color: AppColors.primaryLighter,
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
                 child: Icon(icon, color: AppColors.primaryDark),
               ),
@@ -417,7 +417,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
                     Text(
                       title,
                       style: const TextStyle(
-                        fontSize: 17,
+                        fontSize: AppText.bodyLg,
                         fontWeight: FontWeight.w800,
                         color: AppColors.textPrimary,
                       ),
@@ -426,7 +426,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
                     Text(
                       subtitle,
                       style: const TextStyle(
-                        fontSize: 13,
+                        fontSize: AppText.small,
                         color: AppColors.textSecondary,
                       ),
                     ),
@@ -456,7 +456,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
         fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: BorderSide.none,
         ),
       ),
@@ -469,13 +469,13 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
     required VoidCallback onTap,
   }) {
     return InkWell(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(AppRadius.md),
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(color: AppColors.borderLight),
         ),
         child: Row(
@@ -488,13 +488,13 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
                 children: [
                   Text(
                     label,
-                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                    style: const TextStyle(fontSize: AppText.caption, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 3),
                   Text(
                     hora,
                     style: const TextStyle(
-                      fontSize: 16,
+                      fontSize: AppText.bodyLg,
                       fontWeight: FontWeight.w700,
                       color: AppColors.textPrimary,
                     ),
@@ -517,7 +517,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
           height: 64,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(AppRadius.md),
             border: Border.all(color: AppColors.borderLight),
           ),
           clipBehavior: Clip.antiAlias,
@@ -544,7 +544,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
       children: _paletaColores.map((color) {
         final seleccionado = color.toARGB32() == colorSeleccionado.toARGB32();
         return InkWell(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           onTap: () => setState(() => colorSeleccionado = color),
           child: Container(
             width: 40,
@@ -578,7 +578,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
             child: Text(
               "Acceso restringido. Esta sección es solo para administradores.",
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 15),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: AppText.body),
             ),
           ),
         ),
@@ -597,7 +597,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(28),
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
                     boxShadow: AppColors.cardShadow,
                   ),
                   child: ListView(
@@ -605,7 +605,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
                       const Text(
                         "Configuración General",
                         style: TextStyle(
-                          fontSize: 28,
+                          fontSize: AppText.display,
                           fontWeight: FontWeight.w800,
                           color: AppColors.textPrimary,
                         ),
@@ -613,7 +613,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
                       const SizedBox(height: 8),
                       const Text(
                         "Estos datos se usan en toda la app: encabezado, tickets, reportes y respaldos.",
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                        style: TextStyle(color: AppColors.textSecondary, fontSize: AppText.small),
                       ),
                       const SizedBox(height: 28),
                       _accesosAdministracion(context),
@@ -798,10 +798,10 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
                             foregroundColor: AppColors.onPrimary,
                             elevation: 0,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
                             ),
                             textStyle: const TextStyle(
-                              fontSize: 15,
+                              fontSize: AppText.body,
                               fontWeight: FontWeight.w700,
                             ),
                           ),

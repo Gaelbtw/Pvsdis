@@ -85,7 +85,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
             child: Text(
               "Acceso restringido. Esta sección es solo para administradores.",
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 15),
+              style: TextStyle(color: AppColors.textSecondary, fontSize: AppText.body),
             ),
           ),
         ),
@@ -103,7 +103,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
                   boxShadow: AppColors.cardShadow,
                 ),
                 child: Column(
@@ -134,7 +134,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.primaryLighter,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Row(
         children: [
@@ -142,7 +142,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.7),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppRadius.md),
             ),
             child: const Icon(Icons.account_balance_wallet_outlined, size: 28),
           ),
@@ -157,7 +157,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
               const SizedBox(height: 4),
               Text(
                 "\$${deudaTotal.toStringAsFixed(2)}",
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
+                style: const TextStyle(fontSize: AppText.display, fontWeight: FontWeight.w900),
               ),
             ],
           ),
@@ -235,7 +235,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<T>(
@@ -301,7 +301,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.surfaceSubtle,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: AppColors.borderLight),
       ),
       child: Column(
@@ -315,14 +315,14 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
                   children: [
                     Text(
                       '$proveedor  ·  Compra #$idCompra',
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: AppText.body),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '${fecha == null ? '' : _formatDate(fecha)}'
                       '${fechaVencimiento == null ? '' : '  ·  Vence: ${_formatDate(fechaVencimiento)}'}'
                       '${folio == null || folio.isEmpty ? '' : '  ·  Folio: $folio'}',
-                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: AppText.caption),
                     ),
                   ],
                 ),
@@ -336,7 +336,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
                 child: Text(
                   estadoTexto,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: AppText.caption,
                     fontWeight: FontWeight.w800,
                     color: _colorEstado(estado, vencida),
                   ),
@@ -380,7 +380,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          Text(label, style: const TextStyle(fontSize: AppText.overline, color: AppColors.textSecondary)),
           Text(
             '\$${valor.toStringAsFixed(2)}',
             style: TextStyle(

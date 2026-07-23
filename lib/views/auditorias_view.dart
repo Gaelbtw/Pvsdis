@@ -72,7 +72,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
             boxShadow: AppColors.cardShadow,
           ),
           child: Column(
@@ -116,7 +116,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
               fillColor: AppColors.surface,
               contentPadding: const EdgeInsets.symmetric(vertical: 14),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(AppRadius.md),
                 borderSide: BorderSide.none,
               ),
             ),
@@ -127,7 +127,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
@@ -157,7 +157,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
             foregroundColor: Colors.black,
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(AppRadius.md),
             ),
           ),
         ),
@@ -214,7 +214,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: color,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
         child: Row(
           children: [
@@ -222,7 +222,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
               child: Icon(icon, color: Colors.black87),
             ),
@@ -243,7 +243,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
                   Text(
                     value,
                     style: const TextStyle(
-                      fontSize: 24,
+                      fontSize: AppText.heading,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -261,7 +261,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: const Row(
         children: [
@@ -281,7 +281,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
       decoration: BoxDecoration(
         color: AppColors.surfaceSubtle,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: const Color(0xFFEDEDED)),
       ),
       child: Row(
@@ -305,7 +305,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
                 child: Text(
                   auditoria.accion,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: AppText.caption,
                     fontWeight: FontWeight.w800,
                     color: colorPorAccionAuditoria(auditoria.accion),
                   ),
@@ -340,7 +340,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
             "No hay movimientos para mostrar",
             style: TextStyle(
               color: AppColors.textSecondary,
-              fontSize: 16,
+              fontSize: AppText.bodyLg,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -392,7 +392,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
               headerDecoration: const pw.BoxDecoration(
                 color: PdfColors.amber100,
               ),
-              cellStyle: const pw.TextStyle(fontSize: 10),
+              cellStyle: const pw.TextStyle(fontSize: AppText.overline),
             ),
           ];
         },

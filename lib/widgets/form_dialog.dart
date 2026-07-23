@@ -64,7 +64,7 @@ class _FormDialogState extends State<FormDialog> {
       },
       child: Dialog(
         backgroundColor: AppColors.background,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.pill)),
         child: Container(
           width: 520,
           padding: const EdgeInsets.all(28),
@@ -75,7 +75,7 @@ class _FormDialogState extends State<FormDialog> {
                 Text(
                   widget.titulo,
                   style: const TextStyle(
-                    fontSize: 24,
+                    fontSize: AppText.heading,
                     fontWeight: FontWeight.w800,
                     color: AppColors.textPrimary,
                   ),
@@ -83,7 +83,7 @@ class _FormDialogState extends State<FormDialog> {
                 const SizedBox(height: 8),
                 Text(
                   widget.subtitulo,
-                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: AppText.small),
                 ),
                 const SizedBox(height: 24),
                 for (final campo in widget.campos) ...[
@@ -110,7 +110,7 @@ class _FormDialogState extends State<FormDialog> {
                         foregroundColor: AppColors.onPrimary,
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
                       ),
                       child: Text(
                         widget.textoGuardar,

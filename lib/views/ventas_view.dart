@@ -563,7 +563,7 @@ class _VentasViewState extends State<VentasView> {
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(28),
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
                         boxShadow: AppColors.cardShadow,
                       ),
                       child: Column(
@@ -594,7 +594,7 @@ class _VentasViewState extends State<VentasView> {
                               ),
                               border: OutlineInputBorder(
                                 borderRadius:
-                                    BorderRadius.circular(16),
+                                    BorderRadius.circular(AppRadius.md),
                                 borderSide: BorderSide.none,
                               ),
                             ),
@@ -657,7 +657,7 @@ class _VentasViewState extends State<VentasView> {
                                                   .ellipsis,
                                           style:
                                               const TextStyle(
-                                            fontSize: 15,
+                                            fontSize: AppText.body,
                                             fontWeight:
                                                 FontWeight
                                                     .bold,
@@ -672,7 +672,7 @@ class _VentasViewState extends State<VentasView> {
                                           return Text(
                                             "Stock: $s",
                                             style: TextStyle(
-                                              fontSize: 12,
+                                              fontSize: AppText.caption,
                                               color: s == 0
                                                   ? AppColors.error
                                                   : s <= p.stockMinimo
@@ -690,7 +690,7 @@ class _VentasViewState extends State<VentasView> {
                                           "\$${p.precio.toStringAsFixed(2)}",
                                           style:
                                               const TextStyle(
-                                            fontSize: 18,
+                                            fontSize: AppText.subtitle,
                                             fontWeight:
                                                 FontWeight
                                                     .bold,
@@ -759,7 +759,7 @@ class _VentasViewState extends State<VentasView> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius:
-                            BorderRadius.circular(28),
+                            BorderRadius.circular(AppRadius.pill),
                         boxShadow: AppColors.cardShadow,
                       ),
                       child: Column(
@@ -775,7 +775,7 @@ class _VentasViewState extends State<VentasView> {
                               const Text(
                                 "Detalle de Venta",
                                 style: TextStyle(
-                                  fontSize: 20,
+                                  fontSize: AppText.title,
                                   fontWeight:
                                       FontWeight.bold,
                                 ),
@@ -900,7 +900,7 @@ class _VentasViewState extends State<VentasView> {
                                                 if (puedeAplicarDescuentos)
                                                   InkWell(
                                                     onTap: () => editarDescuentoLinea(i),
-                                                    borderRadius: BorderRadius.circular(8),
+                                                    borderRadius: BorderRadius.circular(AppRadius.sm),
                                                     child: Padding(
                                                       padding: const EdgeInsets.all(4),
                                                       child: Icon(
@@ -1076,7 +1076,7 @@ class _VentasViewState extends State<VentasView> {
                                     side: BorderSide(color: AppColors.primaryDark),
                                     padding: const EdgeInsets.symmetric(vertical: 12),
                                     shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(AppRadius.sm),
                                     ),
                                   ),
                                 ),
@@ -1113,7 +1113,7 @@ class _VentasViewState extends State<VentasView> {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -1135,7 +1135,7 @@ class _VentasViewState extends State<VentasView> {
                 child: Text(
                   "TOTAL",
                   style: TextStyle(
-                    fontSize: 15,
+                    fontSize: AppText.body,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.5,
                     color: AppColors.textSecondary,
@@ -1174,13 +1174,13 @@ class _VentasViewState extends State<VentasView> {
               icon: const Icon(Icons.check_circle),
               label: const Text(
                 "Confirmar Venta",
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                style: TextStyle(fontSize: AppText.bodyLg, fontWeight: FontWeight.w700),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: AppColors.onPrimary,
                 elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
               ),
             ),
           ),
@@ -1205,7 +1205,7 @@ class _VentasViewState extends State<VentasView> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: AppColors.error.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
       ),
       child: Row(
@@ -1224,7 +1224,7 @@ class _VentasViewState extends State<VentasView> {
               backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
             ),
             child: const Text("Abrir Caja"),
           ),

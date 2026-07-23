@@ -10,7 +10,7 @@ import 'login_view.dart';
 
 
 const _databaseHeaderStyle = TextStyle(
-  fontSize: 11,
+  fontSize: AppText.overline,
   fontWeight: FontWeight.w800,
   color: AppColors.textStrong,
 );
@@ -212,7 +212,7 @@ final confirmar = await showDialog<bool>(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(AppRadius.pill),
               border: Border.all(color: const Color(0xFFE6E0D8)),
             ),
             child: Column(
@@ -223,7 +223,7 @@ final confirmar = await showDialog<bool>(
                   SessionManager.currentUserName,
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
-                    fontSize: 12,
+                    fontSize: AppText.caption,
                     color: Colors.black87,
                   ),
                 ),
@@ -231,7 +231,7 @@ final confirmar = await showDialog<bool>(
                   SessionManager.currentUserRole.toUpperCase(),
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
-                    fontSize: 10,
+                    fontSize: AppText.overline,
                     color: AppColors.primaryDark,
                   ),
                 ),
@@ -247,7 +247,7 @@ final confirmar = await showDialog<bool>(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
             boxShadow: AppColors.cardShadow,
           ),
           child: Column(
@@ -337,7 +337,7 @@ final confirmar = await showDialog<bool>(
                 child: Text(
                   'Realizar Back Up',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: AppText.title,
                     fontWeight: FontWeight.w700,
                     color: Colors.black87,
                   ),
@@ -414,7 +414,7 @@ final confirmar = await showDialog<bool>(
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 14,
+          fontSize: AppText.small,
           fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
           color: isActive ? Colors.black87 : const Color(0xFF9A948A),
         ),
@@ -445,7 +445,7 @@ final confirmar = await showDialog<bool>(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         side: const BorderSide(color: Color(0xFFE0D8CF)),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
       ),
       child: Text(label, style: const TextStyle(color: Colors.black87)),
@@ -462,7 +462,7 @@ final confirmar = await showDialog<bool>(
           style: const TextStyle(
             color: Colors.black87,
             fontWeight: FontWeight.w600,
-            fontSize: 13,
+            fontSize: AppText.small,
           ),
         ),
       ],

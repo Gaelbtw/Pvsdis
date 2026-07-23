@@ -74,7 +74,7 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
       builder: (_) => StatefulBuilder(
         builder: (context, setStateDialog) {
           return Dialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: SingleChildScrollView(
@@ -84,7 +84,7 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
                   children: [
                     Text(
                       liquidarCompleto ? 'Liquidar apartado' : 'Registrar abono',
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      style: const TextStyle(fontSize: AppText.title, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 16),
                     if (!liquidarCompleto)
@@ -96,7 +96,7 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
                           filled: true,
                           fillColor: AppColors.surface,
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(AppRadius.md),
                             borderSide: BorderSide.none,
                           ),
                         ),
@@ -271,7 +271,7 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
       padding: const EdgeInsets.all(24),
       child: Container(
         padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28)),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(AppRadius.pill)),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -280,14 +280,14 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
                 children: [
                   Text(
                     apartado['cliente_nombre']?.toString() ?? 'Cliente',
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: AppText.title),
                   ),
                   const SizedBox(width: 12),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                     decoration: BoxDecoration(
                       color: _colorEstado(estado).withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(30),
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
                     ),
                     child: Text(estado, style: TextStyle(color: _colorEstado(estado), fontWeight: FontWeight.bold)),
                   ),
@@ -297,7 +297,7 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
               Text('Creado: ${apartado['fecha_creacion']}'),
               if (apartado['fecha_limite'] != null) Text('Vence: ${apartado['fecha_limite']}'),
               const Divider(height: 32),
-              const Text('Productos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const Text('Productos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppText.bodyLg)),
               const SizedBox(height: 10),
               ...items.map((item) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
@@ -316,7 +316,7 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
               _fila('Total', (apartado['total'] as num).toDouble(), destacado: true),
               _fila('Saldo pendiente', _saldoPendiente, destacado: true, color: AppColors.error),
               const Divider(height: 32),
-              const Text('Historial de pagos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const Text('Historial de pagos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppText.bodyLg)),
               const SizedBox(height: 10),
               if (historial.isEmpty)
                 const Text('Sin pagos registrados todavía.')

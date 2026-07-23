@@ -243,7 +243,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFFFBEA),
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
                       ),
                       child: Row(
                         children: [
@@ -251,7 +251,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
                               color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
                             ),
                             child: const Icon(Icons.add),
                           ),
@@ -263,7 +263,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                 const Text(
                                   'Nuevo Pedido',
                                   style: TextStyle(
-                                    fontSize: 28,
+                                    fontSize: AppText.display,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -272,7 +272,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                   widget.nombreCliente ?? '',
                                   style: TextStyle(
                                     color: AppColors.textSecondary,
-                                    fontSize: 16,
+                                    fontSize: AppText.bodyLg,
                                   ),
                                 ),
                               ],
@@ -289,7 +289,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                       'Tipo de entrega',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 18,
+                        fontSize: AppText.subtitle,
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -322,7 +322,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                     const Text(
                       'Productos',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: AppText.title,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -352,7 +352,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                             padding: const EdgeInsets.all(18),
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(22),
+                              borderRadius: BorderRadius.circular(AppRadius.lg),
                               boxShadow: const [
                                 BoxShadow(
                                   color: Colors.black12,
@@ -374,13 +374,13 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                       decoration: BoxDecoration(
                                         color: AppColors.primary,
                                         borderRadius:
-                                            BorderRadius.circular(30),
+                                            BorderRadius.circular(AppRadius.pill),
                                       ),
                                       child: Text(
                                         '\$${producto.precio.toStringAsFixed(2)}',
                                         style: const TextStyle(
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 13,
+                                          fontSize: AppText.small,
                                         ),
                                       ),
                                     ),
@@ -400,14 +400,14 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                                 : AppColors.success
                                                     .withValues(alpha: 0.12),
                                         borderRadius:
-                                            BorderRadius.circular(8),
+                                            BorderRadius.circular(AppRadius.sm),
                                       ),
                                       child: Text(
                                         sinStock
                                             ? 'Sin stock'
                                             : 'Stock: $stockActual',
                                         style: TextStyle(
-                                          fontSize: 11,
+                                          fontSize: AppText.overline,
                                           fontWeight: FontWeight.bold,
                                           color: sinStock
                                               ? AppColors.error
@@ -429,7 +429,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 16,
+                                    fontSize: AppText.bodyLg,
                                   ),
                                 ),
 
@@ -441,7 +441,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     color: AppColors.textSecondary,
-                                    fontSize: 12,
+                                    fontSize: AppText.caption,
                                   ),
                                 ),
 
@@ -460,7 +460,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                       ),
                                       shape: RoundedRectangleBorder(
                                         borderRadius:
-                                            BorderRadius.circular(14),
+                                            BorderRadius.circular(AppRadius.md),
                                       ),
                                     ),
                                     onPressed: sinStock
@@ -488,7 +488,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(AppRadius.pill),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -496,7 +496,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                   const Text(
                     'Detalle del Pedido',
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: AppText.heading,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -522,7 +522,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFF8F8F8),
                                   borderRadius:
-                                      BorderRadius.circular(18),
+                                      BorderRadius.circular(AppRadius.md),
                                 ),
                                 child: Column(
                                   crossAxisAlignment:
@@ -532,7 +532,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                       producto.nombre,
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,
-                                        fontSize: 16,
+                                        fontSize: AppText.bodyLg,
                                       ),
                                     ),
                                     const SizedBox(height: 10),
@@ -562,7 +562,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                           '\$${(producto.precio * cantidad).toStringAsFixed(2)}',
                                           style: const TextStyle(
                                             fontWeight: FontWeight.bold,
-                                            fontSize: 16,
+                                            fontSize: AppText.bodyLg,
                                           ),
                                         ),
                                       ],
@@ -581,7 +581,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                       const Text(
                         'Total',
                         style: TextStyle(
-                          fontSize: 24,
+                          fontSize: AppText.heading,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -589,7 +589,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                       Text(
                         '\$${total.toStringAsFixed(2)}',
                         style: const TextStyle(
-                          fontSize: 32,
+                          fontSize: AppText.display,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
@@ -606,7 +606,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                         foregroundColor: Colors.black,
                         padding: const EdgeInsets.symmetric(vertical: 18),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
                         ),
                       ),
                       onPressed: guardarPedido,
@@ -614,7 +614,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                         'Guardar Pedido',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          fontSize: 16,
+                          fontSize: AppText.bodyLg,
                         ),
                       ),
                     ),
@@ -650,7 +650,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
               );
               if (picked != null) setState(() => _fechaEntrega = picked);
             },
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(AppRadius.md),
             child: Container(
               padding: const EdgeInsets.symmetric(
                 horizontal: 16,
@@ -658,7 +658,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
               ),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
               child: Row(
                 children: [
@@ -672,7 +672,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                       color: _fechaEntrega != null
                           ? Colors.black87
                           : AppColors.textSecondary,
-                      fontSize: 16,
+                      fontSize: AppText.bodyLg,
                     ),
                   ),
                 ],
@@ -706,7 +706,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
               filled: true,
               fillColor: Colors.white,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AppRadius.md),
                 borderSide: BorderSide.none,
               ),
             ),
@@ -719,13 +719,13 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
   Widget tipoCard(String tipo) {
     final activo = tipoEntrega == tipo;
     return InkWell(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(AppRadius.md),
       onTap: () => setState(() => tipoEntrega = tipo),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 16),
         decoration: BoxDecoration(
           color: activo ? AppColors.primary : Colors.white,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -753,13 +753,13 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
 
   Widget cantidadBtn(IconData icon, VoidCallback onTap) {
     return InkWell(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(AppRadius.sm),
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
           color: AppColors.primary,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
         child: Icon(icon, size: 18),
       ),

@@ -28,7 +28,7 @@ class InventarioTabla extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: const Color(0xFFE8E2D9)),
       ),
       child: Column(
@@ -54,8 +54,8 @@ class InventarioTabla extends StatelessWidget {
       decoration: const BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(22),
-          topRight: Radius.circular(22),
+          topLeft: Radius.circular(AppRadius.lg),
+          topRight: Radius.circular(AppRadius.lg),
         ),
       ),
       child: const Row(
@@ -101,7 +101,7 @@ class InventarioTabla extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: estado.color.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(30),
+                borderRadius: BorderRadius.circular(AppRadius.pill),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -115,7 +115,7 @@ class InventarioTabla extends StatelessWidget {
                       style: TextStyle(
                         color: estado.color,
                         fontWeight: FontWeight.w700,
-                        fontSize: 12,
+                        fontSize: AppText.caption,
                       ),
                     ),
                   ),
@@ -137,7 +137,7 @@ class InventarioTabla extends StatelessWidget {
                       fillColor: AppColors.surface,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
                         borderSide: BorderSide.none,
                       ),
                     ),

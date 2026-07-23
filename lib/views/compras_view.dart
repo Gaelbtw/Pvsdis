@@ -188,7 +188,7 @@ class _ComprasViewState extends State<ComprasView> {
 
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(28),
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
                         boxShadow: AppColors.cardShadow,
                       ),
 
@@ -198,7 +198,7 @@ class _ComprasViewState extends State<ComprasView> {
                           Container(
                             decoration: BoxDecoration(
                               color: AppColors.surface,
-                              borderRadius: BorderRadius.circular(18),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
                             ),
                             child: TextField(
                               onChanged: (v) {
@@ -236,7 +236,7 @@ class _ComprasViewState extends State<ComprasView> {
                                 final p = productosFiltrados[i];
 
                                 return InkWell(
-                                  borderRadius: BorderRadius.circular(22),
+                                  borderRadius: BorderRadius.circular(AppRadius.lg),
 
                                   onTap: () => agregarProducto(p),
 
@@ -245,7 +245,7 @@ class _ComprasViewState extends State<ComprasView> {
 
                                     decoration: BoxDecoration(
                                       color: AppColors.surfaceSubtle,
-                                      borderRadius: BorderRadius.circular(22),
+                                      borderRadius: BorderRadius.circular(AppRadius.lg),
 
                                       border: Border.all(
                                         color: AppColors.border,
@@ -283,7 +283,7 @@ class _ComprasViewState extends State<ComprasView> {
                                           overflow: TextOverflow.ellipsis,
 
                                           style: const TextStyle(
-                                            fontSize: 15,
+                                            fontSize: AppText.body,
                                             fontWeight: FontWeight.w700,
                                           ),
                                         ),
@@ -295,7 +295,7 @@ class _ComprasViewState extends State<ComprasView> {
                                           "\$${(p.precioCompra ?? 0).toStringAsFixed(2)}",
 
                                           style: const TextStyle(
-                                            fontSize: 18,
+                                            fontSize: AppText.subtitle,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
@@ -326,7 +326,7 @@ class _ComprasViewState extends State<ComprasView> {
 
                                               shape: RoundedRectangleBorder(
                                                 borderRadius:
-                                                    BorderRadius.circular(14),
+                                                    BorderRadius.circular(AppRadius.md),
                                               ),
                                             ),
                                           ),
@@ -354,7 +354,7 @@ class _ComprasViewState extends State<ComprasView> {
 
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(28),
+                        borderRadius: BorderRadius.circular(AppRadius.pill),
                         boxShadow: AppColors.cardShadow,
                       ),
 
@@ -370,7 +370,7 @@ class _ComprasViewState extends State<ComprasView> {
 
                                 decoration: BoxDecoration(
                                   color: AppColors.primaryLight,
-                                  borderRadius: BorderRadius.circular(14),
+                                  borderRadius: BorderRadius.circular(AppRadius.md),
                                 ),
 
                                 child: const Icon(Icons.shopping_cart),
@@ -382,7 +382,7 @@ class _ComprasViewState extends State<ComprasView> {
                                 "Orden de Compra",
 
                                 style: TextStyle(
-                                  fontSize: 22,
+                                  fontSize: AppText.titleLg,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -402,7 +402,7 @@ class _ComprasViewState extends State<ComprasView> {
                               fillColor: AppColors.surface,
 
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(AppRadius.md),
                                 borderSide: BorderSide.none,
                               ),
                             ),
@@ -449,7 +449,7 @@ class _ComprasViewState extends State<ComprasView> {
 
                                           style: TextStyle(
                                             color: AppColors.textSecondary,
-                                            fontSize: 16,
+                                            fontSize: AppText.bodyLg,
                                           ),
                                         ),
                                       ],
@@ -496,7 +496,7 @@ class _ComprasViewState extends State<ComprasView> {
 
                                               style: const TextStyle(
                                                 fontWeight: FontWeight.bold,
-                                                fontSize: 15,
+                                                fontSize: AppText.body,
                                               ),
                                             ),
 
@@ -598,7 +598,7 @@ class _ComprasViewState extends State<ComprasView> {
 
                             decoration: BoxDecoration(
                               color: const Color(0xFFFFF8E1),
-                              borderRadius: BorderRadius.circular(18),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
                             ),
 
                             child: Row(
@@ -609,7 +609,7 @@ class _ComprasViewState extends State<ComprasView> {
                                   "TOTAL",
 
                                   style: TextStyle(
-                                    fontSize: 16,
+                                    fontSize: AppText.bodyLg,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -618,7 +618,7 @@ class _ComprasViewState extends State<ComprasView> {
                                   "\$${total.toStringAsFixed(2)}",
 
                                   style: const TextStyle(
-                                    fontSize: 24,
+                                    fontSize: AppText.heading,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -662,7 +662,7 @@ class _ComprasViewState extends State<ComprasView> {
                                 "Confirmar Compra",
 
                                 style: TextStyle(
-                                  fontSize: 16,
+                                  fontSize: AppText.bodyLg,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -675,7 +675,7 @@ class _ComprasViewState extends State<ComprasView> {
                                 foregroundColor: Colors.black,
 
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(18),
+                                  borderRadius: BorderRadius.circular(AppRadius.md),
                                 ),
                               ),
                             ),
@@ -715,7 +715,7 @@ class _ComprasViewState extends State<ComprasView> {
               filled: true,
               fillColor: AppColors.surface,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(AppRadius.md),
                 borderSide: BorderSide.none,
               ),
             ),
@@ -726,7 +726,7 @@ class _ComprasViewState extends State<ComprasView> {
           )
         else ...[
           InkWell(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(AppRadius.md),
             onTap: () async {
               final fecha = await showDatePicker(
                 context: context,
@@ -741,7 +741,7 @@ class _ComprasViewState extends State<ComprasView> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               decoration: BoxDecoration(
                 color: AppColors.surface,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
               child: Row(
                 children: [
@@ -765,7 +765,7 @@ class _ComprasViewState extends State<ComprasView> {
               filled: true,
               fillColor: AppColors.surface,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(AppRadius.md),
                 borderSide: BorderSide.none,
               ),
             ),
@@ -778,7 +778,7 @@ class _ComprasViewState extends State<ComprasView> {
               filled: true,
               fillColor: AppColors.surface,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(AppRadius.md),
                 borderSide: BorderSide.none,
               ),
             ),
@@ -796,7 +796,7 @@ class _ComprasViewState extends State<ComprasView> {
             filled: true,
             fillColor: AppColors.surface,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppRadius.md),
               borderSide: BorderSide.none,
             ),
           ),
@@ -808,14 +808,14 @@ class _ComprasViewState extends State<ComprasView> {
   Widget _formaPagoBtn(String valor, {String? label}) {
     final seleccionado = formaPago == valor;
     return InkWell(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(AppRadius.md),
       onTap: () => setState(() => formaPago = valor),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: seleccionado ? AppColors.primary : AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
         child: Text(
           label ?? valor,
@@ -832,14 +832,14 @@ class _ComprasViewState extends State<ComprasView> {
     return InkWell(
       onTap: onTap,
 
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(AppRadius.sm),
 
       child: Container(
         padding: const EdgeInsets.all(8),
 
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
 
           border: Border.all(color: AppColors.border),
         ),

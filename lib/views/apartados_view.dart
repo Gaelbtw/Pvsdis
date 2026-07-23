@@ -80,7 +80,7 @@ class _ApartadosViewState extends State<ApartadosView> {
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
                   boxShadow: AppColors.cardShadow,
                 ),
                 child: Column(
@@ -102,7 +102,7 @@ class _ApartadosViewState extends State<ApartadosView> {
                               fillColor: AppColors.surface,
                               contentPadding: const EdgeInsets.symmetric(vertical: 14),
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(AppRadius.md),
                                 borderSide: BorderSide.none,
                               ),
                             ),
@@ -123,7 +123,7 @@ class _ApartadosViewState extends State<ApartadosView> {
                             foregroundColor: AppColors.onPrimary,
                             elevation: 0,
                             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
                           ),
                         ),
                       ],
@@ -131,7 +131,7 @@ class _ApartadosViewState extends State<ApartadosView> {
                     const SizedBox(height: 10),
                     const Text(
                       'Reservas de productos con anticipo, abonos y liquidación',
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: AppText.small),
                     ),
                     const SizedBox(height: 24),
                     Expanded(
@@ -147,7 +147,7 @@ class _ApartadosViewState extends State<ApartadosView> {
                                 final total = (a['total'] as num?)?.toDouble() ?? 0;
 
                                 return InkWell(
-                                  borderRadius: BorderRadius.circular(20),
+                                  borderRadius: BorderRadius.circular(AppRadius.lg),
                                   onTap: () async {
                                     await Navigator.push(
                                       context,
@@ -162,7 +162,7 @@ class _ApartadosViewState extends State<ApartadosView> {
                                     padding: const EdgeInsets.all(16),
                                     decoration: BoxDecoration(
                                       color: AppColors.surfaceAlt,
-                                      borderRadius: BorderRadius.circular(20),
+                                      borderRadius: BorderRadius.circular(AppRadius.lg),
                                       border: Border.all(color: AppColors.border),
                                     ),
                                     child: Row(
@@ -177,7 +177,7 @@ class _ApartadosViewState extends State<ApartadosView> {
                                                     a['cliente_nombre']?.toString() ?? 'Cliente',
                                                     style: const TextStyle(
                                                       fontWeight: FontWeight.w800,
-                                                      fontSize: 16,
+                                                      fontSize: AppText.bodyLg,
                                                       color: AppColors.textPrimary,
                                                     ),
                                                   ),
@@ -187,12 +187,12 @@ class _ApartadosViewState extends State<ApartadosView> {
                                                         horizontal: 10, vertical: 4),
                                                     decoration: BoxDecoration(
                                                       color: _colorEstado(estado).withOpacity(0.12),
-                                                      borderRadius: BorderRadius.circular(30),
+                                                      borderRadius: BorderRadius.circular(AppRadius.pill),
                                                     ),
                                                     child: Text(
                                                       estado,
                                                       style: TextStyle(
-                                                        fontSize: 11,
+                                                        fontSize: AppText.overline,
                                                         fontWeight: FontWeight.w700,
                                                         color: _colorEstado(estado),
                                                       ),
@@ -205,7 +205,7 @@ class _ApartadosViewState extends State<ApartadosView> {
                                                 'Total: \$${total.toStringAsFixed(2)}   ·   '
                                                 'Saldo: \$${saldo.toStringAsFixed(2)}',
                                                 style: const TextStyle(
-                                                    color: AppColors.textSecondary, fontSize: 12),
+                                                    color: AppColors.textSecondary, fontSize: AppText.caption),
                                               ),
                                             ],
                                           ),

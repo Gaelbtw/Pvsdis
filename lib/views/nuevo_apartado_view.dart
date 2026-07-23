@@ -200,18 +200,18 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
                     flex: 7,
                     child: Container(
                       padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28)),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(AppRadius.pill)),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Cliente', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const Text('Cliente', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppText.bodyLg)),
                           const SizedBox(height: 10),
                           if (_clienteSeleccionado != null)
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
                                 color: AppColors.primaryLighter,
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(AppRadius.md),
                               ),
                               child: Row(
                                 children: [
@@ -240,7 +240,7 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
                                 filled: true,
                                 fillColor: AppColors.surface,
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                                  borderRadius: BorderRadius.circular(AppRadius.md),
                                   borderSide: BorderSide.none,
                                 ),
                               ),
@@ -261,7 +261,7 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
                             ),
                           ],
                           const Divider(height: 30),
-                          const Text('Productos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          const Text('Productos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppText.bodyLg)),
                           const SizedBox(height: 10),
                           TextField(
                             controller: _busquedaProductoCtrl,
@@ -272,7 +272,7 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
                               filled: true,
                               fillColor: AppColors.surface,
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(AppRadius.md),
                                 borderSide: BorderSide.none,
                               ),
                             ),
@@ -291,7 +291,7 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
                                 final p = _productosFiltrados[i];
                                 final disponible = _stockDisponible[p.idProducto] ?? 0;
                                 return InkWell(
-                                  borderRadius: BorderRadius.circular(16),
+                                  borderRadius: BorderRadius.circular(AppRadius.md),
                                   onTap: disponible <= _carrito.cantidadEnCarrito(p.idProducto)
                                       ? null
                                       : () => setState(() => _carrito.agregar(p)),
@@ -299,7 +299,7 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
                                     padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
                                       color: AppColors.surfaceAlt,
-                                      borderRadius: BorderRadius.circular(16),
+                                      borderRadius: BorderRadius.circular(AppRadius.md),
                                       border: Border.all(color: AppColors.border),
                                     ),
                                     child: Column(
@@ -309,7 +309,7 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
                                         const Spacer(),
                                         Text('\$${p.precio.toStringAsFixed(2)}',
                                             style: const TextStyle(fontWeight: FontWeight.bold)),
-                                        Text('Disponible: $disponible', style: const TextStyle(fontSize: 11)),
+                                        Text('Disponible: $disponible', style: const TextStyle(fontSize: AppText.overline)),
                                       ],
                                     ),
                                   ),
@@ -326,12 +326,12 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
                     flex: 4,
                     child: Container(
                       padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28)),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(AppRadius.pill)),
                       child: SingleChildScrollView(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Carrito', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            const Text('Carrito', style: TextStyle(fontWeight: FontWeight.bold, fontSize: AppText.bodyLg)),
                             const SizedBox(height: 10),
                             if (_carrito.items.isEmpty)
                               const Text('No hay productos agregados')
@@ -380,7 +380,7 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
                               children: [
                                 const Text('Total'),
                                 Text('\$${calculo.total.toStringAsFixed(2)}',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: AppText.subtitle)),
                               ],
                             ),
                             const SizedBox(height: 16),
@@ -395,7 +395,7 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
                                 filled: true,
                                 fillColor: AppColors.surface,
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                                  borderRadius: BorderRadius.circular(AppRadius.md),
                                   borderSide: BorderSide.none,
                                 ),
                               ),
@@ -422,7 +422,7 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
                                   backgroundColor: AppColors.primary,
                                   foregroundColor: AppColors.onPrimary,
                                   elevation: 0,
-                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
                                 ),
                                 child: Text(_guardando ? 'Guardando...' : 'Crear apartado'),
                               ),

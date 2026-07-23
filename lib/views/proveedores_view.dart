@@ -205,7 +205,7 @@ void abrirFormulario({Proveedores? proveedor}) {
           decoration: BoxDecoration(
             color: Colors.white,
 
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
 
             boxShadow: AppColors.cardShadow,
           ),
@@ -226,7 +226,7 @@ void abrirFormulario({Proveedores? proveedor}) {
                           "Gestión de Proveedores",
 
                           style: TextStyle(
-                            fontSize: 28,
+                            fontSize: AppText.display,
 
                             fontWeight: FontWeight.w800,
 
@@ -242,7 +242,7 @@ void abrirFormulario({Proveedores? proveedor}) {
                           style: TextStyle(
                             color: AppColors.textSecondary,
 
-                            fontSize: 13,
+                            fontSize: AppText.small,
                           ),
                         ),
                       ],
@@ -269,7 +269,7 @@ void abrirFormulario({Proveedores? proveedor}) {
                       ),
 
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                       ),
                     ),
                   ),
@@ -297,7 +297,7 @@ void abrirFormulario({Proveedores? proveedor}) {
                     contentPadding: const EdgeInsets.symmetric(vertical: 14),
 
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
 
                       borderSide: BorderSide.none,
                     ),
@@ -339,7 +339,7 @@ void abrirFormulario({Proveedores? proveedor}) {
   // HEADER TABLA
   Widget _headerTabla() {
     const headerStyle = TextStyle(
-      fontSize: 11,
+      fontSize: AppText.overline,
       fontWeight: FontWeight.w800,
       color: AppColors.textStrong,
     );
@@ -382,7 +382,7 @@ void abrirFormulario({Proveedores? proveedor}) {
                   decoration: BoxDecoration(
                     color: AppColors.primaryLight,
 
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
 
                   child: Icon(
@@ -401,7 +401,7 @@ void abrirFormulario({Proveedores? proveedor}) {
                     style: const TextStyle(
                       fontWeight: FontWeight.w700,
 
-                      fontSize: 15,
+                      fontSize: AppText.body,
                     ),
                   ),
                 ),

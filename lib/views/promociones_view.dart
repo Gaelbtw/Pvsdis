@@ -141,13 +141,13 @@ class _PromocionesViewState extends State<PromocionesView> {
 
           Widget campoFecha(String etiqueta, DateTime? fecha, bool esInicio) {
             return InkWell(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppRadius.md),
               onTap: () => elegirFecha(esInicio: esInicio),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
                 child: Row(
                   children: [
@@ -175,7 +175,7 @@ class _PromocionesViewState extends State<PromocionesView> {
 
           Widget dropdownContainer(Widget child) => Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(AppRadius.md)),
                 child: child,
               );
 
@@ -494,7 +494,7 @@ class _PromocionesViewState extends State<PromocionesView> {
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
             boxShadow: AppColors.cardShadow,
           ),
           child: Column(
@@ -516,7 +516,7 @@ class _PromocionesViewState extends State<PromocionesView> {
                         fillColor: AppColors.surface,
                         contentPadding: const EdgeInsets.symmetric(vertical: 14),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
                           borderSide: BorderSide.none,
                         ),
                       ),
@@ -532,7 +532,7 @@ class _PromocionesViewState extends State<PromocionesView> {
                         foregroundColor: Colors.black87,
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
                       ),
                     ),
                 ],
@@ -540,7 +540,7 @@ class _PromocionesViewState extends State<PromocionesView> {
               const SizedBox(height: 10),
               const Text(
                 "Administre las promociones automáticas del punto de venta",
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: AppText.small),
               ),
               const SizedBox(height: 24),
               Expanded(
@@ -555,7 +555,7 @@ class _PromocionesViewState extends State<PromocionesView> {
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
                               color: AppColors.surfaceAlt,
-                              borderRadius: BorderRadius.circular(20),
+                              borderRadius: BorderRadius.circular(AppRadius.lg),
                               border: Border.all(color: AppColors.border),
                             ),
                             child: Row(
@@ -570,7 +570,7 @@ class _PromocionesViewState extends State<PromocionesView> {
                                             p.nombre,
                                             style: const TextStyle(
                                               fontWeight: FontWeight.w800,
-                                              fontSize: 16,
+                                              fontSize: AppText.bodyLg,
                                               color: AppColors.textPrimary,
                                             ),
                                           ),
@@ -581,12 +581,12 @@ class _PromocionesViewState extends State<PromocionesView> {
                                               color: p.activo
                                                   ? AppColors.success.withOpacity(0.12)
                                                   : AppColors.textSecondary.withOpacity(0.15),
-                                              borderRadius: BorderRadius.circular(30),
+                                              borderRadius: BorderRadius.circular(AppRadius.pill),
                                             ),
                                             child: Text(
                                               p.activo ? "Activa" : "Inactiva",
                                               style: TextStyle(
-                                                fontSize: 11,
+                                                fontSize: AppText.overline,
                                                 fontWeight: FontWeight.w700,
                                                 color: p.activo ? AppColors.success : AppColors.textSecondary,
                                               ),
@@ -598,12 +598,12 @@ class _PromocionesViewState extends State<PromocionesView> {
                                       Text(
                                         "${_etiquetaTipo(p.tipo)} · Prioridad ${p.prioridad}"
                                         "${p.combinable ? ' · Combinable' : ''}",
-                                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                                        style: const TextStyle(color: AppColors.textSecondary, fontSize: AppText.caption),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
                                         "Vigencia: ${_formatoFecha(p.fechaInicio)} — ${_formatoFecha(p.fechaFin)}",
-                                        style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+                                        style: const TextStyle(color: AppColors.textSecondary, fontSize: AppText.caption),
                                       ),
                                     ],
                                   ),

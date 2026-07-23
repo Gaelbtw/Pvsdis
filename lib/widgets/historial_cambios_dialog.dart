@@ -37,7 +37,7 @@ Future<void> mostrarHistorialCambios(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: BorderRadius.circular(AppRadius.pill),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -50,7 +50,7 @@ Future<void> mostrarHistorialCambios(
                       child: Text(
                         titulo,
                         style: const TextStyle(
-                          fontSize: 24,
+                          fontSize: AppText.heading,
                           fontWeight: FontWeight.w800,
                           color: AppColors.textStrong,
                         ),
@@ -68,7 +68,7 @@ Future<void> mostrarHistorialCambios(
                   subtitulo,
                   style: const TextStyle(
                     color: AppColors.textSecondary,
-                    fontSize: 13,
+                    fontSize: AppText.small,
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -83,7 +83,7 @@ Future<void> mostrarHistorialCambios(
                     fillColor: AppColors.surface,
                     contentPadding: const EdgeInsets.symmetric(vertical: 14),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
                       borderSide: BorderSide.none,
                     ),
                   ),
@@ -114,7 +114,7 @@ Widget _filaCambio(Auditoria cambio) {
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
       color: AppColors.surfaceAlt,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(AppRadius.md),
       border: Border.all(color: AppColors.border),
     ),
     child: Row(
@@ -124,7 +124,7 @@ Widget _filaCambio(Auditoria cambio) {
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           child: Icon(iconoPorAccionAuditoria(cambio.accion), color: color, size: 20),
         ),
@@ -145,7 +145,7 @@ Widget _filaCambio(Auditoria cambio) {
                 "Usuario: ${cambio.usuario}  |  Fecha: ${formatearFechaHora(cambio.fechaHora)}  |  Registro: ${cambio.idRegistro ?? '-'}",
                 style: const TextStyle(
                   color: AppColors.textSecondary,
-                  fontSize: 12,
+                  fontSize: AppText.caption,
                 ),
               ),
             ],
@@ -162,7 +162,7 @@ Widget _filaCambio(Auditoria cambio) {
             cambio.accion,
             style: TextStyle(
               color: color,
-              fontSize: 12,
+              fontSize: AppText.caption,
               fontWeight: FontWeight.w800,
             ),
           ),

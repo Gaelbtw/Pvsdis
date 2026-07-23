@@ -228,7 +228,7 @@ Future<void> _cargarReportesVentas() async {
                   pw.Text(
                     AppConfig.actual.nombreNegocio,
                     style: pw.TextStyle(
-                      fontSize: 24,
+                      fontSize: AppText.heading,
                       fontWeight: pw.FontWeight.bold,
                     ),
                   ),
@@ -240,7 +240,7 @@ Future<void> _cargarReportesVentas() async {
                 padding: const pw.EdgeInsets.all(10),
                 decoration: pw.BoxDecoration(
                   color: PdfColors.amber100,
-                  borderRadius: pw.BorderRadius.circular(8),
+                  borderRadius: pw.BorderRadius.circular(AppRadius.sm),
                 ),
                 child: pw.Text('Rango: $rangoTexto'),
               ),
@@ -263,14 +263,14 @@ Future<void> _cargarReportesVentas() async {
           pw.SizedBox(height: 24),
           pw.Text(
             esVentas ? 'Productos mas vendidos' : 'Productos mas comprados',
-            style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(fontSize: AppText.bodyLg, fontWeight: pw.FontWeight.bold),
           ),
           pw.SizedBox(height: 8),
           _pdfProductos(productos),
           pw.SizedBox(height: 24),
           pw.Text(
             esVentas ? 'Ventas registradas' : 'Compras registradas',
-            style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+            style: pw.TextStyle(fontSize: AppText.bodyLg, fontWeight: pw.FontWeight.bold),
           ),
           pw.SizedBox(height: 8),
           _pdfMovimientos(movimientos, esVentas),
@@ -289,7 +289,7 @@ Future<void> _cargarReportesVentas() async {
         padding: const pw.EdgeInsets.all(14),
         decoration: pw.BoxDecoration(
           border: pw.Border.all(color: PdfColors.grey300),
-          borderRadius: pw.BorderRadius.circular(8),
+          borderRadius: pw.BorderRadius.circular(AppRadius.sm),
         ),
         child: pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -298,7 +298,7 @@ Future<void> _cargarReportesVentas() async {
             pw.SizedBox(height: 6),
             pw.Text(
               value,
-              style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold),
+              style: pw.TextStyle(fontSize: AppText.title, fontWeight: pw.FontWeight.bold),
             ),
           ],
         ),
@@ -547,13 +547,13 @@ Future<void> _cargarReportesVentas() async {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(AppRadius.md)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            Text(label, style: const TextStyle(fontSize: AppText.overline, color: AppColors.textSecondary)),
             const SizedBox(height: 4),
-            Text('\$${valor.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: color)),
+            Text('\$${valor.toStringAsFixed(2)}', style: TextStyle(fontWeight: FontWeight.w900, fontSize: AppText.subtitle, color: color)),
           ],
         ),
       ),
@@ -564,13 +564,13 @@ Future<void> _cargarReportesVentas() async {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(AppRadius.md)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            Text(label, style: const TextStyle(fontSize: AppText.overline, color: AppColors.textSecondary)),
             const SizedBox(height: 4),
-            Text('$valor', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: color)),
+            Text('$valor', style: TextStyle(fontWeight: FontWeight.w900, fontSize: AppText.subtitle, color: color)),
           ],
         ),
       ),
@@ -581,11 +581,11 @@ Future<void> _cargarReportesVentas() async {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(18)),
+      decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(AppRadius.md)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(titulo, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+          Text(titulo, style: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w800)),
           const SizedBox(height: 10),
           if (lineas.isEmpty)
             const Text('Sin datos en este rango.', style: TextStyle(color: AppColors.textSecondary))
@@ -684,7 +684,7 @@ Future<void> _cargarReportesVentas() async {
             foregroundColor: AppColors.textPrimary,
             side: BorderSide(color: AppColors.border),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
           ),
         ),
         if (filtroDesde != null || filtroHasta != null)
@@ -707,7 +707,7 @@ Future<void> _cargarReportesVentas() async {
             backgroundColor: AppColors.primary,
             foregroundColor: AppColors.onPrimary,
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
           ),
         ),
       ],
@@ -724,7 +724,7 @@ Future<void> _cargarReportesVentas() async {
       padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<T>(
@@ -767,7 +767,7 @@ Future<void> _cargarReportesVentas() async {
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: const Row(
         children: [
@@ -789,7 +789,7 @@ Future<void> _cargarReportesVentas() async {
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 18),
       decoration: BoxDecoration(
         color: AppColors.surfaceSubtle,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: AppColors.borderLight),
       ),
       child: Row(
@@ -815,7 +815,7 @@ Future<void> _cargarReportesVentas() async {
                     Text(
                       m.accion,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: AppText.overline,
                         fontWeight: FontWeight.w800,
                         color: colorPorAccionAuditoria(m.accion),
                       ),
@@ -877,7 +877,7 @@ Future<void> _cargarReportesVentas() async {
             headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
             cellAlignment: pw.Alignment.centerLeft,
             headerDecoration: const pw.BoxDecoration(color: PdfColors.amber100),
-            cellStyle: const pw.TextStyle(fontSize: 9),
+            cellStyle: const pw.TextStyle(fontSize: AppText.overline),
           ),
         ],
       ),
@@ -901,7 +901,7 @@ Future<void> _cargarReportesVentas() async {
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
                   boxShadow: AppColors.cardShadow,
                 ),
                 child: Column(
@@ -988,7 +988,7 @@ Future<void> _cargarReportesVentas() async {
             side: BorderSide(color: AppColors.border),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(AppRadius.md),
             ),
           ),
         ),
@@ -998,7 +998,7 @@ Future<void> _cargarReportesVentas() async {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: AppColors.surface,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           child: Row(
             children: [
@@ -1023,7 +1023,7 @@ Future<void> _cargarReportesVentas() async {
             foregroundColor: Colors.black,
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(AppRadius.md),
             ),
           ),
         ),
@@ -1039,12 +1039,12 @@ Future<void> _cargarReportesVentas() async {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(AppRadius.md),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: selected ? AppColors.primary : AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
         child: Row(
           children: [
@@ -1065,7 +1065,7 @@ Future<void> _cargarReportesVentas() async {
         backgroundColor: AppColors.surface,
         foregroundColor: Colors.black87,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
       ),
       child: Text(label),
     );
@@ -1119,7 +1119,7 @@ Future<void> _cargarReportesVentas() async {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: color,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(AppRadius.md),
         ),
         child: Row(
           children: [
@@ -1127,7 +1127,7 @@ Future<void> _cargarReportesVentas() async {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
               child: Icon(icon, color: Colors.black87),
             ),
@@ -1149,7 +1149,7 @@ Future<void> _cargarReportesVentas() async {
                     value,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                      fontSize: 24,
+                      fontSize: AppText.heading,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -1184,7 +1184,7 @@ Future<void> _cargarReportesVentas() async {
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: AppColors.surfaceSubtle,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                     border: Border.all(color: AppColors.border),
                   ),
                   child: Row(
@@ -1195,7 +1195,7 @@ Future<void> _cargarReportesVentas() async {
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: AppColors.primaryLight,
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
                         ),
                         child: Text(
                           '${index + 1}',
@@ -1256,7 +1256,7 @@ Future<void> _cargarReportesVentas() async {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
       ),
       child: Column(
         children: [
@@ -1266,7 +1266,7 @@ Future<void> _cargarReportesVentas() async {
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: AppColors.primaryLight,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
                 child: Icon(icon, size: 20),
               ),
@@ -1275,7 +1275,7 @@ Future<void> _cargarReportesVentas() async {
                 child: Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 18,
+                    fontSize: AppText.subtitle,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -1359,7 +1359,7 @@ Future<void> _cargarReportesVentas() async {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppRadius.md),
         border: Border.all(color: AppColors.border),
       ),
       child: Row(
@@ -1368,7 +1368,7 @@ Future<void> _cargarReportesVentas() async {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: AppColors.primaryLight,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
             child: Icon(icon, size: 20),
           ),
@@ -1389,13 +1389,13 @@ Future<void> _cargarReportesVentas() async {
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
                           color: colorEstado.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
                         ),
                         child: Text(
                           estado!,
                           style: TextStyle(
                             color: colorEstado,
-                            fontSize: 11,
+                            fontSize: AppText.overline,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -1415,7 +1415,7 @@ Future<void> _cargarReportesVentas() async {
           const SizedBox(width: 12),
           Text(
             '\$${total.toStringAsFixed(2)}',
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: AppText.bodyLg),
           ),
           const SizedBox(width: 8),
           if (onDetalle != null)

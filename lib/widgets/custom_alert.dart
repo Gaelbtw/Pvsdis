@@ -90,7 +90,7 @@ class _CustomAlertState extends State<CustomAlert> {
       },
       child: Dialog(
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -102,7 +102,7 @@ class _CustomAlertState extends State<CustomAlert> {
               decoration: BoxDecoration(
                 color: accentColor.withValues(alpha: 0.12),
                 borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(20),
+                  top: Radius.circular(AppRadius.lg),
                 ),
               ),
               child: Column(
@@ -132,7 +132,7 @@ class _CustomAlertState extends State<CustomAlert> {
                     widget.titulo,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      fontSize: 20,
+                      fontSize: AppText.title,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -142,7 +142,7 @@ class _CustomAlertState extends State<CustomAlert> {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: 14,
+                      fontSize: AppText.small,
                       height: 1.5,
                     ),
                   ),
@@ -164,7 +164,7 @@ class _CustomAlertState extends State<CustomAlert> {
                         style: OutlinedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
                           ),
                         ),
                         onPressed: _cancelar,
@@ -182,7 +182,7 @@ class _CustomAlertState extends State<CustomAlert> {
                             isLight ? Colors.black87 : Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
                         ),
                       ),
                       onPressed: _confirmar,

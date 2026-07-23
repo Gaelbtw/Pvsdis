@@ -116,7 +116,7 @@ class _CategoriasViewState extends State<CategoriasView> {
           decoration: BoxDecoration(
             color: Colors.white,
 
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
 
             boxShadow: AppColors.cardShadow,
           ),
@@ -129,7 +129,7 @@ class _CategoriasViewState extends State<CategoriasView> {
                 "Gestión de categorías",
 
                 style: TextStyle(
-                  fontSize: 28,
+                  fontSize: AppText.display,
                   fontWeight: FontWeight.w800,
                   color: AppColors.textPrimary,
                 ),
@@ -140,7 +140,7 @@ class _CategoriasViewState extends State<CategoriasView> {
               const Text(
                 "Administre las categorías disponibles dentro del sistema",
 
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: AppText.small),
               ),
 
               const SizedBox(height: 28),
@@ -168,7 +168,7 @@ class _CategoriasViewState extends State<CategoriasView> {
                         ),
 
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
                           borderSide: BorderSide.none,
                         ),
                       ),
@@ -195,7 +195,7 @@ class _CategoriasViewState extends State<CategoriasView> {
                       ),
 
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                       ),
                     ),
                   ),
@@ -223,7 +223,7 @@ class _CategoriasViewState extends State<CategoriasView> {
                               "No hay categorías registradas",
 
                               style: TextStyle(
-                                fontSize: 16,
+                                fontSize: AppText.bodyLg,
                                 fontWeight: FontWeight.w700,
                                 color: AppColors.textSecondary,
                               ),
@@ -251,7 +251,7 @@ class _CategoriasViewState extends State<CategoriasView> {
                             decoration: BoxDecoration(
                               color: AppColors.surfaceAlt,
 
-                              borderRadius: BorderRadius.circular(24),
+                              borderRadius: BorderRadius.circular(AppRadius.lg),
 
                               border: Border.all(
                                 color: AppColors.border,
@@ -267,7 +267,7 @@ class _CategoriasViewState extends State<CategoriasView> {
                                   decoration: BoxDecoration(
                                     color: AppColors.primaryLighter,
 
-                                    borderRadius: BorderRadius.circular(16),
+                                    borderRadius: BorderRadius.circular(AppRadius.md),
                                   ),
 
                                   child: Icon(
@@ -283,7 +283,7 @@ class _CategoriasViewState extends State<CategoriasView> {
                                     c.nombre,
 
                                     style: const TextStyle(
-                                      fontSize: 17,
+                                      fontSize: AppText.bodyLg,
                                       fontWeight: FontWeight.w800,
                                       color: AppColors.textPrimary,
                                     ),

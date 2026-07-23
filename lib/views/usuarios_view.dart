@@ -77,7 +77,7 @@ class _UsuariosViewState extends State<UsuariosView> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
               child: DropdownButtonFormField<String>(
                 value: rolSeleccionado,
@@ -194,7 +194,7 @@ class _UsuariosViewState extends State<UsuariosView> {
           decoration: BoxDecoration(
             color: Colors.white,
 
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
 
             boxShadow: AppColors.cardShadow,
           ),
@@ -215,7 +215,7 @@ class _UsuariosViewState extends State<UsuariosView> {
                           "Gestión de Usuarios",
 
                           style: TextStyle(
-                            fontSize: 28,
+                            fontSize: AppText.display,
 
                             fontWeight: FontWeight.w800,
 
@@ -231,7 +231,7 @@ class _UsuariosViewState extends State<UsuariosView> {
                           style: TextStyle(
                             color: AppColors.textSecondary,
 
-                            fontSize: 13,
+                            fontSize: AppText.small,
                           ),
                         ),
                       ],
@@ -258,7 +258,7 @@ class _UsuariosViewState extends State<UsuariosView> {
                       ),
 
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                       ),
                     ),
                   ),
@@ -286,7 +286,7 @@ class _UsuariosViewState extends State<UsuariosView> {
                     contentPadding: const EdgeInsets.symmetric(vertical: 14),
 
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
 
                       borderSide: BorderSide.none,
                     ),
@@ -341,7 +341,7 @@ class _UsuariosViewState extends State<UsuariosView> {
 
                 color: AppColors.textStrong,
 
-                fontSize: 12,
+                fontSize: AppText.caption,
               ),
             ),
           ),
@@ -357,7 +357,7 @@ class _UsuariosViewState extends State<UsuariosView> {
 
                 color: AppColors.textStrong,
 
-                fontSize: 12,
+                fontSize: AppText.caption,
               ),
             ),
           ),
@@ -373,7 +373,7 @@ class _UsuariosViewState extends State<UsuariosView> {
 
                 color: AppColors.textStrong,
 
-                fontSize: 12,
+                fontSize: AppText.caption,
               ),
             ),
           ),
@@ -405,7 +405,7 @@ class _UsuariosViewState extends State<UsuariosView> {
                         ? AppColors.primaryLight
                         : const Color(0xFFEAEAEA),
 
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
 
                   child: Center(
@@ -415,7 +415,7 @@ class _UsuariosViewState extends State<UsuariosView> {
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
 
-                        fontSize: 18,
+                        fontSize: AppText.subtitle,
 
                         color: esAdmin
                             ? AppColors.primaryDarker
@@ -433,7 +433,7 @@ class _UsuariosViewState extends State<UsuariosView> {
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
 
-                    fontSize: 15,
+                    fontSize: AppText.body,
                   ),
                 ),
               ],
@@ -451,7 +451,7 @@ class _UsuariosViewState extends State<UsuariosView> {
                     ? AppColors.primaryLight
                     : const Color(0xFFF3F3F3),
 
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
 
               child: Text(

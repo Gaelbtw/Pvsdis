@@ -101,7 +101,7 @@ class _PedidosViewState extends State<PedidosView> {
         decoration: BoxDecoration(
           color:
               activo ? AppColors.primary : AppColors.surface,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
         child: Row(
           children: [
@@ -141,7 +141,7 @@ class _PedidosViewState extends State<PedidosView> {
                   height: 55,
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
                   child: TextField(
                     controller: searchCtrl,
@@ -172,7 +172,7 @@ class _PedidosViewState extends State<PedidosView> {
                           seleccionado?.idCliente == cliente.idCliente;
 
                       return InkWell(
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
                         onTap: () =>
                             setState(() => seleccionado = cliente),
                         child: AnimatedContainer(
@@ -180,7 +180,7 @@ class _PedidosViewState extends State<PedidosView> {
                           padding: const EdgeInsets.all(18),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(20),
+                            borderRadius: BorderRadius.circular(AppRadius.lg),
                             border: Border.all(
                               color: isSelected
                                   ? AppColors.primary
@@ -207,7 +207,7 @@ class _PedidosViewState extends State<PedidosView> {
                                   cliente.nombre[0],
                                   style: const TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    fontSize: 22,
+                                    fontSize: AppText.titleLg,
                                     color: Colors.black,
                                   ),
                                 ),
@@ -219,7 +219,7 @@ class _PedidosViewState extends State<PedidosView> {
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 16,
+                                  fontSize: AppText.bodyLg,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -241,7 +241,7 @@ class _PedidosViewState extends State<PedidosView> {
                                             vertical: 14),
                                     shape: RoundedRectangleBorder(
                                       borderRadius:
-                                          BorderRadius.circular(12),
+                                          BorderRadius.circular(AppRadius.sm),
                                     ),
                                   ),
                                   onPressed: () => Navigator.push(
@@ -275,13 +275,13 @@ class _PedidosViewState extends State<PedidosView> {
           padding: const EdgeInsets.all(22),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
           child: seleccionado == null
               ? const Center(
                   child: Text(
                     "Selecciona un cliente",
-                    style: TextStyle(fontSize: 16),
+                    style: TextStyle(fontSize: AppText.bodyLg),
                   ),
                 )
               : Column(
@@ -290,7 +290,7 @@ class _PedidosViewState extends State<PedidosView> {
                     const Text(
                       "Detalles del Cliente",
                       style: TextStyle(
-                        fontSize: 22,
+                        fontSize: AppText.titleLg,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -313,7 +313,7 @@ class _PedidosViewState extends State<PedidosView> {
                               vertical: 18),
                           shape: RoundedRectangleBorder(
                             borderRadius:
-                                BorderRadius.circular(16),
+                                BorderRadius.circular(AppRadius.md),
                           ),
                         ),
                         onPressed: () => Navigator.push(
@@ -329,7 +329,7 @@ class _PedidosViewState extends State<PedidosView> {
                           "Continuar",
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                            fontSize: AppText.bodyLg,
                           ),
                         ),
                       ),
@@ -354,7 +354,7 @@ class _PedidosViewState extends State<PedidosView> {
             SizedBox(height: 16),
             Text(
               "No hay pedidos registrados",
-              style: TextStyle(fontSize: 18, color: AppColors.textSecondary),
+              style: TextStyle(fontSize: AppText.subtitle, color: AppColors.textSecondary),
             ),
           ],
         ),
@@ -381,7 +381,7 @@ class _PedidosViewState extends State<PedidosView> {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
             boxShadow: const [
               BoxShadow(
                   color: Colors.black12,
@@ -396,19 +396,19 @@ class _PedidosViewState extends State<PedidosView> {
                 height: 54,
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text('#',
                         style:
-                            TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                            TextStyle(fontSize: AppText.overline, color: AppColors.textSecondary)),
                     Text(
                       idPedido.toString(),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 18,
+                        fontSize: AppText.subtitle,
                       ),
                     ),
                   ],
@@ -423,7 +423,7 @@ class _PedidosViewState extends State<PedidosView> {
                       clienteNombre,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 16,
+                        fontSize: AppText.bodyLg,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -436,7 +436,7 @@ class _PedidosViewState extends State<PedidosView> {
                         Text(fecha,
                             style: TextStyle(
                                 color: AppColors.textSecondary,
-                                fontSize: 13)),
+                                fontSize: AppText.small)),
                         const SizedBox(width: 12),
                         Icon(
                           tipo == 'Domicilio'
@@ -449,7 +449,7 @@ class _PedidosViewState extends State<PedidosView> {
                         Text(tipo,
                             style: TextStyle(
                                 color: AppColors.textSecondary,
-                                fontSize: 13)),
+                                fontSize: AppText.small)),
                       ],
                     ),
                     if (fechaEntrega.isNotEmpty) ...[
@@ -457,7 +457,7 @@ class _PedidosViewState extends State<PedidosView> {
                       Text(
                         'Entrega: $fechaEntrega',
                         style: TextStyle(
-                            color: AppColors.textSecondary, fontSize: 13),
+                            color: AppColors.textSecondary, fontSize: AppText.small),
                       ),
                     ],
                     if (direccion.isNotEmpty) ...[
@@ -467,7 +467,7 @@ class _PedidosViewState extends State<PedidosView> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                            color: AppColors.textSecondary, fontSize: 12),
+                            color: AppColors.textSecondary, fontSize: AppText.caption),
                       ),
                     ],
                   ],
@@ -482,7 +482,7 @@ class _PedidosViewState extends State<PedidosView> {
                   Text(
                     '\$${total.toStringAsFixed(2)}',
                     style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 18),
+                        fontWeight: FontWeight.bold, fontSize: AppText.subtitle),
                   ),
                 ],
               ),
@@ -529,14 +529,14 @@ class _PedidosViewState extends State<PedidosView> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Text(
         estado,
         style: TextStyle(
           color: color,
           fontWeight: FontWeight.bold,
-          fontSize: 12,
+          fontSize: AppText.caption,
         ),
       ),
     );
@@ -590,7 +590,7 @@ class _PedidosViewState extends State<PedidosView> {
           Text(
             value,
             style: const TextStyle(
-                fontWeight: FontWeight.bold, fontSize: 16),
+                fontWeight: FontWeight.bold, fontSize: AppText.bodyLg),
           ),
         ],
       ),

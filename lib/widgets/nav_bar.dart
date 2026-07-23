@@ -44,7 +44,7 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
         children: [
           if (logoPath != null && File(logoPath).existsSync())
             ClipRRect(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
               child: Image.file(File(logoPath), width: 22, height: 22, fit: BoxFit.cover),
             )
           else
@@ -93,7 +93,7 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -104,7 +104,7 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
             SessionManager.currentUserName,
             style: const TextStyle(
               fontWeight: FontWeight.w700,
-              fontSize: 12,
+              fontSize: AppText.caption,
               color: AppColors.textPrimary,
             ),
           ),
@@ -112,7 +112,7 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
             SessionManager.currentUserRole.toUpperCase(),
             style: TextStyle(
               fontWeight: FontWeight.w700,
-              fontSize: 10,
+              fontSize: AppText.overline,
               color: AppColors.primaryDark,
             ),
           ),
@@ -130,7 +130,7 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
           text,
           style: const TextStyle(
             fontWeight: FontWeight.w600,
-            fontSize: 13,
+            fontSize: AppText.small,
             color: AppColors.textPrimary,
           ),
         ),

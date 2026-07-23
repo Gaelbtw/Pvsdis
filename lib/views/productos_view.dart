@@ -124,7 +124,7 @@ class _ProductosViewState extends State<ProductosView> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppRadius.md),
             ),
             child: DropdownButtonFormField<int>(
               value: categoriaSeleccionada,
@@ -155,7 +155,7 @@ class _ProductosViewState extends State<ProductosView> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppRadius.md),
             ),
             child: DropdownButtonFormField<String>(
               value: estado,
@@ -269,7 +269,7 @@ class _ProductosViewState extends State<ProductosView> {
 
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
 
             boxShadow: AppColors.cardShadow,
           ),
@@ -302,7 +302,7 @@ class _ProductosViewState extends State<ProductosView> {
                         ),
 
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
                           borderSide: BorderSide.none,
                         ),
                       ),
@@ -330,7 +330,7 @@ class _ProductosViewState extends State<ProductosView> {
                         ),
 
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
                         ),
                       ),
                     ),
@@ -361,7 +361,7 @@ class _ProductosViewState extends State<ProductosView> {
                         side: const BorderSide(color: AppColors.border),
 
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
                         ),
                       ),
                     ),
@@ -372,7 +372,7 @@ class _ProductosViewState extends State<ProductosView> {
 
               const Text(
                 "Administre los productos registrados dentro del sistema",
-                style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                style: TextStyle(color: AppColors.textSecondary, fontSize: AppText.small),
               ),
 
               const SizedBox(height: 24),
@@ -397,7 +397,7 @@ class _ProductosViewState extends State<ProductosView> {
                       decoration: BoxDecoration(
                         color: AppColors.surfaceAlt,
 
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
 
                         border: Border.all(color: AppColors.border),
                       ),
@@ -414,7 +414,7 @@ class _ProductosViewState extends State<ProductosView> {
 
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w800,
-                                    fontSize: 17,
+                                    fontSize: AppText.bodyLg,
                                     color: AppColors.textPrimary,
                                   ),
                                 ),
@@ -484,7 +484,7 @@ class _ProductosViewState extends State<ProductosView> {
                                 decoration: BoxDecoration(
                                   color: AppColors.primaryLighter,
 
-                                  borderRadius: BorderRadius.circular(30),
+                                  borderRadius: BorderRadius.circular(AppRadius.pill),
                                 ),
 
                                 child: Text(
@@ -492,7 +492,7 @@ class _ProductosViewState extends State<ProductosView> {
 
                                   style: TextStyle(
                                     fontWeight: FontWeight.w700,
-                                    fontSize: 12,
+                                    fontSize: AppText.caption,
                                     color: AppColors.primaryDarker,
                                   ),
                                 ),
@@ -504,7 +504,7 @@ class _ProductosViewState extends State<ProductosView> {
                                 "\$${p.precio}",
 
                                 style: const TextStyle(
-                                  fontSize: 22,
+                                  fontSize: AppText.titleLg,
                                   fontWeight: FontWeight.w800,
                                   color: Color(0xFF2C2A27),
                                 ),

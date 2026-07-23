@@ -24,13 +24,13 @@ class SyncEstadoBadge extends StatelessWidget {
           message: v.tooltip,
           child: InkWell(
             onTap: sincronizando ? null : () => SyncScheduler.instancia.sincronizarAhora(),
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
             child: Container(
               margin: const EdgeInsets.symmetric(vertical: 10),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 color: v.color.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(AppRadius.pill),
                 border: Border.all(color: v.color.withValues(alpha: 0.35)),
               ),
               child: Row(
@@ -48,7 +48,7 @@ class SyncEstadoBadge extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       v.etiqueta!,
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: v.color),
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: AppText.caption, color: v.color),
                     ),
                   ],
                 ],

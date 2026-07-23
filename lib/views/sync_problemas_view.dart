@@ -117,7 +117,7 @@ class _SyncProblemasViewState extends State<SyncProblemasView> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: AppColors.border),
       ),
       child: Row(
@@ -127,10 +127,10 @@ class _SyncProblemasViewState extends State<SyncProblemasView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('${_pendientes.length} pendientes · ${_fallidas.length} con problema',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                    style: const TextStyle(fontSize: AppText.bodyLg, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
                 const SizedBox(height: 4),
                 const Text('Desliza hacia abajo para actualizar.',
-                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                    style: TextStyle(fontSize: AppText.caption, color: AppColors.textSecondary)),
               ],
             ),
           ),
@@ -146,12 +146,12 @@ class _SyncProblemasViewState extends State<SyncProblemasView> {
 
   Widget _tituloGrupo(String titulo, int conteo, Color color) => Row(
         children: [
-          Text(titulo, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+          Text(titulo, style: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(12)),
-            child: Text('$conteo', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: color)),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(AppRadius.sm)),
+            child: Text('$conteo', style: TextStyle(fontSize: AppText.caption, fontWeight: FontWeight.w800, color: color)),
           ),
         ],
       );
@@ -161,7 +161,7 @@ class _SyncProblemasViewState extends State<SyncProblemasView> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: AppColors.error.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(color: AppColors.error.withValues(alpha: 0.30)),
         ),
         child: Column(
@@ -170,7 +170,7 @@ class _SyncProblemasViewState extends State<SyncProblemasView> {
             _encabezadoItem(item),
             if (item.ultimoError != null) ...[
               const SizedBox(height: 8),
-              Text(item.ultimoError!, style: const TextStyle(fontSize: 12, color: AppColors.error)),
+              Text(item.ultimoError!, style: const TextStyle(fontSize: AppText.caption, color: AppColors.error)),
             ],
             const SizedBox(height: 12),
             Row(
@@ -199,7 +199,7 @@ class _SyncProblemasViewState extends State<SyncProblemasView> {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: AppColors.surfaceAlt,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           border: Border.all(color: AppColors.border),
         ),
         child: _encabezadoItem(item),
@@ -219,10 +219,10 @@ class _SyncProblemasViewState extends State<SyncProblemasView> {
           children: [
             Expanded(
               child: Text(item.entidad,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                  style: const TextStyle(fontSize: AppText.small, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
             ),
             Text(item.fechaCreacion.split('T').first,
-                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                style: const TextStyle(fontSize: AppText.overline, color: AppColors.textSecondary)),
           ],
         ),
         const SizedBox(height: 6),
@@ -233,8 +233,8 @@ class _SyncProblemasViewState extends State<SyncProblemasView> {
 
   Widget _chip(String texto, {Color color = AppColors.textSecondary}) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(10)),
-        child: Text(texto, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: color)),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(AppRadius.sm)),
+        child: Text(texto, style: TextStyle(fontSize: AppText.overline, fontWeight: FontWeight.w700, color: color)),
       );
 
   Widget _vacio() => Container(
@@ -245,16 +245,16 @@ class _SyncProblemasViewState extends State<SyncProblemasView> {
             const Icon(Icons.cloud_done_outlined, size: 48, color: AppColors.success),
             const SizedBox(height: 12),
             const Text('Todo al día',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                style: TextStyle(fontSize: AppText.bodyLg, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
             const SizedBox(height: 4),
             const Text('No hay cambios pendientes de subir a la nube.',
-                style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                style: TextStyle(fontSize: AppText.small, color: AppColors.textSecondary)),
           ],
         ),
       );
 
   Widget _lineaInfo(String texto) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        child: Text(texto, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        child: Text(texto, style: const TextStyle(fontSize: AppText.small, color: AppColors.textSecondary)),
       );
 }

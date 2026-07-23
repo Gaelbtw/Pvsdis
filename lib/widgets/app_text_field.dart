@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/theme/app_colors.dart';
+
 /// Campo de texto estándar usado en formularios de alta/edición. Antes cada
 /// vista definía su propia versión casi idéntica de este widget
 /// (`_input`, `_inputFormulario`, `customInput`, ...); esta es la única.
@@ -36,7 +38,7 @@ class AppTextField extends StatelessWidget {
         fillColor: fillColor,
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(AppRadius.md),
           borderSide: BorderSide.none,
         ),
       ),

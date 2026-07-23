@@ -78,3 +78,35 @@ class AppColors {
     return Color.lerp(color, Colors.white, cantidad) ?? color;
   }
 }
+
+/// Escala tipográfica centralizada (tamaños en px), para reemplazar los ~17
+/// `fontSize:` sueltos que había repartidos por las vistas. Los tamaños
+/// dominantes se conservan; los outliers poco usados se acercaron al paso más
+/// cercano (9,10→overline; 14→small; 17→bodyLg; 26→heading; 30,32→display).
+/// Solo cubre las PANTALLAS -- los tickets PDF (`lib/services`) tienen su
+/// propia tipografía de impresión y no usan esta escala.
+class AppText {
+  AppText._();
+
+  static const double overline = 11; // 9, 10, 11
+  static const double caption = 12; // 12
+  static const double small = 13; // 13, 14
+  static const double body = 15; // 15
+  static const double bodyLg = 16; // 16, 17
+  static const double subtitle = 18; // 18
+  static const double title = 20; // 20
+  static const double titleLg = 22; // 22
+  static const double heading = 24; // 24, 26
+  static const double display = 28; // 28, 30, 32
+}
+
+/// Radios de borde centralizados, para reemplazar los ~10 valores sueltos de
+/// `BorderRadius.circular(N)`. Cuatro pasos: chico, medio, grande y píldora.
+class AppRadius {
+  AppRadius._();
+
+  static const double sm = 12; // 8, 10, 12
+  static const double md = 16; // 14, 16, 18
+  static const double lg = 20; // 20, 22, 24
+  static const double pill = 28; // 28
+}

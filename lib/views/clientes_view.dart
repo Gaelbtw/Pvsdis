@@ -160,7 +160,7 @@ class _ClientesViewState extends State<ClientesView> {
           decoration: BoxDecoration(
             color: Colors.white,
 
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
 
             boxShadow: AppColors.cardShadow,
           ),
@@ -180,7 +180,7 @@ class _ClientesViewState extends State<ClientesView> {
                       "Gestión de Clientes",
 
                       style: TextStyle(
-                        fontSize: 28,
+                        fontSize: AppText.display,
                         fontWeight: FontWeight.w800,
                         color: AppColors.textPrimary,
                       ),
@@ -191,7 +191,7 @@ class _ClientesViewState extends State<ClientesView> {
                     const Text(
                       "Administre clientes registrados y genere ventas rápidamente",
 
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: AppText.small),
                     ),
 
                     const SizedBox(height: 24),
@@ -266,7 +266,7 @@ class _ClientesViewState extends State<ClientesView> {
                               ),
 
                               border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius: BorderRadius.circular(AppRadius.md),
 
                                 borderSide: BorderSide.none,
                               ),
@@ -296,7 +296,7 @@ class _ClientesViewState extends State<ClientesView> {
                             ),
 
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(AppRadius.md),
                             ),
                           ),
                         ),
@@ -323,7 +323,7 @@ class _ClientesViewState extends State<ClientesView> {
                                 final selected = selectedIndex == i;
 
                                 return InkWell(
-                                  borderRadius: BorderRadius.circular(22),
+                                  borderRadius: BorderRadius.circular(AppRadius.lg),
 
                                   onTap: () {
                                     setState(() {
@@ -341,7 +341,7 @@ class _ClientesViewState extends State<ClientesView> {
                                           ? const Color(0xFFFFF8DB)
                                           : AppColors.surfaceAlt,
 
-                                      borderRadius: BorderRadius.circular(22),
+                                      borderRadius: BorderRadius.circular(AppRadius.lg),
 
                                       border: Border.all(
                                         color: selected
@@ -372,7 +372,7 @@ class _ClientesViewState extends State<ClientesView> {
 
                                               style: TextStyle(
                                                 fontWeight: FontWeight.w800,
-                                                fontSize: 18,
+                                                fontSize: AppText.subtitle,
                                                 color: AppColors.primaryDarker,
                                               ),
                                             ),
@@ -392,7 +392,7 @@ class _ClientesViewState extends State<ClientesView> {
 
                                                 style: const TextStyle(
                                                   fontWeight: FontWeight.w800,
-                                                  fontSize: 16,
+                                                  fontSize: AppText.bodyLg,
                                                   color: AppColors.textPrimary,
                                                 ),
                                               ),
@@ -433,7 +433,7 @@ class _ClientesViewState extends State<ClientesView> {
                                               _formatearFecha(c.fechaRegistro),
 
                                               style: const TextStyle(
-                                                fontSize: 12,
+                                                fontSize: AppText.caption,
                                                 color: AppColors.textSecondary,
                                               ),
                                             ),
@@ -462,7 +462,7 @@ class _ClientesViewState extends State<ClientesView> {
                   decoration: BoxDecoration(
                     color: AppColors.surfaceAlt,
 
-                    borderRadius: BorderRadius.circular(28),
+                    borderRadius: BorderRadius.circular(AppRadius.pill),
 
                     border: Border.all(color: AppColors.border),
                   ),
@@ -500,7 +500,7 @@ class _ClientesViewState extends State<ClientesView> {
               decoration: BoxDecoration(
                 color: AppColors.primaryLight,
 
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(AppRadius.lg),
               ),
 
               child: Center(
@@ -508,7 +508,7 @@ class _ClientesViewState extends State<ClientesView> {
                   c.nombre.substring(0, 1).toUpperCase(),
 
                   style: TextStyle(
-                    fontSize: 26,
+                    fontSize: AppText.heading,
                     fontWeight: FontWeight.w800,
                     color: AppColors.primaryDarker,
                   ),
@@ -527,7 +527,7 @@ class _ClientesViewState extends State<ClientesView> {
                     c.nombre,
 
                     style: const TextStyle(
-                      fontSize: 22,
+                      fontSize: AppText.titleLg,
                       fontWeight: FontWeight.w800,
                       color: AppColors.textPrimary,
                     ),
@@ -588,7 +588,7 @@ class _ClientesViewState extends State<ClientesView> {
               elevation: 0,
 
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
             ),
           ),
@@ -613,7 +613,7 @@ class _ClientesViewState extends State<ClientesView> {
               side: const BorderSide(color: AppColors.border),
 
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
             ),
           ),
@@ -651,7 +651,7 @@ class _ClientesViewState extends State<ClientesView> {
     elevation: 0,
 
     shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(AppRadius.md),
     ),
   ),
 ),
@@ -670,7 +670,7 @@ class _ClientesViewState extends State<ClientesView> {
       decoration: BoxDecoration(
         color: Colors.white,
 
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
 
       child: Row(
@@ -688,7 +688,7 @@ class _ClientesViewState extends State<ClientesView> {
                   title,
 
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: AppText.caption,
                     color: AppColors.textSecondary,
                   ),
                 ),

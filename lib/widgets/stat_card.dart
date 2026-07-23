@@ -32,7 +32,7 @@ class StatCard extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.10),
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -44,7 +44,7 @@ class StatCard extends StatelessWidget {
               style: const TextStyle(
                 color: AppColors.textSecondary,
                 fontWeight: FontWeight.w600,
-                fontSize: 13,
+                fontSize: AppText.small,
               ),
             ),
             const SizedBox(height: 6),
@@ -52,7 +52,7 @@ class StatCard extends StatelessWidget {
               value,
               style: TextStyle(
                 color: color,
-                fontSize: 26,
+                fontSize: AppText.heading,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -65,7 +65,7 @@ class StatCard extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: AppColors.border),
       ),
       child: Column(
@@ -76,20 +76,20 @@ class StatCard extends StatelessWidget {
             height: 42,
             decoration: BoxDecoration(
               color: AppColors.primaryLight,
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(AppRadius.md),
             ),
             child: Icon(icon, color: AppColors.primaryDarker),
           ),
           const SizedBox(height: 16),
           Text(
             title,
-            style: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            style: const TextStyle(color: AppColors.textSecondary, fontSize: AppText.small),
           ),
           const SizedBox(height: 8),
           Text(
             value,
             style: const TextStyle(
-              fontSize: 24,
+              fontSize: AppText.heading,
               fontWeight: FontWeight.w800,
               color: AppColors.textPrimary,
             ),

@@ -27,7 +27,7 @@ class MenuCard extends StatelessWidget {
       color: Colors.transparent,
 
       child: InkWell(
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(AppRadius.pill),
         onTap: onTap,
 
         child: Container(
@@ -36,7 +36,7 @@ class MenuCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: color,
 
-            borderRadius: BorderRadius.circular(28),
+            borderRadius: BorderRadius.circular(AppRadius.pill),
 
             boxShadow: AppColors.cardShadow,
           ),
@@ -52,7 +52,7 @@ class MenuCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.75),
 
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
 
                 child: Icon(

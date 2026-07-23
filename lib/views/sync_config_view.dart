@@ -169,7 +169,7 @@ class _SyncConfigViewState extends State<SyncConfigView> {
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
           color: AppColors.surfaceAlt,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           border: Border.all(color: AppColors.border),
         ),
         child: child,
@@ -179,9 +179,9 @@ class _SyncConfigViewState extends State<SyncConfigView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(titulo,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+              style: const TextStyle(fontSize: AppText.bodyLg, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
           const SizedBox(height: 4),
-          Text(subtitulo, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+          Text(subtitulo, style: const TextStyle(fontSize: AppText.small, color: AppColors.textSecondary)),
         ],
       );
 
@@ -200,14 +200,14 @@ class _SyncConfigViewState extends State<SyncConfigView> {
               children: [
                 Text(
                   conectado ? 'Conectado a la nube' : 'Sin conectar a la nube',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: color),
+                  style: TextStyle(fontSize: AppText.bodyLg, fontWeight: FontWeight.w800, color: color),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   conectado
                       ? 'Sesión activa como ${sesion.email}. Las ventas y movimientos se suben automáticamente.'
                       : 'Este dispositivo opera offline. Configura el backend e inicia sesión para sincronizar.',
-                  style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+                  style: const TextStyle(fontSize: AppText.small, color: AppColors.textSecondary),
                 ),
               ],
             ),
@@ -341,7 +341,7 @@ class _SyncConfigViewState extends State<SyncConfigView> {
           context,
           MaterialPageRoute(builder: (_) => const SyncProblemasView()),
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
         child: Row(
           children: [
             Icon(Icons.fact_check_outlined, color: AppColors.primaryDark, size: 28),
@@ -351,10 +351,10 @@ class _SyncConfigViewState extends State<SyncConfigView> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('Pendientes y problemas',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                      style: TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
                   const SizedBox(height: 4),
                   const Text('Revisa qué falta por subir y resuelve los cambios atorados.',
-                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                      style: TextStyle(fontSize: AppText.small, color: AppColors.textSecondary)),
                 ],
               ),
             ),
@@ -373,9 +373,9 @@ class _SyncConfigViewState extends State<SyncConfigView> {
             SizedBox(
               width: 90,
               child: Text(etiqueta,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
+                  style: const TextStyle(fontSize: AppText.small, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
             ),
-            Expanded(child: Text(valor, style: const TextStyle(fontSize: 13, color: AppColors.textPrimary))),
+            Expanded(child: Text(valor, style: const TextStyle(fontSize: AppText.small, color: AppColors.textPrimary))),
           ],
         ),
       );

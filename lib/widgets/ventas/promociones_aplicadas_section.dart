@@ -27,7 +27,7 @@ class PromocionesAplicadasSection extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AppColors.primaryDark.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -49,10 +49,10 @@ class PromocionesAplicadasSection extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Expanded(child: Text(a.nombre, style: const TextStyle(fontSize: 13))),
+                  Expanded(child: Text(a.nombre, style: const TextStyle(fontSize: AppText.small))),
                   Text(
                     "-\$${a.ahorroTotal.toStringAsFixed(2)}",
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.success),
+                    style: const TextStyle(fontSize: AppText.small, fontWeight: FontWeight.w600, color: AppColors.success),
                   ),
                 ],
               ),

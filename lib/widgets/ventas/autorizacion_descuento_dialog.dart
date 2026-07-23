@@ -61,7 +61,7 @@ Future<void> mostrarAutorizacionDescuentoDialog(
         }
 
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
           title: const Text('Descuento requiere autorización'),
           content: SingleChildScrollView(
             child: Column(
@@ -77,7 +77,7 @@ Future<void> mostrarAutorizacionDescuentoDialog(
                   maxLines: 2,
                   decoration: InputDecoration(
                     labelText: 'Motivo',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
                   ),
                 ),
                 if (requiereCredencialesAdmin) ...[
@@ -93,7 +93,7 @@ Future<void> mostrarAutorizacionDescuentoDialog(
                     controller: usuarioCtrl,
                     decoration: InputDecoration(
                       labelText: 'Usuario admin',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -102,13 +102,13 @@ Future<void> mostrarAutorizacionDescuentoDialog(
                     obscureText: true,
                     decoration: InputDecoration(
                       labelText: 'Contraseña',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
                     ),
                   ),
                 ],
                 if (error != null) ...[
                   const SizedBox(height: 12),
-                  Text(error!, style: const TextStyle(color: AppColors.error, fontSize: 13)),
+                  Text(error!, style: const TextStyle(color: AppColors.error, fontSize: AppText.small)),
                 ],
               ],
             ),

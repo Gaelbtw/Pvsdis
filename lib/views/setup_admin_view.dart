@@ -121,7 +121,7 @@ class _SetupAdminViewState extends State<SetupAdminView> {
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(28),
+                borderRadius: BorderRadius.circular(AppRadius.pill),
                 boxShadow: AppColors.cardShadow,
               ),
               child: Column(
@@ -132,7 +132,7 @@ class _SetupAdminViewState extends State<SetupAdminView> {
                     width: 90,
                     decoration: BoxDecoration(
                       color: AppColors.primary.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(24),
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
                     ),
                     child: Icon(
                       Icons.admin_panel_settings_outlined,
@@ -144,7 +144,7 @@ class _SetupAdminViewState extends State<SetupAdminView> {
                   const Text(
                     "Configuración inicial",
                     style: TextStyle(
-                      fontSize: 26,
+                      fontSize: AppText.heading,
                       fontWeight: FontWeight.bold,
                       color: AppColors.textPrimary,
                     ),
@@ -153,7 +153,7 @@ class _SetupAdminViewState extends State<SetupAdminView> {
                   const Text(
                     "Crea la cuenta de administrador para empezar a usar el sistema.",
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                    style: TextStyle(fontSize: AppText.small, color: AppColors.textSecondary),
                   ),
                   const SizedBox(height: 32),
                   TextField(
@@ -164,7 +164,7 @@ class _SetupAdminViewState extends State<SetupAdminView> {
                       filled: true,
                       fillColor: AppColors.surfaceSubtle,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                         borderSide: BorderSide.none,
                       ),
                     ),
@@ -181,7 +181,7 @@ class _SetupAdminViewState extends State<SetupAdminView> {
                       filled: true,
                       fillColor: AppColors.surfaceSubtle,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                         borderSide: BorderSide.none,
                       ),
                       suffixIcon: IconButton(
@@ -206,7 +206,7 @@ class _SetupAdminViewState extends State<SetupAdminView> {
                       filled: true,
                       fillColor: AppColors.surfaceSubtle,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                         borderSide: BorderSide.none,
                       ),
                     ),
@@ -222,7 +222,7 @@ class _SetupAdminViewState extends State<SetupAdminView> {
                         foregroundColor: Colors.black87,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(AppRadius.md),
                         ),
                       ),
                       child: _guardando
@@ -237,7 +237,7 @@ class _SetupAdminViewState extends State<SetupAdminView> {
                           : const Text(
                               "Crear cuenta de administrador",
                               style: TextStyle(
-                                fontSize: 16,
+                                fontSize: AppText.bodyLg,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),

@@ -22,7 +22,7 @@ void mostrarEditarPedidoDialog(
     context: context,
     builder: (ctx) => StatefulBuilder(
       builder: (ctx, setDialog) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
         title: Text('Editar Pedido #${pedidoMap["id_pedido"]}'),
         content: SingleChildScrollView(
           child: Column(
@@ -37,7 +37,7 @@ void mostrarEditarPedidoDialog(
                   filled: true,
                   fillColor: AppColors.surface,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
                     borderSide: BorderSide.none,
                   ),
                 ),
@@ -73,12 +73,12 @@ void mostrarEditarPedidoDialog(
                     });
                   }
                 },
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(AppRadius.sm),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
                     color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
                   ),
                   child: Row(
                     children: [
@@ -106,7 +106,7 @@ void mostrarEditarPedidoDialog(
                     filled: true,
                     fillColor: AppColors.surface,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
                       borderSide: BorderSide.none,
                     ),
                     prefixIcon: const Icon(Icons.location_on_outlined),
@@ -125,7 +125,7 @@ void mostrarEditarPedidoDialog(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
             ),
             onPressed: () async {
               final idPedido = pedidoMap['id_pedido'] as int;
@@ -189,7 +189,7 @@ Widget _tipoChipDialog(String label, String selected, ValueChanged<String> onTap
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         color: activo ? AppColors.primary : AppColors.surface,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Text(
         label,

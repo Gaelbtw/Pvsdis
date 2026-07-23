@@ -154,7 +154,7 @@ class _InventarioViewState extends State<InventarioView> {
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
                   boxShadow: AppColors.cardShadow,
                 ),
                 child: Column(
@@ -162,7 +162,7 @@ class _InventarioViewState extends State<InventarioView> {
                   children: [
                     const Text(
                       "Administra productos, existencias y niveles de stock.",
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: AppText.small),
                     ),
                     const SizedBox(height: 24),
                     _metricas(resumen),
@@ -242,7 +242,7 @@ class _InventarioViewState extends State<InventarioView> {
               fillColor: AppColors.surface,
               contentPadding: const EdgeInsets.symmetric(vertical: 16),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(AppRadius.md),
                 borderSide: BorderSide.none,
               ),
             ),
@@ -300,7 +300,7 @@ class _InventarioViewState extends State<InventarioView> {
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.black87,
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
             ),
           ),
       ],

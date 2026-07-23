@@ -59,7 +59,7 @@ class _ProveedorDetalleViewState extends State<ProveedorDetalleView> {
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
                   boxShadow: AppColors.cardShadow,
                 ),
                 child: Column(
@@ -67,7 +67,7 @@ class _ProveedorDetalleViewState extends State<ProveedorDetalleView> {
                   children: [
                     Text(
                       widget.proveedor.nombre,
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
+                      style: const TextStyle(fontSize: AppText.heading, fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 4),
                     if (widget.proveedor.telefono.isNotEmpty)
@@ -92,7 +92,7 @@ class _ProveedorDetalleViewState extends State<ProveedorDetalleView> {
                       children: [
                         const Text(
                           'Historial de compras y pagos',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                          style: TextStyle(fontSize: AppText.bodyLg, fontWeight: FontWeight.w800),
                         ),
                         const Spacer(),
                         TextButton.icon(
@@ -138,13 +138,13 @@ class _ProveedorDetalleViewState extends State<ProveedorDetalleView> {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(AppRadius.md)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            Text(label, style: const TextStyle(fontSize: AppText.overline, color: AppColors.textSecondary)),
             const SizedBox(height: 4),
-            Text('\$${numero.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+            Text('\$${numero.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: AppText.subtitle)),
           ],
         ),
       ),
@@ -156,13 +156,13 @@ class _ProveedorDetalleViewState extends State<ProveedorDetalleView> {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(16)),
+        decoration: BoxDecoration(color: color.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(AppRadius.md)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            Text(label, style: const TextStyle(fontSize: AppText.overline, color: AppColors.textSecondary)),
             const SizedBox(height: 4),
-            Text('$numero', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
+            Text('$numero', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: AppText.subtitle)),
           ],
         ),
       ),
@@ -186,7 +186,7 @@ class _ProveedorDetalleViewState extends State<ProveedorDetalleView> {
 
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: AppColors.surfaceSubtle, borderRadius: BorderRadius.circular(14)),
+      decoration: BoxDecoration(color: AppColors.surfaceSubtle, borderRadius: BorderRadius.circular(AppRadius.md)),
       child: Row(
         children: [
           Expanded(
@@ -202,12 +202,12 @@ class _ProveedorDetalleViewState extends State<ProveedorDetalleView> {
             decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(999)),
             child: Text(
               vencida ? 'Vencida' : estado,
-              style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800),
+              style: TextStyle(color: color, fontSize: AppText.overline, fontWeight: FontWeight.w800),
             ),
           ),
           if (saldo > 0) ...[
             const SizedBox(width: 8),
-            Text('Saldo: \$${saldo.toStringAsFixed(2)}', style: const TextStyle(color: AppColors.error, fontSize: 12)),
+            Text('Saldo: \$${saldo.toStringAsFixed(2)}', style: const TextStyle(color: AppColors.error, fontSize: AppText.caption)),
           ],
         ],
       ),
