@@ -381,11 +381,12 @@ class _HomeViewState extends State<HomeView> {
   Widget _modulosGrid() {
     final resto = _modulos;
     return LayoutBuilder(builder: (context, c) {
-      final cols = c.maxWidth >= 720 ? 2 : 1;
-      // El hero (con Spacer) necesita altura acotada; el GridView es un
-      // viewport perezoso que NO soporta dimensiones intrínsecas, así que en
-      // vez de envolver en IntrinsicHeight (que reventaba al medir el grid)
-      // le damos al hero una altura fija y alineamos ambas columnas arriba.
+      final cols = c.maxWidth >= 900 ? 3 : (c.maxWidth >= 560 ? 2 : 1);
+      // El hero (con Spacer) necesita altura acotada → altura fija.
+      // El GridView usa `mainAxisExtent` (altura fija por tarjeta) en vez de
+      // `childAspectRatio`: así la altura de la tarjeta NO depende del ancho.
+      // Esto evita el overflow del contenido y mantiene la parrilla compacta,
+      // para que todo el dashboard quepa sin cortarse abajo.
       return Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -393,14 +394,17 @@ class _HomeViewState extends State<HomeView> {
           const SizedBox(width: 16),
           Expanded(
             flex: 7,
-            child: GridView.count(
-              crossAxisCount: cols,
+            child: GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              childAspectRatio: 1.75,
-              children: resto.map(_tarjetaModulo).toList(),
+              itemCount: resto.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: cols,
+                mainAxisSpacing: 16,
+                crossAxisSpacing: 16,
+                mainAxisExtent: 132,
+              ),
+              itemBuilder: (_, i) => _tarjetaModulo(resto[i]),
             ),
           ),
         ],

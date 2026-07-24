@@ -290,8 +290,8 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
         ),
       ),
       MenuCard(
-        title: "Auditorías",
-        subtitle: "Seguimiento del sistema",
+        title: "Actividad",
+        subtitle: "Registro de movimientos",
         icon: Icons.fact_check_outlined,
         color: AppColors.primaryLighter,
         onTap: () => Navigator.push(
@@ -300,7 +300,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
         ),
       ),
       MenuCard(
-        title: "Base de datos",
+        title: "Copias de seguridad",
         subtitle: "Respaldo y restauración",
         icon: Icons.storage_rounded,
         color: AppColors.primaryLighter,
@@ -580,7 +580,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
     if (!SessionManager.isAdmin) {
       return Scaffold(
         backgroundColor: AppColors.background,
-        appBar: CustomHeader(titulo: "Configuración", mostrarVolver: Navigator.canPop(context)),
+        appBar: CustomHeader(titulo: "Configuración", mostrarVolver: Navigator.canPop(context), mostrarInfo: false),
         body: const Center(
           child: Padding(
             padding: EdgeInsets.all(24),
@@ -596,19 +596,24 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: CustomHeader(titulo: "Configuración", mostrarVolver: Navigator.canPop(context)),
+      appBar: CustomHeader(titulo: "Configuración", mostrarVolver: Navigator.canPop(context), mostrarInfo: false),
       body: cargando
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _navSecciones(),
-                    const SizedBox(width: 24),
-                    Expanded(child: _panelSeccion()),
-                  ],
+              // El cuerpo scrollea y las columnas se alinean arriba con altura
+              // natural: así el panel se ajusta a su contenido y las secciones
+              // cortas ya no dejan un gran vacío blanco.
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _navSecciones(),
+                      const SizedBox(width: 24),
+                      Expanded(child: _panelSeccion()),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -620,34 +625,28 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
   Widget _navSecciones() {
     return SizedBox(
       width: 240,
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(6, 2, 6, 16),
-              child: Text("Configuración",
-                  style: TextStyle(fontSize: AppText.titleLg, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
-            ),
-            for (var i = 0; i < _secciones.length; i++) ...[
-              // Encabezado del grupo: se muestra al empezar un grupo nuevo.
-              if (i == 0 || _secciones[i].$4 != _secciones[i - 1].$4)
-                Padding(
-                  padding: EdgeInsets.fromLTRB(14, i == 0 ? 4 : 18, 14, 8),
-                  child: Text(
-                    _secciones[i].$4,
-                    style: const TextStyle(
-                      fontSize: AppText.overline,
-                      fontWeight: FontWeight.w800,
-                      color: AppColors.textSecondary,
-                      letterSpacing: 0.8,
-                    ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < _secciones.length; i++) ...[
+            // Encabezado del grupo: se muestra al empezar un grupo nuevo.
+            if (i == 0 || _secciones[i].$4 != _secciones[i - 1].$4)
+              Padding(
+                padding: EdgeInsets.fromLTRB(14, i == 0 ? 2 : 18, 14, 8),
+                child: Text(
+                  _secciones[i].$4,
+                  style: const TextStyle(
+                    fontSize: AppText.overline,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textSecondary,
+                    letterSpacing: 0.8,
                   ),
                 ),
-              _navItem(i),
-            ],
+              ),
+            _navItem(i),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -719,6 +718,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
         boxShadow: AppColors.cardShadow,
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
@@ -746,11 +746,9 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
             ),
           ),
           const Divider(height: 1, color: AppColors.border),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
-              child: _contenidoSeccion(_seccion),
-            ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
+            child: _contenidoSeccion(_seccion),
           ),
           if (!esAccesos) ...[
             const Divider(height: 1, color: AppColors.border),

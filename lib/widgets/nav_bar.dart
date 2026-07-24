@@ -12,11 +12,17 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
   final bool? mostrarVolver;
   final List<Widget>? extraActions;
 
+  /// Si es `false`, oculta las píldoras de fecha, hora, sincronización y
+  /// usuario. Útil en pantallas de configuración/ajustes donde esa
+  /// información del panel de venta no aporta y solo estorba.
+  final bool mostrarInfo;
+
   const CustomHeader({
     super.key,
     required this.titulo,
     this.mostrarVolver,
     this.extraActions,
+    this.mostrarInfo = true,
   });
 
   @override
@@ -75,16 +81,18 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
         ],
       ),
       actions: [
-  _topInfo(Icons.calendar_today_outlined, _fechaLarga(now)),
-  const SizedBox(width: 16),
-  _topInfo(Icons.access_time, _hora(now)),
-  const SizedBox(width: 16),
-  const SyncEstadoBadge(),
-  const SizedBox(width: 12),
-  _usuarioBox(),
-  ...?extraActions,
-  const SizedBox(width: 12),
-],
+        if (mostrarInfo) ...[
+          _topInfo(Icons.calendar_today_outlined, _fechaLarga(now)),
+          const SizedBox(width: 16),
+          _topInfo(Icons.access_time, _hora(now)),
+          const SizedBox(width: 16),
+          const SyncEstadoBadge(),
+          const SizedBox(width: 12),
+          _usuarioBox(),
+        ],
+        ...?extraActions,
+        const SizedBox(width: 12),
+      ],
     );
   }
 
