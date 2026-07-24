@@ -4,7 +4,7 @@ import '../controllers/usuarios_controller.dart';
 import '../core/security/password_hasher.dart';
 import '../core/theme/app_colors.dart';
 import '../models/usuarios_model.dart';
-import '../widgets/custom_alert.dart';
+import '../widgets/toast.dart';
 import 'login_view.dart';
 
 /// Pantalla de primer arranque: crea la cuenta de administrador cuando la
@@ -26,17 +26,8 @@ class _SetupAdminViewState extends State<SetupAdminView> {
   bool _guardando = false;
   bool _ocultarPassword = true;
 
-  void _mostrarAviso(String titulo, String mensaje, IconData icono) {
-    showDialog(
-      context: context,
-      builder: (_) => CustomAlert(
-        titulo: titulo,
-        mensaje: mensaje,
-        icono: icono,
-        textoConfirmar: "Aceptar",
-        onConfirm: () {},
-      ),
-    );
+  void _mostrarAviso(String mensaje) {
+    Toast.error(context, mensaje);
   }
 
   Future<void> _crearAdministrador() async {
@@ -45,26 +36,18 @@ class _SetupAdminViewState extends State<SetupAdminView> {
     final confirmar = _confirmarController.text;
 
     if (nombre.isEmpty || password.isEmpty || confirmar.isEmpty) {
-      _mostrarAviso(
-        "Campos incompletos",
-        "Completa todos los campos para continuar.",
-        Icons.warning_amber_rounded,
-      );
+      _mostrarAviso("Completa todos los campos para continuar.");
       return;
     }
 
     final errorPolitica = PasswordHasher.validate(password);
     if (errorPolitica != null) {
-      _mostrarAviso("Contraseña débil", errorPolitica, Icons.lock_outline);
+      _mostrarAviso(errorPolitica);
       return;
     }
 
     if (password != confirmar) {
-      _mostrarAviso(
-        "Las contraseñas no coinciden",
-        "Verifica que ambos campos de contraseña sean iguales.",
-        Icons.lock_outline,
-      );
+      _mostrarAviso("Las contraseñas no coinciden. Verifica ambos campos.");
       return;
     }
 
@@ -82,21 +65,10 @@ class _SetupAdminViewState extends State<SetupAdminView> {
     if (!mounted) return;
     setState(() => _guardando = false);
 
-    showDialog(
-      context: context,
-      builder: (_) => CustomAlert(
-        titulo: "Cuenta creada",
-        mensaje:
-            "La cuenta de administrador se creó correctamente. Ahora inicia sesión para continuar.",
-        icono: Icons.check_circle_outline,
-        textoConfirmar: "Continuar",
-        onConfirm: () {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const LoginView()),
-          );
-        },
-      ),
+    Toast.exito(context, "Cuenta de administrador creada. Inicia sesión para continuar.");
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const LoginView()),
     );
   }
 

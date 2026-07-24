@@ -12,9 +12,9 @@ import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
 import '../models/configuracion_model.dart';
 import '../services/configuracion_service.dart';
-import '../widgets/custom_alert.dart';
 import '../widgets/menu_card.dart';
 import '../widgets/nav_bar.dart';
+import '../widgets/toast.dart';
 import 'apartados_view.dart';
 import 'auditorias_view.dart';
 import 'base_datos_view.dart';
@@ -63,6 +63,23 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
   bool autoImprimirTicket = false;
   String? impresoraUrl;
   String? impresoraNombre;
+
+  /// Sección activa del panel de configuración (índice en [_secciones]).
+  int _seccion = 0;
+
+  /// Secciones del panel. El 4.º campo es el grupo temático: se muestra como
+  /// encabezado en la barra lateral para separar visualmente los ajustes del
+  /// negocio, de ventas, de operación y de administración.
+  static const _secciones = <(IconData, String, String, String)>[
+    (Icons.storefront_outlined, 'Negocio', 'Nombre, logo y datos de contacto', 'NEGOCIO'),
+    (Icons.palette_outlined, 'Apariencia', 'Color principal del sistema', 'NEGOCIO'),
+    (Icons.receipt_long_outlined, 'Ticket y ventas', 'Moneda, IVA y mensaje del ticket', 'VENTAS'),
+    (Icons.sell_outlined, 'Descuentos', 'Límite y permisos del cajero', 'VENTAS'),
+    (Icons.print_outlined, 'Impresión', 'Papel, impresora y ticket automático', 'VENTAS'),
+    (Icons.schedule_outlined, 'Turnos', 'Horario matutino y vespertino', 'OPERACIÓN'),
+    (Icons.inventory_2_outlined, 'Inventario y caja', 'Inventario mínimo y fondo de caja', 'OPERACIÓN'),
+    (Icons.grid_view_rounded, 'Accesos', 'Usuarios, reportes, respaldos y más', 'ADMINISTRACIÓN'),
+  ];
 
   String? logoPath;
   late Color colorSeleccionado;
@@ -165,17 +182,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
     if (stockCtrl.text.trim().isEmpty ||
         fondoCtrl.text.trim().isEmpty ||
         nombreCtrl.text.trim().isEmpty) {
-      showDialog(
-        context: context,
-        builder: (_) => CustomAlert(
-          titulo: "Campos incompletos",
-          mensaje:
-              "El nombre del negocio, el stock mínimo y el fondo de caja son obligatorios.",
-          icono: Icons.warning_amber_rounded,
-          textoConfirmar: "Aceptar",
-          onConfirm: () {},
-        ),
-      );
+      Toast.error(context, "Faltan datos: el nombre del negocio, el inventario mínimo y el fondo de caja son obligatorios.");
       return;
     }
 
@@ -220,17 +227,11 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
 
     if (!mounted) return;
 
-    showDialog(
-      context: context,
-      builder: (_) => CustomAlert(
-        titulo: "Configuración guardada",
-        mensaje: colorSeleccionado.toARGB32() != AppColors.primary.toARGB32()
-            ? "Los datos del negocio se actualizaron. El color de marca se aplicará por completo la próxima vez que abras la app."
-            : "La configuración del sistema ha sido actualizada exitosamente.",
-        icono: Icons.check_circle_outline,
-        textoConfirmar: "Aceptar",
-        onConfirm: () {},
-      ),
+    Toast.exito(
+      context,
+      colorSeleccionado.toARGB32() != AppColors.primary.toARGB32()
+          ? "Configuración guardada. El nuevo color de marca se aplicará al reiniciar la app."
+          : "Configuración guardada.",
     );
   }
 
@@ -270,7 +271,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
     final accesos = <Widget>[
       MenuCard(
         title: "Usuarios",
-        subtitle: "Gestion de usuarios",
+        subtitle: "Gestión de usuarios",
         icon: Icons.person,
         color: AppColors.primaryLight,
         onTap: () => Navigator.push(
@@ -280,7 +281,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
       ),
       MenuCard(
         title: "Reportes",
-        subtitle: "Analisis",
+        subtitle: "Análisis y estadísticas",
         icon: Icons.bar_chart,
         color: AppColors.primaryLighter,
         onTap: () => Navigator.push(
@@ -289,7 +290,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
         ),
       ),
       MenuCard(
-        title: "Auditorias",
+        title: "Auditorías",
         subtitle: "Seguimiento del sistema",
         icon: Icons.fact_check_outlined,
         color: AppColors.primaryLighter,
@@ -300,7 +301,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
       ),
       MenuCard(
         title: "Base de datos",
-        subtitle: "Backup y restore",
+        subtitle: "Respaldo y restauración",
         icon: Icons.storage_rounded,
         color: AppColors.primaryLighter,
         onTap: () => Navigator.push(
@@ -320,7 +321,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
       ),
       MenuCard(
         title: "Promociones",
-        subtitle: "Descuentos automaticos",
+        subtitle: "Descuentos automáticos",
         icon: Icons.local_offer,
         color: AppColors.primaryLight,
         onTap: () => Navigator.push(
@@ -330,7 +331,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
       ),
       MenuCard(
         title: "Pedidos",
-        subtitle: "Gestion de pedidos",
+        subtitle: "Gestión de pedidos",
         icon: Icons.receipt_long,
         color: AppColors.primaryLight,
         onTap: () => Navigator.push(
@@ -360,50 +361,32 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
       ),
     ];
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 20),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Accesos y administración",
-            style: TextStyle(
-              fontSize: AppText.bodyLg,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            "Módulos administrativos: no aparecen en el inicio para mantenerlo enfocado en la operación diaria.",
-            style: TextStyle(fontSize: AppText.small, color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 18),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              int columnas = 2;
-              if (constraints.maxWidth >= 700) columnas = 4;
-              if (constraints.maxWidth >= 1000) columnas = 5;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Estos módulos no aparecen en el inicio para mantenerlo enfocado en la venta diaria. Ábrelos desde aquí cuando los necesites.",
+          style: TextStyle(fontSize: AppText.small, color: AppColors.textSecondary),
+        ),
+        const SizedBox(height: 20),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            int columnas = 2;
+            if (constraints.maxWidth >= 700) columnas = 3;
+            if (constraints.maxWidth >= 1000) columnas = 4;
 
-              return GridView.count(
-                crossAxisCount: columnas,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                mainAxisSpacing: 14,
-                crossAxisSpacing: 14,
-                childAspectRatio: constraints.maxWidth >= 700 ? 1.15 : 1.3,
-                children: accesos,
-              );
-            },
-          ),
-        ],
-      ),
+            return GridView.count(
+              crossAxisCount: columnas,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 14,
+              crossAxisSpacing: 14,
+              childAspectRatio: constraints.maxWidth >= 700 ? 1.15 : 1.3,
+              children: accesos,
+            );
+          },
+        ),
+      ],
     );
   }
 
@@ -597,7 +580,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
     if (!SessionManager.isAdmin) {
       return Scaffold(
         backgroundColor: AppColors.background,
-        appBar: const CustomHeader(titulo: "Configuración", mostrarVolver: true),
+        appBar: CustomHeader(titulo: "Configuración", mostrarVolver: Navigator.canPop(context)),
         body: const Center(
           child: Padding(
             padding: EdgeInsets.all(24),
@@ -613,285 +596,372 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: const CustomHeader(titulo: "Configuración", mostrarVolver: true),
+      appBar: CustomHeader(titulo: "Configuración", mostrarVolver: Navigator.canPop(context)),
       body: cargando
           ? const Center(child: CircularProgressIndicator())
           : SafeArea(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                    boxShadow: AppColors.cardShadow,
-                  ),
-                  child: ListView(
-                    children: [
-                      const Text(
-                        "Configuración General",
-                        style: TextStyle(
-                          fontSize: AppText.display,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        "Estos datos se usan en toda la app: encabezado, tickets, reportes y respaldos.",
-                        style: TextStyle(color: AppColors.textSecondary, fontSize: AppText.small),
-                      ),
-                      const SizedBox(height: 28),
-                      _accesosAdministracion(context),
-                      const SizedBox(height: 8),
-                      sectionCard(
-                        icon: Icons.storefront_outlined,
-                        title: "Datos del negocio",
-                        subtitle: "Nombre, logo y contacto que aparecen en tickets y reportes",
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _logoSelector(),
-                            const SizedBox(height: 16),
-                            customInput(controller: nombreCtrl, hint: "Nombre del negocio"),
-                            const SizedBox(height: 12),
-                            customInput(controller: direccionCtrl, hint: "Dirección"),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: customInput(
-                                    controller: telefonoCtrl,
-                                    hint: "Teléfono",
-                                    keyboard: TextInputType.phone,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: customInput(
-                                    controller: correoCtrl,
-                                    hint: "Correo",
-                                    keyboard: TextInputType.emailAddress,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            customInput(controller: rfcCtrl, hint: "RFC / dato fiscal (opcional)"),
-                          ],
-                        ),
-                      ),
-                      sectionCard(
-                        icon: Icons.receipt_long_outlined,
-                        title: "Ticket y ventas",
-                        subtitle: "Moneda, IVA y mensaje que se imprime en cada ticket",
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: customInput(controller: monedaCtrl, hint: "Símbolo de moneda (ej. \$)"),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: customInput(
-                                    controller: ivaCtrl,
-                                    hint: "IVA % (ej. 16)",
-                                    keyboard: const TextInputType.numberWithOptions(decimal: true),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            customInput(controller: mensajeTicketCtrl, hint: "Mensaje al final del ticket"),
-                            const SizedBox(height: 4),
-                            SwitchListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text("Desglosar IVA en el ticket"),
-                              subtitle: const Text(
-                                "Muestra base (sin IVA) e IVA por separado, en vez de solo \"IVA incluido\"",
-                              ),
-                              value: mostrarIvaDesglosado,
-                              activeThumbColor: AppColors.primary,
-                              onChanged: (v) => setState(() => mostrarIvaDesglosado = v),
-                            ),
-                          ],
-                        ),
-                      ),
-                      sectionCard(
-                        icon: Icons.print_outlined,
-                        title: "Impresión",
-                        subtitle: "Tamaño de papel, impresora y auto-impresión del ticket",
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            DropdownButtonFormField<String>(
-                              initialValue: tamanoPapel,
-                              decoration: const InputDecoration(
-                                labelText: "Tamaño de papel",
-                                border: OutlineInputBorder(),
-                              ),
-                              items: const [
-                                DropdownMenuItem(value: '58mm', child: Text("58 mm (angosto)")),
-                                DropdownMenuItem(value: '80mm', child: Text("80 mm (estándar)")),
-                              ],
-                              onChanged: (v) => setState(() => tamanoPapel = v ?? '80mm'),
-                            ),
-                            const SizedBox(height: 8),
-                            ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: const Icon(Icons.print_outlined),
-                              title: Text(impresoraNombre ?? "Sin impresora seleccionada"),
-                              subtitle: const Text("Impresora para auto-imprimir"),
-                              trailing: OutlinedButton(
-                                onPressed: _seleccionarImpresora,
-                                child: const Text("Elegir"),
-                              ),
-                            ),
-                            SwitchListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text("Imprimir automáticamente al cobrar"),
-                              subtitle: const Text(
-                                "Sin diálogo de impresión. Requiere una impresora seleccionada",
-                              ),
-                              value: autoImprimirTicket,
-                              activeThumbColor: AppColors.primary,
-                              onChanged: (v) => setState(() => autoImprimirTicket = v),
-                            ),
-                          ],
-                        ),
-                      ),
-                      sectionCard(
-                        icon: Icons.palette_outlined,
-                        title: "Color de marca",
-                        subtitle: "Se aplica a botones y encabezados de todo el sistema",
-                        child: _selectorColor(),
-                      ),
-                      sectionCard(
-                        icon: Icons.wb_sunny_outlined,
-                        title: "Turno Matutino",
-                        subtitle: "Defina el horario operativo matutino",
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: horaButton(
-                                label: "Hora inicio",
-                                hora: format(matutinoInicio),
-                                onTap: () => pickHora(true, true),
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: horaButton(
-                                label: "Hora fin",
-                                hora: format(matutinoFin),
-                                onTap: () => pickHora(false, true),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      sectionCard(
-                        icon: Icons.nightlight_round,
-                        title: "Turno Vespertino",
-                        subtitle: "Configure el horario vespertino",
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: horaButton(
-                                label: "Hora inicio",
-                                hora: format(vespertinoInicio),
-                                onTap: () => pickHora(true, false),
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: horaButton(
-                                label: "Hora fin",
-                                hora: format(vespertinoFin),
-                                onTap: () => pickHora(false, false),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      sectionCard(
-                        icon: Icons.inventory_2_outlined,
-                        title: "Inventario",
-                        subtitle: "Control de stock mínimo permitido",
-                        child: customInput(
-                          controller: stockCtrl,
-                          hint: "Stock mínimo",
-                          keyboard: TextInputType.number,
-                        ),
-                      ),
-                      sectionCard(
-                        icon: Icons.payments_outlined,
-                        title: "Caja",
-                        subtitle: "Fondo inicial utilizado al abrir caja",
-                        child: customInput(
-                          controller: fondoCtrl,
-                          hint: "Fondo inicial",
-                          keyboard: TextInputType.number,
-                        ),
-                      ),
-                      sectionCard(
-                        icon: Icons.sell_outlined,
-                        title: "Descuentos",
-                        subtitle: "Umbral que exige motivo/autorización y permisos del cajero",
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            customInput(
-                              controller: descuentoMaximoCtrl,
-                              hint: "Umbral (% a partir del cual se exige motivo)",
-                              keyboard: const TextInputType.numberWithOptions(decimal: true),
-                            ),
-                            const SizedBox(height: 16),
-                            SwitchListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text("El cajero puede aplicar descuentos"),
-                              value: descuentoCajeroPuedeAplicar,
-                              activeThumbColor: AppColors.primary,
-                              onChanged: (v) => setState(() => descuentoCajeroPuedeAplicar = v),
-                            ),
-                            SwitchListTile(
-                              contentPadding: EdgeInsets.zero,
-                              title: const Text("Requiere autorización de administrador al superar el umbral"),
-                              value: descuentoCajeroRequiereAutorizacion,
-                              activeThumbColor: AppColors.primary,
-                              onChanged: (v) => setState(() => descuentoCajeroRequiereAutorizacion = v),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        height: 58,
-                        child: ElevatedButton.icon(
-                          onPressed: guardar,
-                          icon: const Icon(Icons.save_outlined),
-                          label: const Text("Guardar Configuración"),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: AppColors.onPrimary,
-                            elevation: 0,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(AppRadius.md),
-                            ),
-                            textStyle: const TextStyle(
-                              fontSize: AppText.body,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _navSecciones(),
+                    const SizedBox(width: 24),
+                    Expanded(child: _panelSeccion()),
+                  ],
                 ),
               ),
             ),
     );
   }
+
+  // ------------------------------------------- navegación de secciones
+
+  Widget _navSecciones() {
+    return SizedBox(
+      width: 240,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(6, 2, 6, 16),
+              child: Text("Configuración",
+                  style: TextStyle(fontSize: AppText.titleLg, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
+            ),
+            for (var i = 0; i < _secciones.length; i++) ...[
+              // Encabezado del grupo: se muestra al empezar un grupo nuevo.
+              if (i == 0 || _secciones[i].$4 != _secciones[i - 1].$4)
+                Padding(
+                  padding: EdgeInsets.fromLTRB(14, i == 0 ? 4 : 18, 14, 8),
+                  child: Text(
+                    _secciones[i].$4,
+                    style: const TextStyle(
+                      fontSize: AppText.overline,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textSecondary,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ),
+              _navItem(i),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _navItem(int i) {
+    final (icon, label, _, _) = _secciones[i];
+    final sel = _seccion == i;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Material(
+        color: sel ? AppColors.primary.withValues(alpha: 0.16) : Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          onTap: () => setState(() => _seccion = i),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: Row(
+              children: [
+                Icon(icon, size: 20, color: sel ? AppColors.primaryDark : AppColors.textSecondary),
+                const SizedBox(width: 12),
+                Text(label,
+                    style: TextStyle(
+                      fontSize: AppText.body,
+                      fontWeight: sel ? FontWeight.w700 : FontWeight.w600,
+                      color: sel ? AppColors.textPrimary : AppColors.textSecondary,
+                    )),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------- panel de la sección
+
+  Widget _contenidoSeccion(int i) {
+    switch (i) {
+      case 0:
+        return _seccionNegocio();
+      case 1:
+        return _seccionApariencia();
+      case 2:
+        return _seccionTicket();
+      case 3:
+        return _seccionDescuentos();
+      case 4:
+        return _seccionImpresion();
+      case 5:
+        return _seccionTurnos();
+      case 6:
+        return _seccionInventarioCaja();
+      case 7:
+        return _accesosAdministracion(context);
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _panelSeccion() {
+    final (icon, titulo, subtitulo, _) = _secciones[_seccion];
+    final esAccesos = _seccion == _secciones.length - 1;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: AppColors.cardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(28, 24, 28, 18),
+            child: Row(
+              children: [
+                Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(color: AppColors.primaryLighter, borderRadius: BorderRadius.circular(AppRadius.md)),
+                  child: Icon(icon, color: AppColors.primaryDark),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(titulo, style: const TextStyle(fontSize: AppText.title, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
+                      const SizedBox(height: 2),
+                      Text(subtitulo, style: const TextStyle(fontSize: AppText.small, color: AppColors.textSecondary)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.border),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
+              child: _contenidoSeccion(_seccion),
+            ),
+          ),
+          if (!esAccesos) ...[
+            const Divider(height: 1, color: AppColors.border),
+            Padding(
+              padding: const EdgeInsets.all(18),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: SizedBox(
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: guardar,
+                    icon: const Icon(Icons.save_outlined, size: 20),
+                    label: const Text("Guardar cambios"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: AppColors.onPrimary,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 26),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                      textStyle: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _bloque(String titulo, Widget contenido) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(titulo, style: const TextStyle(fontSize: AppText.caption, fontWeight: FontWeight.w800, color: AppColors.textSecondary, letterSpacing: 0.3)),
+          const SizedBox(height: 8),
+          contenido,
+        ],
+      );
+
+  Widget _seccionNegocio() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _logoSelector(),
+          const SizedBox(height: 16),
+          customInput(controller: nombreCtrl, hint: "Nombre del negocio"),
+          const SizedBox(height: 12),
+          customInput(controller: direccionCtrl, hint: "Dirección"),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: customInput(controller: telefonoCtrl, hint: "Teléfono", keyboard: TextInputType.phone)),
+            const SizedBox(width: 12),
+            Expanded(child: customInput(controller: correoCtrl, hint: "Correo", keyboard: TextInputType.emailAddress)),
+          ]),
+          const SizedBox(height: 12),
+          customInput(controller: rfcCtrl, hint: "RFC / dato fiscal (opcional)"),
+        ],
+      );
+
+  Widget _seccionTicket() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(child: customInput(controller: monedaCtrl, hint: "Símbolo de moneda (ej. \$)")),
+            const SizedBox(width: 12),
+            Expanded(child: customInput(controller: ivaCtrl, hint: "IVA % (ej. 16)", keyboard: const TextInputType.numberWithOptions(decimal: true))),
+          ]),
+          const SizedBox(height: 12),
+          customInput(controller: mensajeTicketCtrl, hint: "Mensaje al final del ticket"),
+          const SizedBox(height: 4),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text("Desglosar IVA en el ticket"),
+            subtitle: const Text("Muestra base (sin IVA) e IVA por separado, en vez de solo \"IVA incluido\""),
+            value: mostrarIvaDesglosado,
+            activeThumbColor: AppColors.primary,
+            onChanged: (v) => setState(() => mostrarIvaDesglosado = v),
+          ),
+        ],
+      );
+
+  Widget _seccionImpresion() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          DropdownButtonFormField<String>(
+            initialValue: tamanoPapel,
+            decoration: const InputDecoration(labelText: "Tamaño de papel", border: OutlineInputBorder()),
+            items: const [
+              DropdownMenuItem(value: '58mm', child: Text("58 mm (angosto)")),
+              DropdownMenuItem(value: '80mm', child: Text("80 mm (estándar)")),
+            ],
+            onChanged: (v) => setState(() => tamanoPapel = v ?? '80mm'),
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.print_outlined),
+            title: Text(impresoraNombre ?? "Sin impresora seleccionada"),
+            subtitle: const Text("Impresora para auto-imprimir"),
+            trailing: OutlinedButton(onPressed: _seleccionarImpresora, child: const Text("Elegir")),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text("Imprimir automáticamente al cobrar"),
+            subtitle: const Text("Sin diálogo de impresión. Requiere una impresora seleccionada"),
+            value: autoImprimirTicket,
+            activeThumbColor: AppColors.primary,
+            onChanged: (v) => setState(() => autoImprimirTicket = v),
+          ),
+        ],
+      );
+
+  Widget _seccionApariencia() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Elige el color principal del sistema. Se usa en los botones, encabezados y detalles de toda la app.",
+            style: TextStyle(fontSize: AppText.small, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 18),
+          _selectorColor(),
+          const SizedBox(height: 18),
+          _nota("El nuevo color se aplica por completo al reiniciar la aplicación."),
+        ],
+      );
+
+  Widget _seccionTurnos() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Define el horario de cada turno. Las cajas y las ventas se clasifican automáticamente según la hora en que ocurren.",
+            style: TextStyle(fontSize: AppText.small, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 20),
+          _bloque(
+            "TURNO MATUTINO",
+            Row(children: [
+              Expanded(child: horaButton(label: "Hora de inicio", hora: format(matutinoInicio), onTap: () => pickHora(true, true))),
+              const SizedBox(width: 14),
+              Expanded(child: horaButton(label: "Hora de fin", hora: format(matutinoFin), onTap: () => pickHora(false, true))),
+            ]),
+          ),
+          const SizedBox(height: 22),
+          _bloque(
+            "TURNO VESPERTINO",
+            Row(children: [
+              Expanded(child: horaButton(label: "Hora de inicio", hora: format(vespertinoInicio), onTap: () => pickHora(true, false))),
+              const SizedBox(width: 14),
+              Expanded(child: horaButton(label: "Hora de fin", hora: format(vespertinoFin), onTap: () => pickHora(false, false))),
+            ]),
+          ),
+        ],
+      );
+
+  Widget _seccionInventarioCaja() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: _bloque("INVENTARIO MÍNIMO", customInput(controller: stockCtrl, hint: "Ej. 5 piezas", keyboard: TextInputType.number))),
+            const SizedBox(width: 16),
+            Expanded(child: _bloque("FONDO DE CAJA", customInput(controller: fondoCtrl, hint: "Ej. 500", keyboard: TextInputType.number))),
+          ]),
+          const SizedBox(height: 14),
+          _nota("Cuando un producto llega al inventario mínimo, se marca como \"por agotarse\" para que sepas cuándo reabastecer. El fondo de caja es el dinero con el que inicia cada turno."),
+        ],
+      );
+
+  /// Nota informativa breve al pie de una sección.
+  Widget _nota(String texto) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(AppRadius.sm),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline, size: 18, color: AppColors.primaryDark),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(texto,
+                  style: const TextStyle(fontSize: AppText.caption, color: AppColors.textSecondary, height: 1.4)),
+            ),
+          ],
+        ),
+      );
+
+  Widget _seccionDescuentos() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          customInput(
+            controller: descuentoMaximoCtrl,
+            hint: "Umbral (% a partir del cual se exige motivo)",
+            keyboard: const TextInputType.numberWithOptions(decimal: true),
+          ),
+          const SizedBox(height: 16),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text("El cajero puede aplicar descuentos"),
+            value: descuentoCajeroPuedeAplicar,
+            activeThumbColor: AppColors.primary,
+            onChanged: (v) => setState(() => descuentoCajeroPuedeAplicar = v),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text("Requiere autorización de administrador al superar el umbral"),
+            value: descuentoCajeroRequiereAutorizacion,
+            activeThumbColor: AppColors.primary,
+            onChanged: (v) => setState(() => descuentoCajeroRequiereAutorizacion = v),
+          ),
+        ],
+      );
 }

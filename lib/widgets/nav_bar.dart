@@ -28,6 +28,7 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       backgroundColor: AppColors.background,
       elevation: 0,
+      toolbarHeight: 72,
       leadingWidth: puedeVolver ? 110 : 0,
       leading: puedeVolver
           ? TextButton.icon(
@@ -158,5 +159,5 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => const Size.fromHeight(72);
 }

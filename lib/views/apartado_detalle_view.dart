@@ -9,7 +9,7 @@ import '../core/utils/pagos_mixtos.dart';
 import '../services/ticket_apartado_service.dart';
 import '../services/impresion_service.dart';
 import '../widgets/confirm_action.dart';
-import '../widgets/custom_alert.dart';
+import '../widgets/toast.dart';
 import '../widgets/nav_bar.dart';
 import '../widgets/ventas/pagos_mixtos_section.dart';
 
@@ -158,26 +158,15 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
       await _cargar();
 
       if (!mounted) return;
-      showDialog(
-        context: context,
-        builder: (_) => CustomAlert(
-          titulo: liquidarCompleto ? 'Apartado liquidado' : 'Abono registrado',
-          mensaje: liquidarCompleto
-              ? 'El apartado se liquidó correctamente.'
-              : 'El abono se registró correctamente.',
-          icono: Icons.check_circle_outline,
-          textoConfirmar: 'Aceptar',
-        ),
+      Toast.exito(
+        context,
+        liquidarCompleto ? 'Apartado liquidado' : 'Abono registrado',
       );
     } catch (e) {
       if (!mounted) return;
-      showDialog(
-        context: context,
-        builder: (_) => CustomAlert(
-          titulo: 'No se pudo procesar el pago',
-          mensaje: e.toString().replaceFirst('Exception: ', ''),
-          icono: Icons.error_outline,
-        ),
+      Toast.error(
+        context,
+        'No se pudo procesar el pago. ${e.toString().replaceFirst('Exception: ', '')}',
       );
     }
   }
@@ -236,7 +225,7 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
       context: context,
       tituloConfirmar: 'Cancelar apartado',
       mensajeConfirmar:
-          '¿Seguro que deseas cancelar este apartado? La reserva de stock se liberará. '
+          '¿Seguro que deseas cancelar este apartado? El inventario reservado se liberará. '
           'Si el cliente ya pagó abonos, el reembolso (si aplica) se maneja fuera del sistema.',
       iconoConfirmar: Icons.warning_amber_rounded,
       textoConfirmar: 'Cancelar apartado',
@@ -245,7 +234,7 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
         await _cargar();
       },
       tituloExito: 'Apartado cancelado',
-      mensajeExito: 'El apartado ha sido cancelado y la reserva de stock liberada.',
+      mensajeExito: 'Apartado cancelado y el inventario reservado fue liberado.',
     );
   }
 

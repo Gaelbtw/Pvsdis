@@ -4,7 +4,6 @@ import '../controllers/auth_controller.dart';
 import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
 import '../views/home_view.dart';
-import '../widgets/custom_alert.dart';
 
 
 class LoginView extends StatefulWidget {
@@ -21,104 +20,53 @@ class _LoginViewState extends State<LoginView> {
 
   bool loading = false;
   bool ocultar = true;
+  String? _error;
 
-void login() async {
-  if (usuarioController.text.isEmpty ||
-      passwordController.text.isEmpty) {
+  void login() async {
+    final usuario = usuarioController.text.trim();
+    final password = passwordController.text.trim();
 
-    showDialog(
-      context: context,
-      builder: (_) => CustomAlert(
-        titulo: "Campos incompletos",
-        mensaje: "Completa todos los campos para continuar.",
-        icono: Icons.warning_amber_rounded,
-        textoConfirmar: "Aceptar",
+    if (usuario.isEmpty || password.isEmpty) {
+      setState(() => _error = "Escribe tu usuario y contraseña.");
+      return;
+    }
 
-        onConfirm: () {},
-      ),
-    );
+    setState(() {
+      loading = true;
+      _error = null;
+    });
 
-    return;
+    final resultado = await authController.login(usuario, password);
+
+    if (!mounted) return;
+    setState(() => loading = false);
+
+    switch (resultado.status) {
+      case LoginStatus.usuarioNoEncontrado:
+      case LoginStatus.contrasenaIncorrecta:
+        // Un solo mensaje genérico, en línea (no popup): es menos invasivo y
+        // no revela si el usuario existe o no.
+        setState(() => _error = "Usuario o contraseña incorrectos.");
+        break;
+
+      case LoginStatus.success:
+        final user = resultado.usuario!;
+        SessionManager.setUser(
+          id: user['id_usuario'] as int?,
+          nombre: user['nombre']?.toString() ?? 'Admin',
+          rol: user['rol']?.toString() ?? 'Administrador',
+        );
+        await AuditoriaController().registrar(
+          tabla: 'Sesion',
+          accion: 'LOGIN',
+          descripcion: 'Inicio de sesión',
+        );
+        if (!mounted) return;
+        // Directo al inicio, sin modal de "bienvenido".
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeView()));
+        break;
+    }
   }
-
-  setState(() => loading = true);
-
-  final resultado = await authController.login(
-    usuarioController.text.trim(),
-    passwordController.text.trim(),
-  );
-
-  if (!mounted) return;
-
-  setState(() => loading = false);
-
-  switch (resultado.status) {
-    case LoginStatus.usuarioNoEncontrado:
-      showDialog(
-        context: context,
-        builder: (_) => CustomAlert(
-          titulo: "Usuario incorrecto",
-          mensaje: "El usuario ingresado no existe.",
-          icono: Icons.person_off_outlined,
-          textoConfirmar: "Aceptar",
-
-          onConfirm: () {},
-        ),
-      );
-      break;
-
-    case LoginStatus.contrasenaIncorrecta:
-      showDialog(
-        context: context,
-        builder: (_) => CustomAlert(
-          titulo: "Contraseña incorrecta",
-          mensaje: "La contraseña ingresada es incorrecta.",
-          icono: Icons.lock_outline,
-          textoConfirmar: "Aceptar",
-
-          onConfirm: () {},
-        ),
-      );
-      break;
-
-    case LoginStatus.success:
-      final user = resultado.usuario!;
-
-      SessionManager.setUser(
-        id: user['id_usuario'] as int?,
-        nombre: user['nombre']?.toString() ?? 'Admin',
-        rol: user['rol']?.toString() ?? 'Administrador',
-      );
-
-      await AuditoriaController().registrar(
-        tabla: 'Sesion',
-        accion: 'LOGIN',
-        descripcion: 'Inicio de sesión',
-      );
-
-      if (!mounted) return;
-
-      showDialog(
-        context: context,
-        builder: (_) => CustomAlert(
-          titulo: "Sesión iniciada",
-          mensaje: "Bienvenido al sistema.",
-          icono: Icons.check_circle_outline,
-          textoConfirmar: "Continuar",
-
-          onConfirm: () {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const HomeView(),
-              ),
-            );
-          },
-        ),
-      );
-      break;
-  }
-}
 
   @override
   void dispose() {
@@ -234,6 +182,29 @@ void login() async {
                       ),
                     ),
                   ),
+
+                  if (_error != null) ...[
+                    const SizedBox(height: 20),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.error.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
+                        border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error_outline, size: 18, color: AppColors.error),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(_error!,
+                                style: const TextStyle(color: AppColors.error, fontSize: AppText.small, fontWeight: FontWeight.w600)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
 
                   const SizedBox(height: 28),
 

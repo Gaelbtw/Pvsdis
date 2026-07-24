@@ -5,6 +5,7 @@ import '../models/proveedores_model.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/toast.dart';
 import '../widgets/form_dialog.dart';
 import '../widgets/nav_bar.dart';
 import 'proveedor_detalle_view.dart';
@@ -166,17 +167,9 @@ void abrirFormulario({Proveedores? proveedor}) {
         Navigator.pop(context);
         cargar();
 
-        showDialog(
-          context: context,
-          builder: (_) => CustomAlert(
-            titulo: proveedor == null ? "Proveedor agregado" : "Proveedor actualizado",
-            mensaje: proveedor == null
-                ? "El proveedor ha sido agregado exitosamente."
-                : "El proveedor ha sido actualizado exitosamente.",
-            icono: Icons.check_circle_outline,
-            textoConfirmar: "Aceptar",
-            onConfirm: () {},
-          ),
+        Toast.exito(
+          context,
+          proveedor == null ? "Proveedor agregado" : "Proveedor actualizado",
         );
       },
     ),

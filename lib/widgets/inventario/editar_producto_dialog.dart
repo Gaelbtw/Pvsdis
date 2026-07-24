@@ -5,12 +5,12 @@ import '../../core/theme/app_colors.dart';
 import '../../models/configuracion_model.dart';
 import '../../models/producto_model.dart';
 import '../app_text_field.dart';
-import '../custom_alert.dart';
 import '../form_dialog.dart';
+import '../toast.dart';
 
 /// Diálogo de edición rápida de un producto desde Inventario (nombre,
-/// precio y stock). Antes vivía completo dentro de `inventario_view.dart`
-/// (~227 líneas) armado a mano con `Dialog`/`Container`.
+/// precio e inventario disponible). Antes vivía completo dentro de
+/// `inventario_view.dart` (~227 líneas) armado a mano con `Dialog`/`Container`.
 void mostrarEditarProductoDialog(
   BuildContext context, {
   required Map<String, dynamic> producto,
@@ -48,7 +48,7 @@ void mostrarEditarProductoDialog(
           ),
         AppTextField(
           controller: stockCtrl,
-          hint: "Stock",
+          hint: "Inventario disponible",
           icon: Icons.layers_outlined,
           iconColor: AppColors.primaryDark,
           keyboardType: TextInputType.number,
@@ -81,15 +81,7 @@ void mostrarEditarProductoDialog(
         await onGuardado();
 
         if (!context.mounted) return;
-        showDialog(
-          context: context,
-          builder: (_) => const CustomAlert(
-            titulo: "Producto actualizado",
-            mensaje: "La información del producto ha sido actualizada exitosamente.",
-            icono: Icons.check_circle_outline,
-            textoConfirmar: "Aceptar",
-          ),
-        );
+        Toast.exito(context, "Producto actualizado");
       },
     ),
   );

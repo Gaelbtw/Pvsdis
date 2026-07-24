@@ -31,7 +31,7 @@ class AppColors {
   static Color get primaryLighter => _aclarar(_primary, 0.85);
 
   // Neutros del sistema de diseño (fijos, no configurables).
-  static const background = Color(0xFFFAF8F4);
+  static const background = Color(0xFFFFFFFF);
   static const surface = Color(0xFFF8F6F2);
   static const surfaceAlt = Color(0xFFFCFBF9);
   static const surfaceSubtle = Color(0xFFF9FAFC);

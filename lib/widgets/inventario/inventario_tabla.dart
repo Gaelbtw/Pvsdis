@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/config/app_config.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/auditoria_helpers.dart';
 import '../../core/utils/stock_status.dart';
@@ -63,7 +64,7 @@ class InventarioTabla extends StatelessWidget {
           Expanded(flex: 22, child: Text("PRODUCTO", style: auditoriaHeaderStyle)),
           Expanded(flex: 18, child: Text("CATEGORÍA", style: auditoriaHeaderStyle)),
           Expanded(flex: 12, child: Text("PRECIO", style: auditoriaHeaderStyle)),
-          Expanded(flex: 12, child: Text("STOCK", style: auditoriaHeaderStyle)),
+          Expanded(flex: 12, child: Text("INVENTARIO", style: auditoriaHeaderStyle)),
           Expanded(flex: 16, child: Text("ESTADO", style: auditoriaHeaderStyle)),
           Expanded(flex: 20, child: Text("ACCIONES", style: auditoriaHeaderStyle)),
         ],
@@ -90,7 +91,7 @@ class InventarioTabla extends StatelessWidget {
           Expanded(
             flex: 12,
             child: Text(
-              "\$${p['precio']}",
+              AppConfig.formatoMoneda((p['precio'] as num?) ?? 0),
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),

@@ -15,7 +15,7 @@ EstadoStock clasificarStock(int stock, int stockMinimo) {
 extension EstadoStockPresentacion on EstadoStock {
   String get etiqueta => switch (this) {
         EstadoStock.agotado => "Agotado",
-        EstadoStock.bajo => "Stock Bajo",
+        EstadoStock.bajo => "Inventario bajo",
         EstadoStock.disponible => "Disponible",
       };
 

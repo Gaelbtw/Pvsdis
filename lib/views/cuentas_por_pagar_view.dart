@@ -8,6 +8,7 @@ import '../core/config/app_config.dart';
 import '../core/utils/pagos_mixtos.dart';
 import '../models/proveedores_model.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/toast.dart';
 import '../widgets/form_dialog.dart';
 import '../widgets/nav_bar.dart';
 
@@ -522,15 +523,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
               await _cargar();
 
               if (!mounted) return;
-              showDialog(
-                context: context,
-                builder: (_) => const CustomAlert(
-                  titulo: 'Abono registrado',
-                  mensaje: 'El pago se registró correctamente.',
-                  icono: Icons.check_circle_outline,
-                  textoConfirmar: 'Aceptar',
-                ),
-              );
+              Toast.exito(context, 'Abono registrado correctamente');
             } catch (e) {
               showDialog(
                 context: dialogContext,

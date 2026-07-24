@@ -16,6 +16,7 @@ import '../models/producto_model.dart';
 import '../models/promocion_model.dart';
 import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/toast.dart';
 import '../widgets/ventas/autorizacion_descuento_dialog.dart';
 import '../widgets/ventas/descuento_dialog.dart';
 import '../widgets/ventas/pagos_mixtos_section.dart';
@@ -398,7 +399,7 @@ class _VentasViewState extends State<VentasView> {
     showDialog(
       context: context,
       builder: (_) => CustomAlert(
-        titulo: "VENTA",
+        titulo: "Confirmar venta",
         mensaje: "¿Deseas confirmar la venta?",
         icono: Icons.point_of_sale,
         textoCancelar: "Cancelar",
@@ -415,15 +416,7 @@ class _VentasViewState extends State<VentasView> {
     if (carrito.isEmpty) return;
 
     if (!resultadoPagos.esValido) {
-      showDialog(
-        context: context,
-        builder: (_) => CustomAlert(
-          titulo: 'VENTA',
-          mensaje: resultadoPagos.mensajeError ?? 'Revisa los pagos capturados.',
-          icono: Icons.error,
-        ),
-      );
-
+      Toast.error(context, resultadoPagos.mensajeError ?? 'Revisa los pagos capturados.');
       return;
     }
 
@@ -460,25 +453,11 @@ class _VentasViewState extends State<VentasView> {
 
       if (!mounted) return;
 
-      showDialog(
-        context: context,
-        builder: (_) => const CustomAlert(
-          titulo: 'VENTA',
-          mensaje: 'Venta realizada con éxito',
-          icono: Icons.check_circle,
-        ),
-      );
+      Toast.exito(context, 'Venta realizada con éxito');
     } catch (e) {
       if (!mounted) return;
       final mensaje = e.toString().replaceFirst("Exception: ", "");
-      showDialog(
-        context: context,
-        builder: (_) => CustomAlert(
-          titulo: 'No se pudo completar la venta',
-          mensaje: mensaje,
-          icono: Icons.inventory_2_outlined,
-        ),
-      );
+      Toast.error(context, 'No se pudo completar la venta. $mensaje');
       await cargarProductos();
     }
   }
@@ -663,11 +642,11 @@ class _VentasViewState extends State<VentasView> {
 
                                         const SizedBox(height: 4),
 
-                                        // 📦 STOCK
+                                        // 📦 INVENTARIO
                                         Builder(builder: (_) {
                                           final s = stockProductos[p.idProducto] ?? 0;
                                           return Text(
-                                            "Stock: $s",
+                                            "Inventario: $s",
                                             style: TextStyle(
                                               fontSize: AppText.caption,
                                               color: s == 0

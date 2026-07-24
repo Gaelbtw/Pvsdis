@@ -138,7 +138,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
       titulo: 'Cancelar venta',
       subtitulo:
           'Se devolverán todos los productos pendientes de la venta #${d.idVenta} '
-          'y se reintegrará su stock. Esta acción no se puede deshacer.',
+          'y se reintegrarán al inventario. Esta acción no se puede deshacer.',
       accion: (motivo) => _controller.cancelarVenta(idVenta: d.idVenta, motivo: motivo),
     );
   }
@@ -155,7 +155,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
       titulo: 'Devolver productos',
       subtitulo:
           'Se devolverán $totalUnidadesSeleccionadas unidad(es) seleccionadas '
-          'y se reintegrará su stock.',
+          'y se reintegrarán al inventario.',
       accion: (motivo) => _controller.devolverParcial(
         idVenta: d.idVenta,
         motivo: motivo,

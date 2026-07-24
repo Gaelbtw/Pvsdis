@@ -11,6 +11,7 @@ import '../widgets/app_text_field.dart';
 import '../widgets/custom_alert.dart';
 import '../widgets/form_dialog.dart';
 import '../widgets/nav_bar.dart';
+import '../widgets/toast.dart';
 import 'historial_cajas_view.dart';
 
 /// Pantalla única de Caja: muestra el formulario de apertura si el usuario
@@ -119,25 +120,11 @@ class _CajaViewState extends State<CajaView> {
       await cargar();
 
       if (!mounted) return;
-      showDialog(
-        context: context,
-        builder: (_) => const CustomAlert(
-          titulo: 'Caja abierta',
-          mensaje: 'Tu caja quedó abierta correctamente.',
-          icono: Icons.check_circle,
-        ),
-      );
+      Toast.exito(context, 'Caja abierta correctamente');
     } catch (e) {
       if (!mounted) return;
       final mensaje = e.toString().replaceFirst("Exception: ", "");
-      showDialog(
-        context: context,
-        builder: (_) => CustomAlert(
-          titulo: 'No se pudo abrir la caja',
-          mensaje: mensaje,
-          icono: Icons.error_outline,
-        ),
-      );
+      Toast.error(context, 'No se pudo abrir la caja. $mensaje');
     }
   }
 
@@ -198,25 +185,11 @@ class _CajaViewState extends State<CajaView> {
       await cargar();
 
       if (!mounted) return;
-      showDialog(
-        context: context,
-        builder: (_) => const CustomAlert(
-          titulo: 'Caja cerrada',
-          mensaje: 'El cierre se registró correctamente.',
-          icono: Icons.check_circle_outline,
-        ),
-      );
+      Toast.exito(context, 'Caja cerrada. El cierre se registró correctamente.');
     } catch (e) {
       if (!mounted) return;
       final mensaje = e.toString().replaceFirst("Exception: ", "");
-      showDialog(
-        context: context,
-        builder: (_) => CustomAlert(
-          titulo: 'No se pudo cerrar la caja',
-          mensaje: mensaje,
-          icono: Icons.error_outline,
-        ),
-      );
+      Toast.error(context, 'No se pudo cerrar la caja. $mensaje');
     }
   }
 

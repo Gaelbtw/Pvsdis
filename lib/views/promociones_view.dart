@@ -12,6 +12,7 @@ import '../models/promocion_model.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/toast.dart';
 import '../widgets/form_dialog.dart';
 import '../widgets/nav_bar.dart';
 
@@ -450,17 +451,9 @@ class _PromocionesViewState extends State<PromocionesView> {
               Navigator.pop(context);
               cargar();
 
-              showDialog(
-                context: context,
-                builder: (_) => CustomAlert(
-                  titulo: promocion == null ? "Promoción creada" : "Promoción actualizada",
-                  mensaje: promocion == null
-                      ? "La promoción ha sido creada exitosamente."
-                      : "La promoción ha sido actualizada exitosamente.",
-                  icono: Icons.check_circle_outline,
-                  textoConfirmar: "Aceptar",
-                  onConfirm: () {},
-                ),
+              Toast.exito(
+                context,
+                promocion == null ? "Promoción creada" : "Promoción actualizada",
               );
             },
           );

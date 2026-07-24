@@ -5,7 +5,7 @@ import '../core/security/password_hasher.dart';
 import '../models/usuarios_model.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/confirm_action.dart';
-import '../widgets/custom_alert.dart';
+import '../widgets/toast.dart';
 import '../widgets/form_dialog.dart';
 import '../widgets/nav_bar.dart';
 
@@ -95,21 +95,17 @@ class _UsuariosViewState extends State<UsuariosView> {
             ),
           ],
           onGuardar: () async {
-            void mostrarError(String mensaje) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(mensaje)),
-              );
-            }
+            void mostrarError(String mensaje) => Toast.error(context, mensaje);
 
             if (nombreCtrl.text.trim().isEmpty) {
-              mostrarError("El nombre de usuario es obligatorio");
+              mostrarError("Escribe el nombre de usuario.");
               return;
             }
 
             // Al crear, la contraseña es obligatoria. Al
             // editar, puede quedar vacía (no se cambia).
             if (usuario == null && contraCtrl.text.isEmpty) {
-              mostrarError("La contraseña es obligatoria");
+              mostrarError("Escribe la contraseña.");
               return;
             }
 
@@ -143,17 +139,9 @@ class _UsuariosViewState extends State<UsuariosView> {
             Navigator.pop(context);
             cargarTodo();
 
-            showDialog(
-              context: context,
-              builder: (_) => CustomAlert(
-                titulo: usuario == null ? "Usuario agregado" : "Usuario actualizado",
-                mensaje: usuario == null
-                    ? "El usuario ha sido agregado exitosamente."
-                    : "El usuario ha sido actualizado exitosamente.",
-                icono: Icons.check_circle_outline,
-                textoConfirmar: "Aceptar",
-                onConfirm: () {},
-              ),
+            Toast.exito(
+              context,
+              usuario == null ? "Usuario agregado" : "Usuario actualizado",
             );
           },
         );

@@ -6,7 +6,7 @@ import '../models/carrito_pedido.dart';
 import '../models/pedidos_model.dart';
 import '../models/producto_model.dart';
 import '../widgets/nav_bar.dart';
-import '../widgets/custom_alert.dart';
+import '../widgets/toast.dart';
 import '../controllers/producto_controller.dart';
 
 class CrearPedidoView extends StatefulWidget {
@@ -58,32 +58,13 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
     final cantidadEnCarrito = _carrito.cantidadEnCarrito(producto.idProducto);
 
     if (stockDisponible == 0) {
-      showDialog(
-        context: context,
-        builder: (_) => CustomAlert(
-          titulo: 'Sin stock disponible',
-          mensaje:
-              '${producto.nombre} no tiene unidades en inventario.\nContacta a tu proveedor.',
-          icono: Icons.inventory_2_outlined,
-          textoConfirmar: 'Entendido',
-          color: AppColors.error,
-        ),
-      );
+      Toast.error(context, '${producto.nombre} no tiene unidades en inventario.');
       return;
     }
 
     if (cantidadEnCarrito >= stockDisponible) {
-      showDialog(
-        context: context,
-        builder: (_) => CustomAlert(
-          titulo: 'Stock insuficiente',
-          mensaje:
-              'Solo hay $stockDisponible unidad(es) de ${producto.nombre} en inventario y ya las tienes en el pedido.',
-          icono: Icons.warning_rounded,
-          textoConfirmar: 'Entendido',
-          color: AppColors.warning,
-        ),
-      );
+      Toast.error(context,
+          'Solo hay $stockDisponible unidad(es) de ${producto.nombre} y ya las tienes en el pedido.');
       return;
     }
 
@@ -91,13 +72,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
 
     calcularTotal();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${producto.nombre} agregado al pedido'),
-        duration: const Duration(seconds: 1),
-        backgroundColor: AppColors.success,
-      ),
-    );
+    Toast.exito(context, '${producto.nombre} agregado al pedido');
   }
 
   void calcularTotal() {
@@ -110,17 +85,8 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
     final stockDisponible = _stock[producto.idProducto] ?? 0;
 
     if (cantidadActual >= stockDisponible) {
-      showDialog(
-        context: context,
-        builder: (_) => CustomAlert(
-          titulo: 'Stock insuficiente',
-          mensaje:
-              'Ya tienes todas las unidades disponibles de ${producto.nombre} ($stockDisponible) en el pedido.',
-          icono: Icons.warning_rounded,
-          textoConfirmar: 'Entendido',
-          color: AppColors.warning,
-        ),
-      );
+      Toast.error(context,
+          'Ya tienes todas las unidades disponibles de ${producto.nombre} ($stockDisponible) en el pedido.');
       return;
     }
 
@@ -135,54 +101,22 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
 
   Future<void> guardarPedido() async {
     if (widget.idCliente == null) {
-      showDialog(
-        context: context,
-        builder: (_) => const CustomAlert(
-          titulo: 'Cliente requerido',
-          mensaje: 'Selecciona un cliente.',
-          icono: Icons.person_outline,
-          textoConfirmar: 'Aceptar',
-        ),
-      );
+      Toast.error(context, 'Selecciona un cliente para el pedido.');
       return;
     }
 
     if (carrito.isEmpty) {
-      showDialog(
-        context: context,
-        builder: (_) => const CustomAlert(
-          titulo: 'Pedido vacío',
-          mensaje: 'Agrega productos al pedido.',
-          icono: Icons.shopping_cart_outlined,
-          textoConfirmar: 'Aceptar',
-        ),
-      );
+      Toast.error(context, 'Agrega productos al pedido.');
       return;
     }
 
     if (_fechaEntrega == null) {
-      showDialog(
-        context: context,
-        builder: (_) => const CustomAlert(
-          titulo: 'Fecha requerida',
-          mensaje: 'Selecciona una fecha de entrega.',
-          icono: Icons.calendar_month_outlined,
-          textoConfirmar: 'Aceptar',
-        ),
-      );
+      Toast.error(context, 'Selecciona una fecha de entrega.');
       return;
     }
 
     if (tipoEntrega == 'Domicilio' && direccionCtrl.text.trim().isEmpty) {
-      showDialog(
-        context: context,
-        builder: (_) => const CustomAlert(
-          titulo: 'Dirección requerida',
-          mensaje: 'Ingresa la dirección de entrega.',
-          icono: Icons.location_on_outlined,
-          textoConfirmar: 'Aceptar',
-        ),
-      );
+      Toast.error(context, 'Ingresa la dirección de entrega.');
       return;
     }
 
@@ -204,19 +138,9 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
 
     if (!mounted) return;
 
-    showDialog(
-      context: context,
-      builder: (_) => CustomAlert(
-        titulo: 'Transacción exitosa',
-        mensaje: 'El pedido se guardó correctamente.',
-        icono: Icons.check_circle_outline,
-        textoConfirmar: 'Aceptar',
-        onConfirm: () {
-          Navigator.pop(context);
-          Navigator.pop(context);
-        },
-      ),
-    );
+    Toast.exito(context, 'Pedido guardado correctamente');
+    Navigator.pop(context);
+    Navigator.pop(context);
   }
 
   @override
@@ -405,8 +329,8 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                                       ),
                                       child: Text(
                                         sinStock
-                                            ? 'Sin stock'
-                                            : 'Stock: $stockActual',
+                                            ? 'Sin inventario'
+                                            : 'Inventario: $stockActual',
                                         style: TextStyle(
                                           fontSize: AppText.overline,
                                           fontWeight: FontWeight.bold,

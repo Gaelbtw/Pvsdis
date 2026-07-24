@@ -7,6 +7,7 @@ import '../widgets/app_text_field.dart';
 import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
 import '../widgets/form_dialog.dart';
+import '../widgets/toast.dart';
 
 class CategoriasView extends StatefulWidget {
   const CategoriasView({super.key});
@@ -59,10 +60,10 @@ class _CategoriasViewState extends State<CategoriasView> {
             showDialog(
               context: context,
               builder: (_) => const CustomAlert(
-                titulo: "Campo vacío",
-                mensaje: "El nombre de la categoría no puede estar vacío.",
+                titulo: "Falta el nombre",
+                mensaje: "Escribe el nombre de la categoría para continuar.",
                 icono: Icons.warning_amber_rounded,
-                textoConfirmar: "Aceptar",
+                textoConfirmar: "Entendido",
               ),
             );
             return;
@@ -83,17 +84,9 @@ class _CategoriasViewState extends State<CategoriasView> {
           Navigator.pop(context);
           cargar();
 
-          showDialog(
-            context: context,
-            builder: (_) => CustomAlert(
-              titulo: categoria == null ? "Categoría agregada" : "Categoría actualizada",
-              mensaje: categoria == null
-                  ? "La categoría ha sido agregada exitosamente."
-                  : "La categoría ha sido actualizada exitosamente.",
-              icono: Icons.check_circle_outline,
-              textoConfirmar: "Aceptar",
-              onConfirm: () {},
-            ),
+          Toast.exito(
+            context,
+            categoria == null ? "Categoría agregada" : "Categoría actualizada",
           );
         },
       ),

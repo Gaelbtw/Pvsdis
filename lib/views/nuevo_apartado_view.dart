@@ -13,7 +13,7 @@ import '../models/carrito_venta.dart';
 import '../models/cliente_model.dart';
 import '../models/producto_model.dart';
 import '../models/promocion_model.dart';
-import '../widgets/custom_alert.dart';
+import '../widgets/toast.dart';
 import '../widgets/nav_bar.dart';
 import '../widgets/ventas/pagos_mixtos_section.dart';
 
@@ -154,16 +154,8 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
       );
 
       if (!mounted) return;
-      showDialog(
-        context: context,
-        builder: (_) => CustomAlert(
-          titulo: 'Apartado creado',
-          mensaje: 'El apartado se registró correctamente.',
-          icono: Icons.check_circle_outline,
-          textoConfirmar: 'Aceptar',
-          onConfirm: () => Navigator.pop(context),
-        ),
-      );
+      Toast.exito(context, 'Apartado creado correctamente');
+      Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
       setState(() => _guardando = false);
@@ -172,15 +164,7 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
   }
 
   void _mostrarError(String mensaje) {
-    showDialog(
-      context: context,
-      builder: (_) => CustomAlert(
-        titulo: 'No se pudo crear el apartado',
-        mensaje: mensaje,
-        icono: Icons.error_outline,
-        textoConfirmar: 'Aceptar',
-      ),
-    );
+    Toast.error(context, mensaje);
   }
 
   @override

@@ -28,7 +28,9 @@ class _InventarioViewState extends State<InventarioView> {
   final categoriaController = CategoriaController();
   final auditoriaController = AuditoriaController();
 
-  late Configuracion config;
+  // Inicializado con valores por defecto para evitar LateInitializationError
+  // si algún build ocurre antes de que `inicializar()` cargue la config real.
+  Configuracion config = Configuracion.porDefecto();
 
   bool cargando = true;
 
@@ -107,7 +109,7 @@ class _InventarioViewState extends State<InventarioView> {
     await mostrarHistorialCambios(
       context,
       titulo: "Cambios de inventario",
-      subtitulo: "Consulta quien creo, modifico o elimino productos y stock.",
+      subtitulo: "Consulta quién creó, modificó o eliminó productos e inventario.",
       cambios: cambios,
     );
   }
@@ -161,7 +163,7 @@ class _InventarioViewState extends State<InventarioView> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      "Administra productos, existencias y niveles de stock.",
+                      "Administra tus productos y sus niveles de inventario.",
                       style: TextStyle(color: AppColors.textSecondary, fontSize: AppText.small),
                     ),
                     const SizedBox(height: 24),
@@ -209,7 +211,7 @@ class _InventarioViewState extends State<InventarioView> {
         const SizedBox(width: 14),
         Expanded(
           child: StatCard(
-            title: "Stock Bajo",
+            title: "Inventario bajo",
             value: resumen.bajos.toString(),
             icon: Icons.warning_amber,
             color: AppColors.warning,
@@ -218,7 +220,7 @@ class _InventarioViewState extends State<InventarioView> {
         const SizedBox(width: 14),
         Expanded(
           child: StatCard(
-            title: "Stock OK",
+            title: "Disponibles",
             value: resumen.ok.toString(),
             icon: Icons.check_circle,
             color: AppColors.success,

@@ -161,7 +161,7 @@ void mostrarEditarPedidoDialog(
                     estado == 'Entregado' && estadoAnterior != 'Entregado'
                         ? 'Pedido entregado — inventario actualizado'
                         : estado == 'Cancelado' && estadoAnterior == 'Entregado'
-                            ? 'Pedido cancelado — stock restaurado'
+                            ? 'Pedido cancelado — inventario restaurado'
                             : 'Pedido editado con éxito',
                   ),
                   backgroundColor: estado == 'Entregado'

@@ -8,6 +8,7 @@ import '../widgets/nav_bar.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/toast.dart';
 import '../widgets/form_dialog.dart';
 import '../widgets/stat_card.dart';
 
@@ -97,12 +98,11 @@ class _ClientesViewState extends State<ClientesView> {
           if (cliente == null && nombreCtrl.text.trim().isEmpty) {
             showDialog(
               context: context,
-              builder: (_) => CustomAlert(
-                titulo: "Error",
-                mensaje: "El nombre es obligatorio.",
-                icono: Icons.error_outline,
-                textoConfirmar: "Aceptar",
-                onConfirm: () {},
+              builder: (_) => const CustomAlert(
+                titulo: "Falta el nombre",
+                mensaje: "Escribe el nombre del cliente para continuar.",
+                icono: Icons.warning_amber_rounded,
+                textoConfirmar: "Entendido",
               ),
             );
             return;
@@ -127,17 +127,9 @@ class _ClientesViewState extends State<ClientesView> {
           Navigator.pop(context);
           cargar();
 
-          showDialog(
-            context: context,
-            builder: (_) => CustomAlert(
-              titulo: cliente == null ? "Cliente agregado" : "Cliente actualizado",
-              mensaje: cliente == null
-                  ? "El cliente ha sido agregado exitosamente."
-                  : "El cliente ha sido actualizado exitosamente.",
-              icono: Icons.check_circle_outline,
-              textoConfirmar: "Aceptar",
-              onConfirm: () {},
-            ),
+          Toast.exito(
+            context,
+            cliente == null ? "Cliente agregado" : "Cliente actualizado",
           );
         },
       ),

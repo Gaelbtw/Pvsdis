@@ -6,6 +6,7 @@ import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
 import '../models/database_backup_model.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/toast.dart';
 import 'login_view.dart';
 
 
@@ -52,28 +53,10 @@ Future<void> hacerBackup() async {
     await cargarBackups();
 
     if (!mounted) return;
-
-    await showDialog(
-      context: context,
-      builder: (_) => const CustomAlert(
-        titulo: 'Backup creado',
-        mensaje: 'El respaldo se creó correctamente.',
-        icono: Icons.check_circle_outline,
-        textoConfirmar: 'Aceptar',
-      ),
-    );
+    Toast.exito(context, 'Respaldo creado correctamente');
   } catch (e) {
     if (!mounted) return;
-
-    await showDialog(
-      context: context,
-      builder: (_) => CustomAlert(
-        titulo: 'Error',
-        mensaje: 'Error al crear backup:\n$e',
-        icono: Icons.error_outline,
-        textoConfirmar: 'Aceptar',
-      ),
-    );
+    Toast.error(context, 'No se pudo crear el respaldo. $e');
   } finally {
     if (mounted) {
       setState(() => loading = false);
@@ -91,9 +74,7 @@ Future<void> hacerBackup() async {
     }
 
     if (selected == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecciona un backup para restaurar')),
-      );
+      Toast.error(context, 'Selecciona un respaldo para restaurar.');
       return;
     }
 
@@ -101,7 +82,7 @@ final confirmar = await showDialog<bool>(
   context: context,
   barrierDismissible: false,
   builder: (_) => CustomAlert(
-    titulo: 'Restaurar backup',
+    titulo: 'Restaurar respaldo',
     mensaje:
         'Se restaurará la base de datos desde '
         '${selected!.backupFileName}. '
@@ -141,15 +122,7 @@ final confirmar = await showDialog<bool>(
       );
     } catch (e) {
       if (!mounted) return;
-      await showDialog(
-        context: context,
-        builder: (_) => CustomAlert(
-          titulo: 'Error',
-          mensaje: 'Error al restaurar backup:\n$e',
-          icono: Icons.error_outline,
-          textoConfirmar: 'Aceptar',
-        ),
-      );
+      Toast.error(context, 'No se pudo restaurar el respaldo. $e');
     } finally {
       if (mounted) {
         setState(() => loading = false);
@@ -254,9 +227,9 @@ final confirmar = await showDialog<bool>(
             children: [
               Row(
                 children: [
-                  _tabButton('Back Up', DatabaseTab.backup),
+                  _tabButton('Respaldar', DatabaseTab.backup),
                   const SizedBox(width: 18),
-                  _tabButton('Restore', DatabaseTab.restore),
+                  _tabButton('Restaurar', DatabaseTab.restore),
                   const Spacer(),
                   if (loading)
                     const SizedBox(
@@ -280,7 +253,7 @@ final confirmar = await showDialog<bool>(
                 children: selectedTab == DatabaseTab.backup
                     ? [
                         _secondaryButton(
-                          label: 'Backup',
+                          label: 'Crear respaldo',
                           onPressed: loading ? null : hacerBackup,
                         ),
                         const SizedBox(width: 12),
@@ -297,7 +270,7 @@ final confirmar = await showDialog<bool>(
                       ]
                     : [
                         _secondaryButton(
-                          label: 'Restore',
+                          label: 'Restaurar',
                           onPressed: loading ? null : restaurarSeleccionado,
                         ),
                         const SizedBox(width: 12),
@@ -335,7 +308,7 @@ final confirmar = await showDialog<bool>(
               const Expanded(
                 flex: 7,
                 child: Text(
-                  'Realizar Back Up',
+                  'Crear respaldo',
                   style: TextStyle(
                     fontSize: AppText.title,
                     fontWeight: FontWeight.w700,
@@ -348,7 +321,7 @@ final confirmar = await showDialog<bool>(
                 child: Text(
                   backups.isEmpty
                       ? 'Sin respaldos generados'
-                      : 'Ultimo: ${_fechaHora(backups.first.modifiedAt)}',
+                      : 'Último: ${_fechaHora(backups.first.modifiedAt)}',
                   style: const TextStyle(color: AppColors.textSecondary),
                 ),
               ),
@@ -362,7 +335,7 @@ final confirmar = await showDialog<bool>(
   Widget _restoreContent() {
     if (backups.isEmpty) {
       return const Center(
-        child: Text('No hay backups disponibles para restaurar'),
+        child: Text('No hay respaldos disponibles para restaurar'),
       );
     }
 
@@ -428,8 +401,8 @@ final confirmar = await showDialog<bool>(
       child: const Row(
         children: [
           SizedBox(width: 48),
-          Expanded(flex: 7, child: Text('File Name', style: _databaseHeaderStyle)),
-          Expanded(flex: 5, child: Text('Backup Time', style: _databaseHeaderStyle)),
+          Expanded(flex: 7, child: Text('Archivo', style: _databaseHeaderStyle)),
+          Expanded(flex: 5, child: Text('Fecha del respaldo', style: _databaseHeaderStyle)),
         ],
       ),
     );

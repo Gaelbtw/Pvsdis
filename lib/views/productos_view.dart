@@ -9,6 +9,7 @@ import '../core/session/session_manager.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/toast.dart';
 import '../widgets/form_dialog.dart';
 import 'categoria_view.dart';
 
@@ -143,7 +144,7 @@ class _ProductosViewState extends State<ProductosView> {
           ),
           AppTextField(
             controller: stockCtrl,
-            hint: "Stock mínimo",
+            hint: "Inventario mínimo",
             keyboardType: TextInputType.number,
           ),
           AppTextField(
@@ -232,17 +233,9 @@ class _ProductosViewState extends State<ProductosView> {
           Navigator.pop(context);
           cargar();
 
-          showDialog(
-            context: context,
-            builder: (_) => CustomAlert(
-              titulo: producto == null ? "Producto agregado" : "Producto actualizado",
-              mensaje: producto == null
-                  ? "El producto ha sido agregado exitosamente."
-                  : "El producto ha sido actualizado exitosamente.",
-              icono: Icons.check_circle_outline,
-              textoConfirmar: "Aceptar",
-              onConfirm: () {},
-            ),
+          Toast.exito(
+            context,
+            producto == null ? "Producto agregado" : "Producto actualizado",
           );
         },
       ),

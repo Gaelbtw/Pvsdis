@@ -9,6 +9,7 @@ import '../models/carrito_compra.dart';
 import '../models/producto_model.dart';
 import '../models/proveedores_model.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/toast.dart';
 import '../widgets/nav_bar.dart';
 
 import '../services/ticket_compras_service.dart';
@@ -138,18 +139,11 @@ class _ComprasViewState extends State<ComprasView> {
         montoInicialCtrl.text = '0';
       });
 
-      showDialog(
-        context: context,
-        builder: (_) => const CustomAlert(
-          titulo: 'COMPRA',
-          mensaje: 'Compra realizada con éxito',
-          icono: Icons.check_circle_outline,
-        ),
-      );
+      if (!mounted) return;
+      Toast.exito(context, 'Compra registrada correctamente');
     } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text("Error: $e")));
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo registrar la compra. $e');
     }
   }
 
