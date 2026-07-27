@@ -10,6 +10,7 @@ import '../core/config/app_config.dart';
 import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
 import '../models/caja_model.dart';
+import '../widgets/custom_alert.dart';
 import 'apartados_view.dart';
 import 'caja_view.dart';
 import 'clientes_view.dart';
@@ -113,6 +114,30 @@ class _HomeViewState extends State<HomeView> {
   }
 
   Future<void> _cerrarSesion() async {
+    // Si el usuario tiene una caja abierta, primero debe hacer el corte de
+    // caja: no se le deja cerrar sesión (ni cambiar de cuenta) con el efectivo
+    // sin cuadrar. Este aviso SÍ es importante y se mantiene como modal.
+    final idUsuario = SessionManager.currentUserId;
+    if (idUsuario != null) {
+      final caja = await _caja.obtenerCajaAbierta(idUsuario);
+      if (caja != null) {
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          builder: (_) => CustomAlert(
+            titulo: 'Tienes una caja abierta',
+            mensaje: 'Antes de cerrar sesión debes hacer el corte de caja.',
+            icono: Icons.point_of_sale_outlined,
+            color: AppColors.warning,
+            textoCancelar: 'Ahora no',
+            textoConfirmar: 'Ir a caja',
+            onConfirm: () => _abrir((_) => const CajaView()),
+          ),
+        );
+        return;
+      }
+    }
+
     await AuditoriaController().registrar(tabla: 'Sesion', accion: 'LOGOUT', descripcion: 'Cierre de sesión');
     SessionManager.clear();
     if (!mounted) return;
@@ -188,27 +213,7 @@ class _HomeViewState extends State<HomeView> {
           children: [
             const _RelojPill(),
             _pill(Icons.cloud_done_outlined, 'Sincronizado', fondo: AppColors.success.withValues(alpha: 0.12), colorTexto: AppColors.success),
-            Container(
-              padding: const EdgeInsets.fromLTRB(14, 5, 5, 5),
-              decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(999)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Text(SessionManager.currentUserName,
-                      style: const TextStyle(fontSize: AppText.caption, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-                  Text(SessionManager.currentUserRole.toUpperCase(),
-                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.4)),
-                ]),
-                const SizedBox(width: 8),
-                Container(
-                  width: 32, height: 32, alignment: Alignment.center,
-                  decoration: const BoxDecoration(color: Color(0xFF14151A), shape: BoxShape.circle),
-                  child: Text(inicial, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: AppText.caption)),
-                ),
-              ]),
-            ),
-            if (_esAdmin)
-              _botonIcono(Icons.settings_outlined, AppColors.surface, AppColors.textSecondary, () => _abrir((_) => const ConfiguracionView())),
-            _botonIcono(Icons.logout, const Color(0xFF14151A), Colors.white, _cerrarSesion),
+            _menuUsuario(inicial),
           ],
         ),
       ],
@@ -225,14 +230,63 @@ class _HomeViewState extends State<HomeView> {
         ]),
       );
 
-  Widget _botonIcono(IconData icon, Color fondo, Color color, VoidCallback onTap) => Material(
-        color: fondo,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: SizedBox(width: 40, height: 40, child: Icon(icon, size: 20, color: color)),
+  /// Avatar de la cuenta (solo la inicial). Al hacer clic despliega el menú de
+  /// sesión: Configuración (solo admin), cambiar de cuenta y cerrar sesión.
+  Widget _menuUsuario(String inicial) {
+    return PopupMenuButton<String>(
+      tooltip: 'Cuenta',
+      offset: const Offset(0, 48),
+      color: Colors.white,
+      elevation: 8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      itemBuilder: (context) => [
+        PopupMenuItem<String>(
+          enabled: false,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(SessionManager.currentUserName,
+                  style: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+              const SizedBox(height: 2),
+              Text(SessionManager.currentUserRole.toUpperCase(),
+                  style: const TextStyle(fontSize: AppText.overline, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.4)),
+            ],
+          ),
         ),
+        const PopupMenuDivider(),
+        if (_esAdmin)
+          PopupMenuItem<String>(value: 'config', child: _itemMenu(Icons.settings_outlined, 'Configuración')),
+        PopupMenuItem<String>(value: 'cambiar', child: _itemMenu(Icons.switch_account_outlined, 'Cambiar de cuenta')),
+        PopupMenuItem<String>(value: 'salir', child: _itemMenu(Icons.logout, 'Cerrar sesión', color: AppColors.error)),
+      ],
+      onSelected: (v) {
+        switch (v) {
+          case 'config':
+            _abrir((_) => const ConfiguracionView());
+            break;
+          case 'cambiar':
+          case 'salir':
+            _cerrarSesion();
+            break;
+        }
+      },
+      child: Container(
+        width: 40, height: 40, alignment: Alignment.center,
+        decoration: const BoxDecoration(color: Color(0xFF14151A), shape: BoxShape.circle),
+        child: Text(inicial, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: AppText.body)),
+      ),
+    );
+  }
+
+  Widget _itemMenu(IconData icon, String label, {Color? color}) => Row(
+        children: [
+          Icon(icon, size: 19, color: color ?? AppColors.textSecondary),
+          const SizedBox(width: 12),
+          Text(label, style: TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w600, color: color ?? AppColors.textPrimary)),
+        ],
       );
 
   // ----------------------------------------------------------- buscador
