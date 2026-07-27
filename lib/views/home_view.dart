@@ -32,8 +32,8 @@ class _Modulo {
 }
 
 /// Inicio en formato **tablero del día**: saludo, buscador, indicadores con
-/// datos reales (ventas de hoy, caja, stock bajo), acción principal de Ventas,
-/// módulos, y un panel lateral con las últimas ventas y lo que hay por surtir.
+/// datos reales (ventas de hoy, caja, inventario bajo), acción principal de
+/// Ventas y la parrilla de módulos.
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
 
@@ -52,8 +52,6 @@ class _HomeViewState extends State<HomeView> {
   Caja? _cajaAbierta;
   double _enCaja = 0;
   int _stockBajo = 0;
-  List<Map<String, dynamic>> _ultimasVentas = const [];
-  List<Map<String, dynamic>> _porSurtir = const [];
 
   bool get _esAdmin => SessionManager.isAdmin;
 
@@ -101,8 +99,6 @@ class _HomeViewState extends State<HomeView> {
         _cajaAbierta = caja;
         _enCaja = enCaja;
         _stockBajo = bajos.length;
-        _ultimasVentas = rHoy.ventasRecientes.take(4).toList();
-        _porSurtir = bajos.take(4).toList();
         _cargando = false;
       });
     } catch (_) {
@@ -182,9 +178,6 @@ class _HomeViewState extends State<HomeView> {
             children: [
               Text('$saludo, ${SessionManager.currentUserName}',
                   style: const TextStyle(fontSize: AppText.heading, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
-              const SizedBox(height: 2),
-              const Text('Este es el resumen de hoy',
-                  style: TextStyle(fontSize: AppText.small, color: AppColors.textSecondary)),
             ],
           ),
         ),
@@ -257,19 +250,10 @@ class _HomeViewState extends State<HomeView> {
           const Expanded(
             child: Text('Buscar producto, cliente o ticket…', style: TextStyle(fontSize: AppText.body, color: AppColors.textSecondary)),
           ),
-          _chipTecla('F1  Nueva venta'),
-          const SizedBox(width: 8),
-          _chipTecla('F2  Corte'),
         ]),
       ),
     );
   }
-
-  Widget _chipTecla(String t) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: AppColors.border)),
-        child: Text(t, style: const TextStyle(fontSize: AppText.overline, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
-      );
 
   // --------------------------------------------------------------- KPIs
 
@@ -361,22 +345,7 @@ class _HomeViewState extends State<HomeView> {
 
   // -------------------------------------------------------------- cuerpo
 
-  Widget _cuerpo() {
-    return LayoutBuilder(builder: (context, c) {
-      final anchoPanel = 330.0;
-      if (c.maxWidth >= 1040) {
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: _modulosGrid()),
-            const SizedBox(width: 20),
-            SizedBox(width: anchoPanel, child: _panelLateral()),
-          ],
-        );
-      }
-      return Column(children: [_modulosGrid(), const SizedBox(height: 20), _panelLateral()]);
-    });
-  }
+  Widget _cuerpo() => _modulosGrid();
 
   Widget _modulosGrid() {
     final resto = _modulos;
@@ -509,98 +478,6 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
-  // -------------------------------------------------------- panel lateral
-
-  Widget _panelLateral() {
-    return Column(children: [_panelUltimasVentas(), const SizedBox(height: 16), _panelPorSurtir()]);
-  }
-
-  Widget _panelUltimasVentas() {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.border)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            const Text('Últimas ventas', style: TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-            GestureDetector(
-              onTap: () => _abrir((_) => const ReporteView()),
-              child: Text('Ver todo', style: TextStyle(fontSize: AppText.small, fontWeight: FontWeight.w700, color: AppColors.primaryDark)),
-            ),
-          ]),
-          const SizedBox(height: 6),
-          if (_ultimasVentas.isEmpty)
-            const Padding(padding: EdgeInsets.symmetric(vertical: 18), child: Text('Sin ventas hoy.', style: TextStyle(fontSize: AppText.small, color: AppColors.textSecondary)))
-          else
-            ..._ultimasVentas.map(_filaVenta),
-        ],
-      ),
-    );
-  }
-
-  Widget _filaVenta(Map<String, dynamic> v) {
-    final id = (v['id_venta'] as num?)?.toInt() ?? 0;
-    final total = (v['total_neto'] as num?)?.toDouble() ?? (v['total'] as num?)?.toDouble() ?? 0;
-    final metodo = (v['metodo_pago'] as String? ?? '').isEmpty ? 'Efectivo' : (v['metodo_pago'] as String);
-    final metodoCap = metodo[0].toUpperCase() + metodo.substring(1);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(children: [
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('#${id.toString().padLeft(6, '0')}', style: const TextStyle(fontSize: AppText.small, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-            const SizedBox(height: 2),
-            Text('${_haceCuanto(v['fecha'] as String?)} · $metodoCap', style: const TextStyle(fontSize: AppText.overline, color: AppColors.textSecondary)),
-          ]),
-        ),
-        Text(AppConfig.formatoMoneda(total), style: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-      ]),
-    );
-  }
-
-  Widget _panelPorSurtir() {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: _porSurtir.isEmpty ? Colors.white : AppColors.warning.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _porSurtir.isEmpty ? AppColors.border : AppColors.warning.withValues(alpha: 0.30)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Icon(Icons.warning_amber_rounded, size: 18, color: _porSurtir.isEmpty ? AppColors.textSecondary : AppColors.warning),
-            const SizedBox(width: 8),
-            Text('Por surtir', style: TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w800, color: _porSurtir.isEmpty ? AppColors.textPrimary : AppColors.warning)),
-          ]),
-          const SizedBox(height: 6),
-          if (_porSurtir.isEmpty)
-            const Padding(padding: EdgeInsets.symmetric(vertical: 14), child: Text('Todo con existencia suficiente.', style: TextStyle(fontSize: AppText.small, color: AppColors.textSecondary)))
-          else ...[
-            ..._porSurtir.map((p) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 7),
-                  child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                    Expanded(child: Text('${p['nombre']}', style: const TextStyle(fontSize: AppText.small, fontWeight: FontWeight.w600, color: AppColors.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                    Text('${(p['cantidad'] as num?)?.toInt() ?? 0} pz', style: TextStyle(fontSize: AppText.small, fontWeight: FontWeight.w800, color: AppColors.warning)),
-                  ]),
-                )),
-            const SizedBox(height: 6),
-            GestureDetector(
-              onTap: () => _abrir((_) => ComprasView()),
-              child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text('Crear orden de compra', style: TextStyle(fontSize: AppText.small, fontWeight: FontWeight.w800, color: AppColors.warning)),
-                const SizedBox(width: 6),
-                Icon(Icons.arrow_forward, size: 17, color: AppColors.warning),
-              ]),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
   // --------------------------------------------------------------- utils
 
   String _horaDe(String iso) {
@@ -610,17 +487,6 @@ class _HomeViewState extends State<HomeView> {
     return '$h:${dt.minute.toString().padLeft(2, '0')} ${dt.hour >= 12 ? 'p.m.' : 'a.m.'}';
   }
 
-  String _haceCuanto(String? iso) {
-    if (iso == null) return '';
-    final dt = DateTime.tryParse(iso);
-    if (dt == null) return '';
-    final min = DateTime.now().difference(dt).inMinutes;
-    if (min < 1) return 'hace un momento';
-    if (min < 60) return 'hace $min min';
-    final hrs = min ~/ 60;
-    if (hrs < 24) return 'hace $hrs h';
-    return 'hace ${hrs ~/ 24} d';
-  }
 }
 
 /// Pastillas de fecha + hora, con la hora actualizándose sola cada segundo.
