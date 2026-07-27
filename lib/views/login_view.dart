@@ -126,16 +126,6 @@ class _LoginViewState extends State<LoginView> {
                     ),
                   ),
 
-                  const SizedBox(height: 8),
-
-                  const Text(
-                    "Inicia sesión para continuar",
-                    style: TextStyle(
-                      fontSize: AppText.body,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-
                   const SizedBox(height: 32),
 
                   // 👤 USUARIO
@@ -214,20 +204,21 @@ class _LoginViewState extends State<LoginView> {
                     child: ElevatedButton(
                       onPressed: loading ? null : login,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.black87,
+                        backgroundColor: Colors.white,
+                        foregroundColor: AppColors.primaryDark,
                         elevation: 0,
+                        side: BorderSide(color: AppColors.primaryDark, width: 1.5),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(AppRadius.md),
                         ),
                       ),
                       child: loading
-                          ? const SizedBox(
+                          ? SizedBox(
                               height: 24,
                               width: 24,
                               child: CircularProgressIndicator(
                                 strokeWidth: 3,
-                                color: Colors.white,
+                                color: AppColors.primaryDark,
                               ),
                             )
                           : const Text(
@@ -240,15 +231,6 @@ class _LoginViewState extends State<LoginView> {
                     ),
                   ),
 
-                  const SizedBox(height: 20),
-
-                  const Text(
-                    "Sistema administrativo",
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: AppText.small,
-                    ),
-                  ),
                 ],
               ),
             ),
