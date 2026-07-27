@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
 import 'controllers/auth_controller.dart';
 import 'core/config/app_config.dart';
 import 'core/config/backend_config.dart';
@@ -9,6 +10,7 @@ import 'core/sync/sync_scheduler.dart';
 import 'core/theme/app_theme.dart';
 import 'views/login_view.dart';
 import 'views/setup_admin_view.dart';
+import 'widgets/barra_ventana.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,6 +21,23 @@ void main() async {
   // se hace `await`: no debe demorar el arranque de la UI, y el motor ya
   // maneja internamente el caso sin sesión/sin conexión (no-op barato).
   SyncScheduler.instancia.iniciar();
+
+  // Ventana sin barra de título nativa: se oculta la barra de Windows (la que
+  // decía "Pv Control") y la app dibuja sus propios controles (ver
+  // [BarraVentana], montada desde MaterialApp.builder).
+  await windowManager.ensureInitialized();
+  const opcionesVentana = WindowOptions(
+    size: Size(1280, 800),
+    minimumSize: Size(940, 620),
+    center: true,
+    title: 'Punto de Venta',
+    titleBarStyle: TitleBarStyle.hidden,
+  );
+  windowManager.waitUntilReadyToShow(opcionesVentana, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
+
   runApp(const MyApp());
 }
 
@@ -42,6 +61,13 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: AppConfig.actual.nombreNegocio,
       debugShowCheckedModeBanner: false,
+      // Monta la barra de ventana propia por encima de todas las pantallas.
+      builder: (context, child) => Column(
+        children: [
+          const BarraVentana(),
+          Expanded(child: child ?? const SizedBox.shrink()),
+        ],
+      ),
       home: const _AppEntryPoint(),
       theme: AppTheme.build(),
     );

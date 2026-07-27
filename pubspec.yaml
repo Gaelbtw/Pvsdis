@@ -48,6 +48,7 @@ dependencies:
   # que no hacen falta todavía) ni `connectivity_plus`/`flutter_secure_storage`
   # -- ver lib/core/sync/README-fase2.md para el detalle de esas decisiones.
   http: ^1.2.2
+  window_manager: ^0.5.2
 
 dev_dependencies:
   flutter_test:
