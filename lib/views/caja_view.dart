@@ -6,6 +6,7 @@ import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
 import '../models/caja_model.dart';
 import '../services/ticket_cierre_caja_service.dart';
+import '../services/ticket_corte_x_service.dart';
 import '../services/impresion_service.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/custom_alert.dart';
@@ -193,6 +194,98 @@ class _CajaViewState extends State<CajaView> {
     }
   }
 
+  // 💵 ENTRADA / SALIDA MANUAL DE EFECTIVO
+  void _registrarMovimientoDialog({required bool esEntrada}) {
+    final montoCtrl = TextEditingController();
+    final conceptoCtrl = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (_) => FormDialog(
+        titulo: esEntrada ? "Registrar entrada de efectivo" : "Registrar salida de efectivo",
+        subtitulo: esEntrada
+            ? "Dinero que entra a la caja por un motivo ajeno a la venta."
+            : "Dinero que sale de la caja (pago menor, retiro, etc.).",
+        textoGuardar: "Registrar",
+        campos: [
+          AppTextField(
+            controller: montoCtrl,
+            hint: "Monto",
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            icon: Icons.payments,
+          ),
+          AppTextField(
+            controller: conceptoCtrl,
+            hint: "Motivo",
+            icon: Icons.notes,
+            maxLines: 2,
+          ),
+        ],
+        onGuardar: () async {
+          final monto = double.tryParse(montoCtrl.text.replaceAll(',', '.'));
+          if (monto == null || monto <= 0) {
+            Toast.error(context, 'Ingresa un monto válido.');
+            return;
+          }
+          if (conceptoCtrl.text.trim().isEmpty) {
+            Toast.error(context, 'Indica el motivo del movimiento.');
+            return;
+          }
+
+          Navigator.pop(context);
+          await _registrarMovimiento(esEntrada: esEntrada, monto: monto, concepto: conceptoCtrl.text);
+        },
+      ),
+    );
+  }
+
+  Future<void> _registrarMovimiento({
+    required bool esEntrada,
+    required double monto,
+    required String concepto,
+  }) async {
+    try {
+      await _cajaController.registrarMovimientoEfectivo(
+        esEntrada: esEntrada,
+        monto: monto,
+        concepto: concepto,
+      );
+      await cargar();
+
+      if (!mounted) return;
+      Toast.exito(
+        context,
+        esEntrada ? 'Entrada de efectivo registrada.' : 'Salida de efectivo registrada.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      final mensaje = e.toString().replaceFirst("Exception: ", "");
+      Toast.error(context, 'No se pudo registrar el movimiento. $mensaje');
+    }
+  }
+
+  // 🧾 CORTE X (lectura sin cerrar el turno)
+  Future<void> _corteX() async {
+    final caja = cajaAbierta;
+    final r = resumen;
+    if (caja == null || r == null) return;
+
+    try {
+      final pdf = await TicketCorteXService.generar(
+        cajero: SessionManager.currentUserName,
+        fechaApertura: caja.fechaApertura,
+        fechaCorte: DateTime.now().toIso8601String(),
+        resumen: r,
+      );
+      await ImpresionService.imprimir(pdf);
+      if (!mounted) return;
+      Toast.exito(context, 'Corte X generado. La caja sigue abierta.');
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo generar el Corte X.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -290,7 +383,58 @@ class _CajaViewState extends State<CajaView> {
                 _statCard("Transferencia", r.ventasTransferencia, Icons.account_balance_outlined),
                 _statCard("Cambio entregado", r.cambioEntregado, Icons.currency_exchange),
                 _statCard("Devoluciones", r.devoluciones, Icons.assignment_return_outlined),
+                if (r.entradasEfectivo > 0)
+                  _statCard("Entradas de efectivo", r.entradasEfectivo, Icons.south_west),
+                if (r.salidasEfectivo > 0)
+                  _statCard("Salidas de efectivo", r.salidasEfectivo, Icons.north_east),
                 _statCard("Efectivo esperado", r.efectivoEsperado, Icons.point_of_sale),
+              ],
+            ),
+            const SizedBox(height: 24),
+            const Divider(),
+            const SizedBox(height: 20),
+            const Text(
+              "Movimientos y arqueo",
+              style: TextStyle(fontSize: AppText.subtitle, fontWeight: FontWeight.w800, color: AppColors.textStrong),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _registrarMovimientoDialog(esEntrada: true),
+                  icon: const Icon(Icons.south_west, size: 18),
+                  label: const Text("Registrar entrada"),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.success,
+                    side: BorderSide(color: AppColors.success.withValues(alpha: 0.5)),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _registrarMovimientoDialog(esEntrada: false),
+                  icon: const Icon(Icons.north_east, size: 18),
+                  label: const Text("Registrar salida"),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                    side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _corteX,
+                  icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                  label: const Text("Corte X (lectura)"),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.textStrong,
+                    side: const BorderSide(color: AppColors.border),
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 24),

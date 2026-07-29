@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/config/app_config.dart';
 import '../core/session/session_manager.dart';
+import '../core/session/ventas_en_espera_store.dart';
 import '../core/theme/app_colors.dart';
 import '../core/utils/descuento_utils.dart';
 import '../core/utils/escaneo_utils.dart';
@@ -14,6 +15,7 @@ import '../models/caja_model.dart';
 import '../models/carrito_venta.dart';
 import '../models/producto_model.dart';
 import '../models/promocion_model.dart';
+import '../models/venta_en_espera.dart';
 import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
 import '../widgets/toast.dart';
@@ -28,6 +30,7 @@ import 'caja_view.dart';
 
 import '../services/ticket_service.dart';
 import '../services/impresion_service.dart';
+import '../services/reimpresion_venta_service.dart';
 
 class VentasView extends StatefulWidget {
   final Cliente? cliente;
@@ -64,6 +67,11 @@ class _VentasViewState extends State<VentasView> {
   List<Map<String, dynamic>> pagos = [];
   ResultadoValidacionPagos resultadoPagos = validarPagosMixtos(total: 0, pagos: const []);
   int ventaCounter = 0;
+
+  /// Id de la última venta registrada en esta sesión de la pantalla, para
+  /// poder reimprimir su ticket sin ir a Reportes. `null` hasta la primera
+  /// venta.
+  int? _ultimaVentaId;
 
   bool cargando = true;
 
@@ -365,6 +373,201 @@ class _VentasViewState extends State<VentasView> {
     );
   }
 
+  // 🗑 VACIAR CARRITO (cancela la venta en curso y limpia la pantalla)
+  Future<void> _vaciarCarrito() async {
+    if (carrito.isEmpty) return;
+
+    await confirmarAccion(
+      context: context,
+      tituloConfirmar: 'Vaciar carrito',
+      mensajeConfirmar:
+          '¿Quitar todos los productos y cancelar esta venta en curso?',
+      iconoConfirmar: Icons.remove_shopping_cart_outlined,
+      textoConfirmar: 'Vaciar',
+      accion: () async {
+        setState(() {
+          _carrito.limpiar();
+          pagos = [];
+          ventaCounter++;
+          _lineaSeleccionada = null;
+
+          for (final c in controllers.values) {
+            c.dispose();
+          }
+          controllers.clear();
+        });
+      },
+      mensajeExito: 'Carrito vaciado.',
+    );
+  }
+
+  // 🖨 REIMPRIMIR EL ÚLTIMO TICKET (reconstruye el PDF desde la venta guardada)
+  Future<void> _reimprimirUltimoTicket() async {
+    final idVenta = _ultimaVentaId;
+    if (idVenta == null) return;
+
+    try {
+      final pdf = await ReimpresionVentaService.generar(idVenta);
+      await ImpresionService.imprimir(pdf);
+      if (!mounted) return;
+      Toast.exito(context, 'Reimprimiendo el ticket de la venta #$idVenta.');
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo reimprimir el ticket.');
+    }
+  }
+
+  // ⏸ PONER LA VENTA EN CURSO EN ESPERA (y dejar la pantalla lista para otra)
+  void _pausarVenta() {
+    if (carrito.isEmpty) return;
+
+    final venta = VentasEnEsperaStore.instancia.guardar(
+      items: _carrito.copiaItems(),
+      cliente: clienteSeleccionado,
+      descuentoGlobalTipo: _carrito.descuentoGlobalTipo,
+      descuentoGlobalValor: _carrito.descuentoGlobalValor,
+    );
+
+    setState(() {
+      _carrito.limpiar();
+      pagos = [];
+      ventaCounter++;
+      _lineaSeleccionada = null;
+
+      for (final c in controllers.values) {
+        c.dispose();
+      }
+      controllers.clear();
+    });
+
+    Toast.exito(context, 'Venta puesta en espera (#${venta.folio}).');
+  }
+
+  // ▶️ RETOMAR una venta en espera, cargándola en el carrito actual. Si ya hay
+  // una venta en curso, se pone en espera primero para no perderla.
+  void _retomarVenta(VentaEnEspera venta) {
+    final habiaVentaEnCurso = carrito.isNotEmpty;
+
+    if (habiaVentaEnCurso) {
+      VentasEnEsperaStore.instancia.guardar(
+        items: _carrito.copiaItems(),
+        cliente: clienteSeleccionado,
+        descuentoGlobalTipo: _carrito.descuentoGlobalTipo,
+        descuentoGlobalValor: _carrito.descuentoGlobalValor,
+      );
+    }
+
+    setState(() {
+      _carrito.reemplazar(
+        nuevosItems: venta.items,
+        descuentoGlobalTipo: venta.descuentoGlobalTipo,
+        descuentoGlobalValor: venta.descuentoGlobalValor,
+      );
+      clienteSeleccionado = venta.cliente;
+
+      for (final c in controllers.values) {
+        c.dispose();
+      }
+      controllers.clear();
+      for (final item in carrito) {
+        final id = item['id_producto'] as int;
+        controllers[id] =
+            TextEditingController(text: item['cantidad'].toString());
+      }
+
+      pagos = [];
+      ventaCounter++;
+      _lineaSeleccionada = null;
+    });
+
+    VentasEnEsperaStore.instancia.eliminar(venta);
+
+    if (!mounted) return;
+    Toast.exito(
+      context,
+      habiaVentaEnCurso
+          ? 'Se retomó la venta #${venta.folio}. La anterior quedó en espera.'
+          : 'Se retomó la venta #${venta.folio}.',
+    );
+  }
+
+  // 📋 LISTA DE VENTAS EN ESPERA (retomar o descartar cada una)
+  void _mostrarVentasEnEspera() {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final ventas = VentasEnEsperaStore.instancia.ventas;
+
+          return AlertDialog(
+            title: const Text('Ventas en espera'),
+            content: SizedBox(
+              width: 420,
+              child: ventas.isEmpty
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Text('No hay ventas en espera.'),
+                    )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: ventas.length,
+                      separatorBuilder: (_, _) => const Divider(height: 1),
+                      itemBuilder: (_, i) {
+                        final v = ventas[i];
+                        final cliente = v.cliente?.nombre ?? 'Consumidor final';
+                        return ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: CircleAvatar(
+                            backgroundColor: AppColors.primaryLighter,
+                            child: Text('#${v.folio}',
+                                style: TextStyle(
+                                    fontSize: AppText.caption,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.primaryDark)),
+                          ),
+                          title: Text(cliente,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700)),
+                          subtitle: Text(
+                            '${v.totalUnidades} artículo(s) · ${AppConfig.formatoMoneda(v.subtotalAproximado)} · ${_horaCorta(v.creadaEn)}',
+                            style: const TextStyle(fontSize: AppText.caption),
+                          ),
+                          trailing: IconButton(
+                            tooltip: 'Descartar',
+                            icon: const Icon(Icons.delete_outline,
+                                color: AppColors.error),
+                            onPressed: () {
+                              VentasEnEsperaStore.instancia.eliminar(v);
+                              setDialogState(() {});
+                              setState(() {});
+                            },
+                          ),
+                          onTap: () {
+                            Navigator.pop(dialogContext);
+                            _retomarVenta(v);
+                          },
+                        );
+                      },
+                    ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cerrar'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  String _horaCorta(DateTime dt) {
+    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '$h:$m ${dt.hour >= 12 ? 'p.m.' : 'a.m.'}';
+  }
+
   // 🧾 INICIAR CONFIRMACIÓN (pide motivo/autorización si el descuento lo amerita)
   void iniciarConfirmacionVenta() {
     if (carrito.isEmpty) return;
@@ -426,7 +629,7 @@ class _VentasViewState extends State<VentasView> {
       final pagosVenta = pagos;
       final cambioVenta = resultadoPagos.cambio;
 
-      await ventasController.insertarVentaCompleta(
+      final idVenta = await ventasController.insertarVentaCompleta(
         carrito: carrito,
         pagos: pagosVenta,
         idCliente: clienteSeleccionado?.idCliente,
@@ -441,6 +644,7 @@ class _VentasViewState extends State<VentasView> {
       setState(() {
         _carrito.limpiar();
 
+        _ultimaVentaId = idVenta;
         pagos = [];
         ventaCounter++;
 
@@ -518,6 +722,10 @@ class _VentasViewState extends State<VentasView> {
               onEscape: _atajoEscape,
               onMoverSeleccion: _moverSeleccionCarrito,
               onEliminarSeleccionada: _atajoEliminarLineaSeleccionada,
+              onPausar: _pausarVenta,
+              onVerEnEspera: _mostrarVentasEnEspera,
+              onReimprimir: _reimprimirUltimoTicket,
+              onVaciar: _vaciarCarrito,
               child: Padding(
               padding: const EdgeInsets.fromLTRB(
                 24,
@@ -748,14 +956,54 @@ class _VentasViewState extends State<VentasView> {
                                 Icons.shopping_cart,
                               ),
                               const SizedBox(width: 10),
-                              const Text(
-                                "Detalle de Venta",
-                                style: TextStyle(
-                                  fontSize: AppText.title,
-                                  fontWeight:
-                                      FontWeight.bold,
+                              const Expanded(
+                                child: Text(
+                                  "Detalle de Venta",
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: AppText.title,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
+                              if (VentasEnEsperaStore.instancia.hayVentas)
+                                Badge.count(
+                                  count:
+                                      VentasEnEsperaStore.instancia.cantidad,
+                                  child: IconButton(
+                                    tooltip: 'Ventas en espera (F8)',
+                                    visualDensity: VisualDensity.compact,
+                                    onPressed: _mostrarVentasEnEspera,
+                                    icon: const Icon(Icons.pending_actions),
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              if (_ultimaVentaId != null)
+                                IconButton(
+                                  tooltip:
+                                      'Reimprimir último ticket #$_ultimaVentaId (F9)',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: _reimprimirUltimoTicket,
+                                  icon: const Icon(Icons.receipt_long_outlined),
+                                  color: AppColors.textSecondary,
+                                ),
+                              if (carrito.isNotEmpty) ...[
+                                IconButton(
+                                  tooltip: 'Poner en espera (F7)',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: _pausarVenta,
+                                  icon: const Icon(Icons.pause_circle_outline),
+                                  color: AppColors.textSecondary,
+                                ),
+                                IconButton(
+                                  tooltip: 'Vaciar carrito (Shift+Supr)',
+                                  visualDensity: VisualDensity.compact,
+                                  onPressed: _vaciarCarrito,
+                                  icon: const Icon(
+                                      Icons.remove_shopping_cart_outlined),
+                                  color: AppColors.error,
+                                ),
+                              ],
                             ],
                           ),
 

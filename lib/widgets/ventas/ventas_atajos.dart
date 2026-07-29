@@ -37,6 +37,10 @@ bool puedeConfirmarVenta({
 }
 
 /// Envuelve [child] con los atajos de teclado de Ventas.
+///
+/// Los callbacks opcionales ([onPausar], [onVerEnEspera], [onReimprimir],
+/// [onVaciar]) solo registran su atajo si se pasan: así los tests que montan
+/// el widget aislado con los callbacks base siguen funcionando sin tocarlos.
 class VentasAtajos extends StatelessWidget {
   final Widget child;
   final VoidCallback onEnfocarBusqueda;
@@ -44,6 +48,18 @@ class VentasAtajos extends StatelessWidget {
   final VoidCallback onEscape;
   final void Function(int delta) onMoverSeleccion;
   final VoidCallback onEliminarSeleccionada;
+
+  /// F7: poner la venta en curso en espera.
+  final VoidCallback? onPausar;
+
+  /// F8: abrir la lista de ventas en espera.
+  final VoidCallback? onVerEnEspera;
+
+  /// F9: reimprimir el último ticket.
+  final VoidCallback? onReimprimir;
+
+  /// Shift+Supr: vaciar el carrito.
+  final VoidCallback? onVaciar;
 
   const VentasAtajos({
     super.key,
@@ -53,6 +69,10 @@ class VentasAtajos extends StatelessWidget {
     required this.onEscape,
     required this.onMoverSeleccion,
     required this.onEliminarSeleccionada,
+    this.onPausar,
+    this.onVerEnEspera,
+    this.onReimprimir,
+    this.onVaciar,
   });
 
   /// `true` si el foco actual está dentro de un campo de texto editable
@@ -93,6 +113,18 @@ class VentasAtajos extends StatelessWidget {
             () => _siNoEstaEscribiendo(() => onMoverSeleccion(1)),
         const SingleActivator(LogicalKeyboardKey.delete):
             () => _siNoEstaEscribiendo(onEliminarSeleccionada),
+        if (onPausar != null)
+          const SingleActivator(LogicalKeyboardKey.f7):
+              () => _siNoEstaEscribiendo(onPausar!),
+        if (onVerEnEspera != null)
+          const SingleActivator(LogicalKeyboardKey.f8):
+              () => _siNoEstaEscribiendo(onVerEnEspera!),
+        if (onReimprimir != null)
+          const SingleActivator(LogicalKeyboardKey.f9):
+              () => _siNoEstaEscribiendo(onReimprimir!),
+        if (onVaciar != null)
+          const SingleActivator(LogicalKeyboardKey.delete, shift: true):
+              () => _siNoEstaEscribiendo(onVaciar!),
       },
       child: child,
     );

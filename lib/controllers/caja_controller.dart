@@ -4,6 +4,7 @@ import '../core/database/database_helper.dart';
 import '../core/session/session_manager.dart';
 import '../core/sync/auth_service.dart';
 import '../core/sync/bitacoras/corte_caja_logger.dart';
+import '../core/sync/bitacoras/movimiento_caja_logger.dart';
 import '../core/sync/outbox/sync_outbox_writer.dart';
 import '../core/utils/money.dart';
 import '../models/caja_model.dart';
@@ -38,6 +39,13 @@ class ResumenCaja {
   /// `Abono_Pagos` pero no entran aquí ni restan de `efectivoEsperado`.
   final double pagosProveedoresEfectivo;
 
+  /// Entradas y salidas de efectivo registradas manualmente por el cajero en
+  /// esta caja (dinero ingresado/retirado por motivos ajenos a la venta:
+  /// más cambio, pago menor, retiro de ganancia, etc.). Ambas positivas para
+  /// mostrar; su efecto neto ya está incorporado en [efectivoEsperado].
+  final double entradasEfectivo;
+  final double salidasEfectivo;
+
   const ResumenCaja({
     required this.fondoInicial,
     required this.ventasEfectivo,
@@ -51,6 +59,8 @@ class ResumenCaja {
     this.anticiposTransferencia = 0,
     this.cambioAnticipos = 0,
     this.pagosProveedoresEfectivo = 0,
+    this.entradasEfectivo = 0,
+    this.salidasEfectivo = 0,
   });
 
   double get totalVentas => ventasEfectivo + ventasTarjeta + ventasTransferencia;
@@ -63,6 +73,7 @@ class ResumenCaja {
 class CajaController {
   final dbHelper = DatabaseHelper();
   final _corteCajaLogger = CorteCajaLogger();
+  final _movimientoCajaLogger = MovimientoCajaLogger();
   final _outboxWriter = SyncOutboxWriter(authService: AuthService.instancia);
 
   /// Abre una caja nueva para el usuario actual. Falla si ya tiene una
@@ -204,12 +215,33 @@ class CajaController {
       WHERE Abonos.id_caja = ? AND Abono_Pagos.metodo_pago = 'Efectivo'
     ''', [idCaja]);
 
+    // Entradas/salidas manuales de efectivo (Movimiento_Caja): la entrada se
+    // guarda con monto positivo y la salida con monto negativo, así que el
+    // SUM por tipo ya trae el signo correcto para el efectivo esperado.
+    final movimientosManualRows = await executor.rawQuery('''
+      SELECT tipo_movimiento, IFNULL(SUM(monto), 0) as total
+      FROM Movimiento_Caja
+      WHERE id_caja = ? AND tipo_movimiento IN ('EntradaManual','SalidaManual')
+      GROUP BY tipo_movimiento
+    ''', [idCaja]);
+
+    double montoManualDe(String tipo) {
+      for (final row in movimientosManualRows) {
+        if (row['tipo_movimiento'] == tipo) {
+          return (row['total'] as num).toDouble();
+        }
+      }
+      return 0;
+    }
+
     final ventasEfectivo = montoDe('Efectivo');
     final anticiposEfectivo = montoAnticipoDe('Efectivo');
     final cambioEntregado = (cambioRes.first['total'] as num).toDouble();
     final cambioAnticipos = (cambioAnticiposRes.first['total'] as num).toDouble();
     final devoluciones = (devolucionesRes.first['total'] as num).toDouble();
     final pagosProveedoresEfectivo = (pagosProveedoresRes.first['total'] as num).toDouble();
+    final entradasEfectivo = montoManualDe('EntradaManual'); // >= 0
+    final salidasEfectivoNeto = montoManualDe('SalidaManual'); // <= 0
 
     final efectivoEsperado = redondearMoneda(
       caja.fondoInicial +
@@ -218,7 +250,9 @@ class CajaController {
           cambioEntregado -
           cambioAnticipos -
           devoluciones -
-          pagosProveedoresEfectivo,
+          pagosProveedoresEfectivo +
+          entradasEfectivo +
+          salidasEfectivoNeto,
     );
 
     return ResumenCaja(
@@ -234,6 +268,8 @@ class CajaController {
       anticiposTransferencia: montoAnticipoDe('Transferencia'),
       cambioAnticipos: cambioAnticipos,
       pagosProveedoresEfectivo: pagosProveedoresEfectivo,
+      entradasEfectivo: entradasEfectivo,
+      salidasEfectivo: -salidasEfectivoNeto, // positivo para mostrar
     );
   }
 
@@ -243,6 +279,64 @@ class CajaController {
     final db = await dbHelper.database;
     final caja = await _obtenerCajaOrThrow(db, idCaja);
     return _computarResumen(db, caja);
+  }
+
+  /// Registra un movimiento manual de efectivo (una entrada o una salida) en
+  /// la caja actualmente abierta del usuario. La entrada se guarda con monto
+  /// positivo y la salida con negativo, de modo que [_computarResumen] las
+  /// sume directamente al efectivo esperado. [esEntrada] elige el sentido.
+  Future<int> registrarMovimientoEfectivo({
+    required bool esEntrada,
+    required double monto,
+    required String concepto,
+  }) async {
+    if (monto <= 0) {
+      throw Exception('El monto debe ser mayor a cero.');
+    }
+    final conceptoLimpio = concepto.trim();
+    if (conceptoLimpio.isEmpty) {
+      throw Exception('Indica el motivo del movimiento.');
+    }
+
+    final db = await dbHelper.database;
+    final idUsuario = SessionManager.currentUserId ?? 1;
+
+    return db.transaction((txn) async {
+      final abiertas = await txn.query(
+        'Cajas',
+        where: 'id_usuario = ? AND estado = ?',
+        whereArgs: [idUsuario, 'Abierta'],
+        limit: 1,
+      );
+      if (abiertas.isEmpty) {
+        throw Exception('Debes abrir la caja antes de registrar movimientos.');
+      }
+      final idCaja = abiertas.first['id_caja'] as int;
+
+      final montoConSigno = esEntrada ? monto : -monto;
+
+      final idMovimiento = await _movimientoCajaLogger.registrar(
+        txn,
+        idCaja: idCaja,
+        tipoMovimiento: esEntrada ? 'EntradaManual' : 'SalidaManual',
+        monto: montoConSigno,
+        concepto: conceptoLimpio,
+      );
+
+      await txn.insert('Auditorias', {
+        'fecha_hora': DateTime.now().toIso8601String(),
+        'usuario': SessionManager.currentUserName,
+        'tabla': 'Movimiento_Caja',
+        'accion': esEntrada ? 'ENTRADA_EFECTIVO' : 'SALIDA_EFECTIVO',
+        'id_registro': idMovimiento,
+        'descripcion':
+            '${esEntrada ? 'Entrada' : 'Salida'} de efectivo por \$${monto.toStringAsFixed(2)}. Motivo: $conceptoLimpio.',
+        'id_usuario': idUsuario,
+        'id_caja': idCaja,
+      });
+
+      return idMovimiento;
+    });
   }
 
   /// Congela el resumen actual de [idCaja] y la marca `Cerrada`. Falla si

@@ -192,6 +192,66 @@ void main() {
       expect(resumen.efectivoEsperado, 850.0);
       expect(resumen.totalVentas, 1500.0); // 1000 + 300 + 200
     });
+
+    test('entradas suman y salidas restan del efectivo esperado', () async {
+      final idCaja = await caja.abrirCaja(fondoInicial: 500);
+
+      await caja.registrarMovimientoEfectivo(esEntrada: true, monto: 200, concepto: 'Más cambio');
+      await caja.registrarMovimientoEfectivo(esEntrada: false, monto: 75, concepto: 'Pago de agua');
+
+      final resumen = await caja.calcularResumenCaja(idCaja);
+
+      expect(resumen.entradasEfectivo, 200.0);
+      expect(resumen.salidasEfectivo, 75.0);
+      // 500 (fondo) + 200 (entrada) - 75 (salida) = 625
+      expect(resumen.efectivoEsperado, 625.0);
+    });
+  });
+
+  group('registrarMovimientoEfectivo', () {
+    test('rechaza monto no positivo', () async {
+      await caja.abrirCaja(fondoInicial: 500);
+      await expectLater(
+        caja.registrarMovimientoEfectivo(esEntrada: true, monto: 0, concepto: 'x'),
+        throwsA(isA<Exception>()),
+      );
+    });
+
+    test('rechaza motivo vacío', () async {
+      await caja.abrirCaja(fondoInicial: 500);
+      await expectLater(
+        caja.registrarMovimientoEfectivo(esEntrada: false, monto: 50, concepto: '   '),
+        throwsA(isA<Exception>()),
+      );
+    });
+
+    test('falla si no hay caja abierta', () async {
+      await expectLater(
+        caja.registrarMovimientoEfectivo(esEntrada: true, monto: 50, concepto: 'Fondo extra'),
+        throwsA(isA<Exception>()),
+      );
+    });
+
+    test('guarda la salida con monto negativo y su auditoría', () async {
+      final idCaja = await caja.abrirCaja(fondoInicial: 500);
+
+      await caja.registrarMovimientoEfectivo(esEntrada: false, monto: 120, concepto: 'Retiro parcial');
+
+      final movimientos = await db.query(
+        'Movimiento_Caja',
+        where: 'id_caja = ? AND tipo_movimiento = ?',
+        whereArgs: [idCaja, 'SalidaManual'],
+      );
+      expect(movimientos, hasLength(1));
+      expect((movimientos.first['monto'] as num).toDouble(), -120.0);
+
+      final auditorias = await db.query(
+        'Auditorias',
+        where: 'accion = ?',
+        whereArgs: ['SALIDA_EFECTIVO'],
+      );
+      expect(auditorias, hasLength(1));
+    });
   });
 
   group('cerrarCaja', () {

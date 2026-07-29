@@ -89,4 +89,24 @@ class CarritoVenta {
     items.clear();
     quitarDescuentoGlobal();
   }
+
+  /// Copia profunda de las líneas actuales, para guardar una venta en espera
+  /// sin que luego se mute al seguir operando el carrito vivo.
+  List<Map<String, dynamic>> copiaItems() =>
+      items.map((item) => Map<String, dynamic>.from(item)).toList();
+
+  /// Reemplaza por completo el contenido del carrito (al retomar una venta en
+  /// espera). Las líneas se copian para no compartir referencia con el
+  /// snapshot guardado.
+  void reemplazar({
+    required List<Map<String, dynamic>> nuevosItems,
+    TipoDescuento? descuentoGlobalTipo,
+    double descuentoGlobalValor = 0,
+  }) {
+    items
+      ..clear()
+      ..addAll(nuevosItems.map((item) => Map<String, dynamic>.from(item)));
+    this.descuentoGlobalTipo = descuentoGlobalTipo;
+    this.descuentoGlobalValor = descuentoGlobalValor;
+  }
 }

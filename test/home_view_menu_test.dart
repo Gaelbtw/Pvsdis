@@ -32,6 +32,19 @@ void main() {
     FlutterError.onError = original;
   }
 
+  // Igual que arriba pero para una interacción posterior (abrir el menú de
+  // cuenta): suprime solo los errores de overflow del layout preexistente
+  // mientras corre [accion], sin ocultar cualquier otra excepción real.
+  Future<void> conOverflowIgnorado(Future<void> Function() accion) async {
+    final original = FlutterError.onError;
+    FlutterError.onError = (details) {
+      final esOverflow = details.exception.toString().contains('overflowed');
+      if (!esOverflow) original?.call(details);
+    };
+    await accion();
+    FlutterError.onError = original;
+  }
+
   tearDown(() {
     SessionManager.clear();
   });
@@ -51,8 +64,15 @@ void main() {
       expect(find.text(oculto), findsNothing, reason: '"$oculto" no debería estar en el inicio de Admin');
     }
 
-    // El engrane de Configuración solo aparece para Admin.
-    expect(find.byTooltip('Configuracion'), findsOneWidget);
+    // El acceso a Configuración vive ahora dentro del menú de cuenta (avatar
+    // con tooltip 'Cuenta'); solo el Admin lo ve al abrirlo.
+    expect(find.byTooltip('Cuenta'), findsOneWidget);
+    await conOverflowIgnorado(() async {
+      await tester.tap(find.byTooltip('Cuenta'));
+      await tester.pumpAndSettle();
+    });
+    expect(find.text('Configuración'), findsOneWidget,
+        reason: 'Un Admin debe poder abrir Configuración desde el menú de cuenta');
   });
 
   testWidgets('Inicio de Cajero conserva sus mismas 8 tarjetas de siempre', (tester) async {
@@ -79,7 +99,15 @@ void main() {
       expect(find.text(oculto), findsNothing, reason: '"$oculto" no debe aparecer para Cajero');
     }
 
-    // Un Cajero no debe poder llegar a Configuración desde el inicio.
-    expect(find.byTooltip('Configuracion'), findsNothing);
+    // Un Cajero no debe poder llegar a Configuración: el menú de cuenta existe
+    // (para cambiar de cuenta / cerrar sesión) pero sin la opción de Config.
+    expect(find.byTooltip('Cuenta'), findsOneWidget);
+    await conOverflowIgnorado(() async {
+      await tester.tap(find.byTooltip('Cuenta'));
+      await tester.pumpAndSettle();
+    });
+    expect(find.text('Cambiar de cuenta'), findsOneWidget, reason: 'el menú de cuenta debería abrirse');
+    expect(find.text('Configuración'), findsNothing,
+        reason: 'Un Cajero no debe ver Configuración en su menú de cuenta');
   });
 }

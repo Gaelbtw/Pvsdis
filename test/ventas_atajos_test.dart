@@ -83,6 +83,10 @@ void main() {
       required void Function(int) onMoverSeleccion,
       required VoidCallback onEliminarSeleccionada,
       required FocusNode focoCampoDeTexto,
+      VoidCallback? onPausar,
+      VoidCallback? onVerEnEspera,
+      VoidCallback? onReimprimir,
+      VoidCallback? onVaciar,
     }) {
       // El campo de texto está DENTRO de VentasAtajos, como en VentasView
       // real (el buscador vive en el mismo árbol que envuelve
@@ -96,6 +100,10 @@ void main() {
             onEscape: onEscape,
             onMoverSeleccion: onMoverSeleccion,
             onEliminarSeleccionada: onEliminarSeleccionada,
+            onPausar: onPausar,
+            onVerEnEspera: onVerEnEspera,
+            onReimprimir: onReimprimir,
+            onVaciar: onVaciar,
             child: Column(
               children: [
                 TextField(focusNode: focoCampoDeTexto),
@@ -268,6 +276,70 @@ void main() {
       await tester.pump();
 
       expect(enfocado, 1, reason: 'F2 debe funcionar siempre, incluso escribiendo en otro campo');
+    });
+
+    testWidgets('F7/F8/F9 y Shift+Supr disparan sus acciones', (tester) async {
+      var pausas = 0, listas = 0, reimpresiones = 0, vaciados = 0;
+      final foco = FocusNode();
+      addTearDown(foco.dispose);
+
+      await tester.pumpWidget(arma(
+        onEnfocarBusqueda: () {},
+        onConfirmarVenta: () {},
+        onEscape: () {},
+        onMoverSeleccion: (_) {},
+        onEliminarSeleccionada: () {},
+        focoCampoDeTexto: foco,
+        onPausar: () => pausas++,
+        onVerEnEspera: () => listas++,
+        onReimprimir: () => reimpresiones++,
+        onVaciar: () => vaciados++,
+      ));
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.f7);
+      await tester.sendKeyEvent(LogicalKeyboardKey.f8);
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+
+      expect(pausas, 1);
+      expect(listas, 1);
+      expect(reimpresiones, 1);
+      expect(vaciados, 1);
+    });
+
+    testWidgets('los atajos nuevos no se disparan mientras se escribe', (tester) async {
+      var pausas = 0, reimpresiones = 0, vaciados = 0;
+      final foco = FocusNode();
+      addTearDown(foco.dispose);
+
+      await tester.pumpWidget(arma(
+        onEnfocarBusqueda: () {},
+        onConfirmarVenta: () {},
+        onEscape: () {},
+        onMoverSeleccion: (_) {},
+        onEliminarSeleccionada: () {},
+        focoCampoDeTexto: foco,
+        onPausar: () => pausas++,
+        onReimprimir: () => reimpresiones++,
+        onVaciar: () => vaciados++,
+      ));
+
+      foco.requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.f7);
+      await tester.sendKeyEvent(LogicalKeyboardKey.f9);
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+
+      expect(pausas, 0, reason: 'F7 no debe pausar mientras se escribe');
+      expect(reimpresiones, 0, reason: 'F9 no debe reimprimir mientras se escribe');
+      expect(vaciados, 0, reason: 'Shift+Supr no debe vaciar mientras se escribe');
     });
   });
 }
