@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../controllers/caja_controller.dart';
 import '../core/config/app_config.dart';
+import '../core/security/permisos.dart';
+import '../core/security/permisos_service.dart';
 import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
 import '../models/caja_model.dart';
@@ -402,28 +404,33 @@ class _CajaViewState extends State<CajaView> {
               spacing: 12,
               runSpacing: 12,
               children: [
-                OutlinedButton.icon(
-                  onPressed: () => _registrarMovimientoDialog(esEntrada: true),
-                  icon: const Icon(Icons.south_west, size: 18),
-                  label: const Text("Registrar entrada"),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.success,
-                    side: BorderSide(color: AppColors.success.withValues(alpha: 0.5)),
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                // Entradas/salidas manuales solo para roles con el permiso
+                // (ver matriz de permisos). El Corte X de lectura queda para
+                // cualquiera que tenga la caja abierta.
+                if (PermisosService.instancia.puedeActual(Permiso.movimientosCaja)) ...[
+                  OutlinedButton.icon(
+                    onPressed: () => _registrarMovimientoDialog(esEntrada: true),
+                    icon: const Icon(Icons.south_west, size: 18),
+                    label: const Text("Registrar entrada"),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.success,
+                      side: BorderSide(color: AppColors.success.withValues(alpha: 0.5)),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                    ),
                   ),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => _registrarMovimientoDialog(esEntrada: false),
-                  icon: const Icon(Icons.north_east, size: 18),
-                  label: const Text("Registrar salida"),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.error,
-                    side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                  OutlinedButton.icon(
+                    onPressed: () => _registrarMovimientoDialog(esEntrada: false),
+                    icon: const Icon(Icons.north_east, size: 18),
+                    label: const Text("Registrar salida"),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.error,
+                      side: BorderSide(color: AppColors.error.withValues(alpha: 0.5)),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
+                    ),
                   ),
-                ),
+                ],
                 OutlinedButton.icon(
                   onPressed: _corteX,
                   icon: const Icon(Icons.receipt_long_outlined, size: 18),

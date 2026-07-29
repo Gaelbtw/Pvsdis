@@ -25,5 +25,7 @@ class SessionManager {
   static bool get isAdmin =>
       currentUserRole == 'Admin' || currentUserRole == 'Administrador';
 
-  static bool get isCajero => !isAdmin;
+  static bool get isSupervisor => currentUserRole == 'Supervisor';
+
+  static bool get isCajero => !isAdmin && !isSupervisor;
 }

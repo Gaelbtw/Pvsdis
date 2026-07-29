@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../controllers/devoluciones_controller.dart';
 import '../core/config/app_config.dart';
+import '../core/security/permisos.dart';
+import '../core/security/permisos_service.dart';
 import '../core/theme/app_colors.dart';
 import '../services/ticket_devolucion_service.dart';
 import '../services/impresion_service.dart';
@@ -305,7 +307,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
           Expanded(
             child: ListView.separated(
               itemCount: d.items.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
               itemBuilder: (_, i) => _itemRow(d.items[i], puedeOperar),
             ),
           ),
@@ -401,7 +403,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
                   )
                 : ListView.separated(
                     itemCount: d.devoluciones.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (_, i) {
                       final item = d.devoluciones[i];
                       final tipo = item['tipo']?.toString() ?? 'Parcial';
@@ -454,6 +456,31 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
   Widget _accionesFooter(VentaDetalle d) {
     if (d.estado == 'Cancelada') {
       return const SizedBox.shrink();
+    }
+
+    // Devoluciones y cancelaciones quedan detrás del permiso del rol (ver
+    // matriz de permisos). Sin él, se muestra un aviso en vez de los botones.
+    if (!PermisosService.instancia.puedeActual(Permiso.realizarDevoluciones)) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceSubtle,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.lock_outline, size: 18, color: AppColors.textSecondary),
+            SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Tu rol no puede hacer devoluciones ni cancelaciones.',
+                style: TextStyle(color: AppColors.textSecondary, fontSize: AppText.small),
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
     return Row(

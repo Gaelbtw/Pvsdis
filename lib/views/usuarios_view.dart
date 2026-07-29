@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../core/theme/app_colors.dart';
 import '../controllers/usuarios_controller.dart';
 import '../core/security/password_hasher.dart';
+import '../core/security/permisos.dart';
 import '../models/usuarios_model.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/confirm_action.dart';
 import '../widgets/toast.dart';
 import '../widgets/form_dialog.dart';
 import '../widgets/nav_bar.dart';
+import 'permisos_view.dart';
 
 class UsuariosView extends StatefulWidget {
   const UsuariosView({super.key});
@@ -54,6 +57,10 @@ class _UsuariosViewState extends State<UsuariosView> {
   // real. Al editar, dejarlo vacío significa "no cambiar la contraseña".
   final contraCtrl = TextEditingController();
 
+  // Igual que la contraseña: nunca se prellena (se guarda hasheado). En blanco
+  // al editar = no tocar el PIN.
+  final pinCtrl = TextEditingController();
+
   String rolSeleccionado = usuario?.rol ?? "Cajero";
 
   showDialog(
@@ -80,9 +87,9 @@ class _UsuariosViewState extends State<UsuariosView> {
                 borderRadius: BorderRadius.circular(AppRadius.md),
               ),
               child: DropdownButtonFormField<String>(
-                value: rolSeleccionado,
+                initialValue: rolSeleccionado,
                 decoration: const InputDecoration(border: InputBorder.none),
-                items: ["Admin", "Cajero"]
+                items: Roles.todos
                     .map((r) => DropdownMenuItem(value: r, child: Text(r)))
                     .toList(),
                 onChanged: (value) {
@@ -92,6 +99,17 @@ class _UsuariosViewState extends State<UsuariosView> {
                   });
                 },
               ),
+            ),
+            AppTextField(
+              controller: pinCtrl,
+              hint: usuario == null
+                  ? "PIN (opcional, 4 a 6 dígitos)"
+                  : "PIN (en blanco = sin cambios)",
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(6),
+              ],
             ),
           ],
           onGuardar: () async {
@@ -117,6 +135,21 @@ class _UsuariosViewState extends State<UsuariosView> {
               }
             }
 
+            // PIN opcional: si se escribió, debe ser 4-6 dígitos y no estar ya
+            // en uso por otro usuario (permite el login rápido por PIN).
+            final pinIngresado = pinCtrl.text.trim();
+            if (pinIngresado.isNotEmpty) {
+              final errorPin = validarPin(pinIngresado);
+              if (errorPin != null) {
+                mostrarError(errorPin);
+                return;
+              }
+              if (await usuariosController.pinEnUso(pinIngresado, exceptoId: usuario?.idUsuario)) {
+                mostrarError("Ese PIN ya lo usa otro usuario. Elige otro.");
+                return;
+              }
+            }
+
             final nuevo = Usuarios(
               idUsuario: usuario?.idUsuario,
               nombre: nombreCtrl.text.trim(),
@@ -124,6 +157,7 @@ class _UsuariosViewState extends State<UsuariosView> {
               // descarta en UsuariosController.actualizar.
               contra: usuario == null ? contraCtrl.text : "",
               rol: rolSeleccionado,
+              pin: pinIngresado.isEmpty ? null : pinIngresado,
             );
 
             if (usuario == null) {
@@ -132,6 +166,8 @@ class _UsuariosViewState extends State<UsuariosView> {
               await usuariosController.actualizar(
                 nuevo,
                 nuevaContrasena: contraCtrl.text.isEmpty ? null : contraCtrl.text,
+                // En blanco = no tocar el PIN existente.
+                nuevoPin: pinIngresado.isEmpty ? null : pinIngresado,
               );
             }
 
@@ -225,6 +261,25 @@ class _UsuariosViewState extends State<UsuariosView> {
                       ],
                     ),
                   ),
+
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PermisosView()),
+                    ),
+                    icon: const Icon(Icons.admin_panel_settings_outlined),
+                    label: const Text("Permisos por rol"),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primaryDark,
+                      side: BorderSide(color: AppColors.primaryDark, width: 1.4),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 12),
 
                   ElevatedButton.icon(
                     onPressed: () => mostrarFormularioUsuario(),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/theme/app_colors.dart';
 
@@ -10,6 +11,7 @@ class AppTextField extends StatelessWidget {
   final String hint;
   final int maxLines;
   final TextInputType keyboardType;
+  final List<TextInputFormatter>? inputFormatters;
   final IconData? icon;
   final Color iconColor;
   final Color fillColor;
@@ -20,6 +22,7 @@ class AppTextField extends StatelessWidget {
     required this.hint,
     this.maxLines = 1,
     this.keyboardType = TextInputType.text,
+    this.inputFormatters,
     this.icon,
     this.iconColor = Colors.black87,
     this.fillColor = Colors.white,
@@ -31,6 +34,7 @@ class AppTextField extends StatelessWidget {
       controller: controller,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
       decoration: InputDecoration(
         hintText: hint,
         prefixIcon: icon == null ? null : Icon(icon, color: iconColor),

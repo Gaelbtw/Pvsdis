@@ -60,7 +60,7 @@ class DatabaseHelper {
 
   // Inicializar la base de datos
 
-  static const _databaseVersion = 19;
+  static const _databaseVersion = 20;
 
   Future<Database> _initDB() async {
     final path = await getDatabasePath();
@@ -213,7 +213,17 @@ class DatabaseHelper {
         id_usuario INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT NOT NULL,
         contra TEXT NOT NULL,
-        rol TEXT CHECK(rol IN ('Cajero','Admin')) NOT NULL
+        rol TEXT CHECK(rol IN ('Cajero','Supervisor','Admin')) NOT NULL,
+        pin TEXT
+      );
+    ''');
+
+    await db.execute('''
+      CREATE TABLE Rol_Permisos (
+        rol TEXT NOT NULL,
+        permiso TEXT NOT NULL,
+        permitido INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (rol, permiso)
       );
     ''');
 
@@ -522,6 +532,8 @@ class DatabaseHelper {
     await _ensureSyncConfigYPullEstadoTables(db);
     await _ensureGuidSyncColumns(db);
     await _ensureSyncOutboxTable(db);
+    await _ensureRolPermisosTable(db);
+    await _ensureUsuariosRolYPin(db);
 
     if (oldVersion < 7) {
       // SQLite no permite modificar una FOREIGN KEY ya existente con
@@ -557,6 +569,68 @@ class DatabaseHelper {
 
     if (!columnNames.contains('codigo_barras')) {
       await db.execute('ALTER TABLE Producto ADD COLUMN codigo_barras TEXT;');
+    }
+  }
+
+  /// Tabla de la matriz de permisos por rol. Solo guarda las casillas que el
+  /// administrador cambió respecto al valor por defecto (ver
+  /// `PermisosService`): cualquier combinación rol/permiso ausente usa el
+  /// default del código. CREATE IF NOT EXISTS: idempotente.
+  Future<void> _ensureRolPermisosTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS Rol_Permisos (
+        rol TEXT NOT NULL,
+        permiso TEXT NOT NULL,
+        permitido INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (rol, permiso)
+      );
+    ''');
+  }
+
+  /// Reconstruye `Usuarios` para (1) permitir el rol 'Supervisor' en el CHECK
+  /// y (2) agregar la columna `pin`. SQLite no deja modificar un CHECK con
+  /// ALTER, así que se recrea la tabla (procedimiento oficial). Idempotente:
+  /// si ya admite Supervisor y tiene `pin`, no hace nada.
+  ///
+  /// Corre solo dentro de `_onUpgrade`, donde foreign_keys está OFF. Se activa
+  /// `legacy_alter_table` durante el RENAME para que SQLite NO reescriba las
+  /// FOREIGN KEY de las tablas hijas (Ventas, Cajas, Auditorias, etc.) al
+  /// nombre temporal: así siguen apuntando a `Usuarios` y se religan a la
+  /// tabla ya recreada.
+  Future<void> _ensureUsuariosRolYPin(Database db) async {
+    final createRows = await db.rawQuery(
+      "SELECT sql FROM sqlite_master WHERE type='table' AND name='Usuarios'",
+    );
+    if (createRows.isEmpty) return;
+    final sql = createRows.first['sql']?.toString() ?? '';
+
+    final info = await db.rawQuery('PRAGMA table_info(Usuarios)');
+    final columnas = info.map((row) => row['name']?.toString()).toSet();
+    final tienePin = columnas.contains('pin');
+    final permiteSupervisor = sql.contains('Supervisor');
+
+    if (tienePin && permiteSupervisor) return;
+
+    await db.execute('PRAGMA legacy_alter_table = ON;');
+    try {
+      await db.execute('ALTER TABLE Usuarios RENAME TO Usuarios_legacy;');
+      await db.execute('''
+        CREATE TABLE Usuarios (
+          id_usuario INTEGER PRIMARY KEY AUTOINCREMENT,
+          nombre TEXT NOT NULL,
+          contra TEXT NOT NULL,
+          rol TEXT CHECK(rol IN ('Cajero','Supervisor','Admin')) NOT NULL,
+          pin TEXT
+        );
+      ''');
+      final pinSelect = tienePin ? 'pin' : 'NULL';
+      await db.execute('''
+        INSERT INTO Usuarios (id_usuario, nombre, contra, rol, pin)
+        SELECT id_usuario, nombre, contra, rol, $pinSelect FROM Usuarios_legacy;
+      ''');
+      await db.execute('DROP TABLE Usuarios_legacy;');
+    } finally {
+      await db.execute('PRAGMA legacy_alter_table = OFF;');
     }
   }
 
@@ -1759,6 +1833,7 @@ class DatabaseHelper {
     await _ensureSyncConfigYPullEstadoTables(db);
     await _ensureGuidSyncColumns(db);
     await _ensureSyncOutboxTable(db);
+    await _ensureRolPermisosTable(db);
   }
 
   Future<void> _ensureVentasMetodoPagoColumn(Database db) async {

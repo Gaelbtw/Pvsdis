@@ -39,6 +39,24 @@ class Authcontroller {
     return LoginResult(LoginStatus.success, usuario);
   }
 
+  /// Login rápido por PIN: identifica al usuario probando el [pin] contra el
+  /// hash de cada usuario que tenga uno configurado. Como el PIN se guarda
+  /// hasheado (bcrypt), no se puede buscar por igualdad en SQL. Devuelve
+  /// [LoginStatus.usuarioNoEncontrado] si ningún PIN coincide.
+  Future<LoginResult> loginConPin(String pin) async {
+    final db = await dbHelper.database;
+
+    final usuarios = await db.query('Usuarios', where: 'pin IS NOT NULL');
+    for (final usuario in usuarios) {
+      final pinAlmacenado = usuario['pin']?.toString() ?? '';
+      if (PasswordHasher.verify(pin, pinAlmacenado)) {
+        return LoginResult(LoginStatus.success, usuario);
+      }
+    }
+
+    return const LoginResult(LoginStatus.usuarioNoEncontrado, null);
+  }
+
   /// Indica si ya existe al menos un usuario registrado. Se usa para saber
   /// si la app debe pedir crear la cuenta de administrador (primer arranque)
   /// en vez de mostrar el login.

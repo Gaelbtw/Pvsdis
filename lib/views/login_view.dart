@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../controllers/auditoria_controller.dart';
 import '../controllers/auth_controller.dart';
+import '../core/security/permisos_service.dart';
 import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
 import '../views/home_view.dart';
@@ -16,10 +18,12 @@ class LoginView extends StatefulWidget {
 class _LoginViewState extends State<LoginView> {
   final usuarioController = TextEditingController();
   final passwordController = TextEditingController();
+  final pinController = TextEditingController();
   final authController = Authcontroller();
 
   bool loading = false;
   bool ocultar = true;
+  bool modoPin = false;
   String? _error;
 
   void login() async {
@@ -50,28 +54,63 @@ class _LoginViewState extends State<LoginView> {
         break;
 
       case LoginStatus.success:
-        final user = resultado.usuario!;
-        SessionManager.setUser(
-          id: user['id_usuario'] as int?,
-          nombre: user['nombre']?.toString() ?? 'Admin',
-          rol: user['rol']?.toString() ?? 'Administrador',
-        );
-        await AuditoriaController().registrar(
-          tabla: 'Sesion',
-          accion: 'LOGIN',
-          descripcion: 'Inicio de sesión',
-        );
-        if (!mounted) return;
-        // Directo al inicio, sin modal de "bienvenido".
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeView()));
+        await _entrar(resultado.usuario!);
         break;
     }
+  }
+
+  void loginPin() async {
+    final pin = pinController.text.trim();
+
+    if (pin.isEmpty) {
+      setState(() => _error = "Escribe tu PIN.");
+      return;
+    }
+
+    setState(() {
+      loading = true;
+      _error = null;
+    });
+
+    final resultado = await authController.loginConPin(pin);
+
+    if (!mounted) return;
+    setState(() => loading = false);
+
+    if (resultado.status == LoginStatus.success) {
+      await _entrar(resultado.usuario!);
+    } else {
+      setState(() {
+        _error = "PIN incorrecto.";
+        pinController.clear();
+      });
+    }
+  }
+
+  /// Paso común tras autenticar (por contraseña o PIN): fija la sesión, carga
+  /// la matriz de permisos del rol, deja registro y entra al inicio.
+  Future<void> _entrar(Map<String, dynamic> user) async {
+    SessionManager.setUser(
+      id: user['id_usuario'] as int?,
+      nombre: user['nombre']?.toString() ?? 'Admin',
+      rol: user['rol']?.toString() ?? 'Administrador',
+    );
+    await PermisosService.instancia.cargar();
+    await AuditoriaController().registrar(
+      tabla: 'Sesion',
+      accion: 'LOGIN',
+      descripcion: 'Inicio de sesión',
+    );
+    if (!mounted) return;
+    // Directo al inicio, sin modal de "bienvenido".
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeView()));
   }
 
   @override
   void dispose() {
     usuarioController.dispose();
     passwordController.dispose();
+    pinController.dispose();
     super.dispose();
   }
 
@@ -104,7 +143,7 @@ class _LoginViewState extends State<LoginView> {
                     height: 90,
                     width: 90,
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.15),
+                      color: AppColors.primary.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(AppRadius.lg),
                     ),
                     child: Icon(
@@ -128,50 +167,89 @@ class _LoginViewState extends State<LoginView> {
 
                   const SizedBox(height: 32),
 
-                  // 👤 USUARIO
-                  TextField(
-                    controller: usuarioController,
-                    decoration: InputDecoration(
-                      labelText: "Usuario",
-                      prefixIcon: const Icon(Icons.person_outline),
-                      filled: true,
-                      fillColor: AppColors.surfaceSubtle,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 18),
-
-              
-                  TextField(
-                    controller: passwordController,
-                    obscureText: ocultar,
-                    decoration: InputDecoration(
-                      labelText: "Contraseña",
-                      prefixIcon: const Icon(Icons.lock_outline),
-                      filled: true,
-                      fillColor: AppColors.surfaceSubtle,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        borderSide: BorderSide.none,
-                      ),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          ocultar
-                              ? Icons.visibility_off_outlined
-                              : Icons.visibility_outlined,
+                  // Credenciales: usuario+contraseña, o solo PIN según el modo.
+                  if (!modoPin) ...[
+                    // 👤 USUARIO
+                    TextField(
+                      controller: usuarioController,
+                      decoration: InputDecoration(
+                        labelText: "Usuario",
+                        prefixIcon: const Icon(Icons.person_outline),
+                        filled: true,
+                        fillColor: AppColors.surfaceSubtle,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          borderSide: BorderSide.none,
                         ),
-                        onPressed: () {
-                          setState(() {
-                            ocultar = !ocultar;
-                          });
-                        },
                       ),
                     ),
-                  ),
+
+                    const SizedBox(height: 18),
+
+                    TextField(
+                      controller: passwordController,
+                      obscureText: ocultar,
+                      onSubmitted: (_) => login(),
+                      decoration: InputDecoration(
+                        labelText: "Contraseña",
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        filled: true,
+                        fillColor: AppColors.surfaceSubtle,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          borderSide: BorderSide.none,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            ocultar
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              ocultar = !ocultar;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+                  ] else
+                    // 🔢 PIN (identifica al usuario por sí solo)
+                    TextField(
+                      controller: pinController,
+                      obscureText: ocultar,
+                      keyboardType: TextInputType.number,
+                      textAlign: TextAlign.center,
+                      autofocus: true,
+                      onSubmitted: (_) => loginPin(),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.digitsOnly,
+                        LengthLimitingTextInputFormatter(6),
+                      ],
+                      style: const TextStyle(
+                        fontSize: AppText.display,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 8,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: "PIN",
+                        prefixIcon: const Icon(Icons.pin_outlined),
+                        filled: true,
+                        fillColor: AppColors.surfaceSubtle,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                          borderSide: BorderSide.none,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            ocultar
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
+                          ),
+                          onPressed: () => setState(() => ocultar = !ocultar),
+                        ),
+                      ),
+                    ),
 
                   if (_error != null) ...[
                     const SizedBox(height: 20),
@@ -202,7 +280,7 @@ class _LoginViewState extends State<LoginView> {
                     width: double.infinity,
                     height: 55,
                     child: ElevatedButton(
-                      onPressed: loading ? null : login,
+                      onPressed: loading ? null : (modoPin ? loginPin : login),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         foregroundColor: AppColors.primaryDark,
@@ -229,6 +307,22 @@ class _LoginViewState extends State<LoginView> {
                               ),
                             ),
                     ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // Alternar entre contraseña y PIN.
+                  TextButton.icon(
+                    onPressed: loading
+                        ? null
+                        : () => setState(() {
+                              modoPin = !modoPin;
+                              _error = null;
+                              ocultar = true;
+                            }),
+                    icon: Icon(modoPin ? Icons.password_outlined : Icons.pin_outlined, size: 18),
+                    label: Text(modoPin ? "Entrar con usuario y contraseña" : "Entrar con PIN"),
+                    style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
                   ),
 
                 ],

@@ -13,6 +13,11 @@ class UsuariosController {
     final datos = usuario.toMap();
     datos['contra'] = PasswordHasher.hash(usuario.contra);
 
+    final pin = usuario.pin?.trim();
+    if (pin != null && pin.isNotEmpty) {
+      datos['pin'] = PasswordHasher.hash(pin);
+    }
+
     final id = await db.insert('Usuarios', datos);
 
     await _auditoriaController.registrar(
@@ -32,10 +37,33 @@ class UsuariosController {
     return result.map((e) => Usuarios.fromMap(e)).toList();
   }
 
+  /// Indica si algún otro usuario ya usa este [pin]. Como los PIN se guardan
+  /// hasheados, no se puede comparar por igualdad en SQL: se verifica uno por
+  /// uno con bcrypt. [exceptoId] excluye al propio usuario al editarlo.
+  Future<bool> pinEnUso(String pin, {int? exceptoId}) async {
+    final db = await DatabaseHelper().database;
+    final filas = await db.query(
+      'Usuarios',
+      columns: ['id_usuario', 'pin'],
+      where: 'pin IS NOT NULL',
+    );
+
+    for (final fila in filas) {
+      if (exceptoId != null && fila['id_usuario'] == exceptoId) continue;
+      final hash = fila['pin']?.toString() ?? '';
+      if (PasswordHasher.verify(pin, hash)) return true;
+    }
+    return false;
+  }
+
   /// Actualiza los datos del usuario. La contraseña solo se modifica cuando
   /// se pasa [nuevaContrasena] (no vacía); si se omite, se conserva el hash
   /// ya almacenado en vez de sobrescribirlo.
-  Future<int> actualizar(Usuarios usuario, {String? nuevaContrasena}) async {
+  ///
+  /// El PIN se controla con [nuevoPin]: `null` lo deja como estaba, `''` lo
+  /// borra (login por PIN deshabilitado para ese usuario) y cualquier otro
+  /// valor lo fija (hasheado).
+  Future<int> actualizar(Usuarios usuario, {String? nuevaContrasena, String? nuevoPin}) async {
     final db = await DatabaseHelper().database;
 
     final datos = usuario.toMap();
@@ -43,6 +71,11 @@ class UsuariosController {
       datos['contra'] = PasswordHasher.hash(nuevaContrasena);
     } else {
       datos.remove('contra');
+    }
+
+    if (nuevoPin != null) {
+      final pin = nuevoPin.trim();
+      datos['pin'] = pin.isEmpty ? null : PasswordHasher.hash(pin);
     }
 
     final rows = await db.update(
