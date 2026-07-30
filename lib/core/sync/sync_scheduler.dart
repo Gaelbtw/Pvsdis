@@ -82,6 +82,20 @@ class SyncScheduler {
   /// pendientes, sin resultado".
   final ValueNotifier<EstadoSyncUI> estado = ValueNotifier(const EstadoSyncUI());
 
+  /// `true` una vez que este dispositivo activó la sincronización (guardó la
+  /// dirección del servidor o inició sesión de sync). Mientras sea `false`, la
+  /// barra superior NO muestra el badge de nube: un negocio que opera 100%
+  /// offline no debería ver el indicador de algo que nunca activó. El arranque
+  /// (`main`) lo re-evalúa leyendo la URL/sesión guardadas, así que sobrevive a
+  /// reiniciar la app.
+  final ValueNotifier<bool> configurada = ValueNotifier(false);
+
+  /// Marca la sincronización como activada. La llama `main` al arrancar si ya
+  /// había configuración, y la pantalla de sincronización al conectarse.
+  void marcarConfigurada() {
+    if (!configurada.value) configurada.value = true;
+  }
+
   /// Arranca el ciclo automático: una corrida inmediata + un tick cada
   /// [intervalo]. Idempotente -- llamarlo dos veces no crea dos timers.
   void iniciar() {

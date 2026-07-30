@@ -27,7 +27,7 @@ class PromocionesAplicadasSection extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.primaryDark.withOpacity(0.08),
+        color: AppColors.primaryDark.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(AppRadius.md),
       ),
       child: Column(

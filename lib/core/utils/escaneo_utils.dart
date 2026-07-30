@@ -30,7 +30,7 @@ class ResultadoEscaneo {
   factory ResultadoEscaneo.stockInsuficiente(Producto producto) => ResultadoEscaneo._(
         TipoResultadoEscaneo.stockInsuficiente,
         producto,
-        'Stock insuficiente de "${producto.nombre}".',
+        'Inventario insuficiente de "${producto.nombre}".',
       );
 }
 

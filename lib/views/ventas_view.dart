@@ -23,6 +23,7 @@ import '../widgets/ventas/autorizacion_descuento_dialog.dart';
 import '../widgets/ventas/descuento_dialog.dart';
 import '../widgets/ventas/pagos_mixtos_section.dart';
 import '../widgets/ventas/promociones_aplicadas_section.dart';
+import '../widgets/ventas/venta_exitosa_dialog.dart';
 import '../widgets/ventas/ventas_atajos.dart' as atajos;
 import '../models/cliente_model.dart';
 import '../widgets/nav_bar.dart';
@@ -599,19 +600,10 @@ class _VentasViewState extends State<VentasView> {
   }
 
   void confirmarVenta({String? descuentoMotivo, int? descuentoAutorizadoPor}) {
-    showDialog(
-      context: context,
-      builder: (_) => CustomAlert(
-        titulo: "Confirmar venta",
-        mensaje: "¿Deseas confirmar la venta?",
-        icono: Icons.point_of_sale,
-        textoCancelar: "Cancelar",
-        textoConfirmar: "Confirmar",
-        onConfirm: () {
-          vender(descuentoMotivo: descuentoMotivo, descuentoAutorizadoPor: descuentoAutorizadoPor);
-        },
-      ),
-    );
+    // Ya no mostramos un diálogo genérico de "¿confirmar venta?": el botón
+    // "Confirmar Venta" cobra de inmediato y el resultado (con opción de
+    // imprimir) se muestra en la pantalla de éxito ([VentaExitosaDialog]).
+    vender(descuentoMotivo: descuentoMotivo, descuentoAutorizadoPor: descuentoAutorizadoPor);
   }
 
   // 🧾 VENDER
@@ -639,8 +631,9 @@ class _VentasViewState extends State<VentasView> {
         descuentoAutorizadoPor: descuentoAutorizadoPor,
       );
 
-      await imprimirTicket(ventaCalculada, promocionesVenta, pagosVenta, cambioVenta);
-
+      // La venta ya se cobró: vaciamos el carrito y guardamos el último id
+      // para poder reimprimir con F9. El ticket ya NO se imprime solo; el
+      // cajero decide en la pantalla de éxito.
       setState(() {
         _carrito.limpiar();
 
@@ -657,7 +650,18 @@ class _VentasViewState extends State<VentasView> {
 
       if (!mounted) return;
 
-      Toast.exito(context, 'Venta realizada con éxito');
+      await VentaExitosaDialog.mostrar(
+        context,
+        idVenta: idVenta,
+        total: ventaCalculada.total,
+        cambio: cambioVenta,
+        onImprimir: () => imprimirTicket(
+          ventaCalculada,
+          promocionesVenta,
+          pagosVenta,
+          cambioVenta,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       final mensaje = e.toString().replaceFirst("Exception: ", "");
@@ -740,9 +744,9 @@ class _VentasViewState extends State<VentasView> {
                     child: Row(
                       children: [
 
-                  // 🔥 PRODUCTOS
+                  // 🔥 CATÁLOGO DE PRODUCTOS
                   Expanded(
-                    flex: 7,
+                    flex: 62,
                     child: Container(
                       padding: const EdgeInsets.all(24),
                       decoration: BoxDecoration(
@@ -791,12 +795,16 @@ class _VentasViewState extends State<VentasView> {
                             child: GridView.builder(
                               itemCount:
                                   productosFiltrados.length,
+                              // Grilla adaptativa: la cantidad de columnas se
+                              // ajusta al ancho de la ventana (≈5 a 1280px, menos
+                              // al achicar) y cada tarjeta tiene alto fijo, así no
+                              // se desborda en la ventana mínima.
                               gridDelegate:
-                                  const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 4,
-                                crossAxisSpacing: 16,
-                                mainAxisSpacing: 16,
-                                childAspectRatio: 1.15,
+                                  const SliverGridDelegateWithMaxCrossAxisExtent(
+                                maxCrossAxisExtent: 150,
+                                crossAxisSpacing: 12,
+                                mainAxisSpacing: 12,
+                                mainAxisExtent: 132,
                               ),
                               itemBuilder: (_, i) {
                                 final p =
@@ -869,57 +877,37 @@ class _VentasViewState extends State<VentasView> {
 
                                         const Spacer(),
 
-                                        // 💰 PRECIO
-                                        Text(
-                                          AppConfig.formatoMoneda(p.precio),
-                                          style:
-                                              const TextStyle(
-                                            fontSize: AppText.subtitle,
-                                            fontWeight:
-                                                FontWeight
-                                                    .bold,
-                                          ),
-                                        ),
-
-                                        const SizedBox(
-                                            height: 12),
-
-                                        // ➕ BOTÓN
-                                        SizedBox(
-                                          width:
-                                              double.infinity,
-                                          height: 42,
-                                          child:
-                                              ElevatedButton
-                                                  .icon(
-                                            onPressed: () =>
-                                                agregarProducto(
-                                              p,
-                                            ),
-                                            icon: const Icon(
-                                              Icons.add,
-                                              size: 18,
-                                            ),
-                                            label: const Text(
-                                              "Agregar",
-                                            ),
-                                            style:
-                                                ElevatedButton
-                                                    .styleFrom(
-                                              backgroundColor:
-                                                  AppColors.primary,
-                                              foregroundColor:
-                                                  AppColors.onPrimary,
-                                              elevation: 0,
-                                              shape:
-                                                  RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(
-                                                  12,
+                                        // 💰 PRECIO + AGREGAR (toda la tarjeta
+                                        // agrega al tocar; el chip solo lo señala)
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: FittedBox(
+                                                fit: BoxFit.scaleDown,
+                                                alignment: Alignment.centerLeft,
+                                                child: Text(
+                                                  AppConfig.formatoMoneda(p.precio),
+                                                  style: const TextStyle(
+                                                    fontSize: AppText.subtitle,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
                                                 ),
                                               ),
                                             ),
-                                          ),
+                                            Container(
+                                              width: 26,
+                                              height: 26,
+                                              decoration: BoxDecoration(
+                                                color: AppColors.primary,
+                                                borderRadius: BorderRadius.circular(9),
+                                              ),
+                                              child: Icon(
+                                                Icons.add,
+                                                size: 18,
+                                                color: AppColors.onPrimary,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
@@ -933,11 +921,11 @@ class _VentasViewState extends State<VentasView> {
                     ),
                   ),
 
-                  const SizedBox(width: 20),
+                  const SizedBox(width: 16),
 
-                  // 🛒 CARRITO
+                  // 🛒 TICKET
                   Expanded(
-                    flex: 3,
+                    flex: 38,
                     child: Container(
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
@@ -1061,7 +1049,7 @@ class _VentasViewState extends State<VentasView> {
                                     itemCount:
                                         carrito.length,
                                     separatorBuilder:
-                                        (_, __) =>
+                                        (_, _) =>
                                             const SizedBox(
                                       height: 10,
                                     ),
@@ -1142,16 +1130,26 @@ class _VentasViewState extends State<VentasView> {
                                             const SizedBox(
                                                 height: 6),
 
-                                            Text(
-                                              item['descuento_tipo'] != null
-                                                  ? "\$${item['precio']}  ·  descuento aplicado"
-                                                  : "\$${item['precio']}",
-                                              style: TextStyle(
-                                                color: item['descuento_tipo'] != null
-                                                    ? AppColors.primaryDark
-                                                    : null,
-                                              ),
-                                            ),
+                                            Builder(builder: (_) {
+                                              final precio = (item['precio'] as num).toDouble();
+                                              final tieneDesc = item['descuento_tipo'] != null;
+                                              final lc = calculo.lineas[i];
+                                              final unit = tieneDesc && lc.cantidad > 0
+                                                  ? (lc.subtotalLinea - lc.descuentoMonto) / lc.cantidad
+                                                  : precio;
+                                              return Text(
+                                                tieneDesc
+                                                    ? "${AppConfig.formatoMoneda(unit)} c/u  ·  lista ${AppConfig.formatoMoneda(precio)}"
+                                                    : "${AppConfig.formatoMoneda(precio)} c/u",
+                                                style: TextStyle(
+                                                  fontSize: AppText.caption,
+                                                  fontWeight: tieneDesc ? FontWeight.w600 : FontWeight.w400,
+                                                  color: tieneDesc
+                                                      ? AppColors.primaryDark
+                                                      : AppColors.textSecondary,
+                                                ),
+                                              );
+                                            }),
 
                                             const SizedBox(
                                                 height: 10),
@@ -1373,7 +1371,7 @@ class _VentasViewState extends State<VentasView> {
                   child: Text(
                     AppConfig.formatoMoneda(c.total),
                     style: const TextStyle(
-                      fontSize: 38,
+                      fontSize: 46,
                       fontWeight: FontWeight.w900,
                       height: 1.0,
                       color: AppColors.textPrimary,
@@ -1397,7 +1395,7 @@ class _VentasViewState extends State<VentasView> {
               onPressed: habilitado ? iniciarConfirmacionVenta : null,
               icon: const Icon(Icons.check_circle),
               label: const Text(
-                "Confirmar Venta",
+                "Confirmar venta  ·  F4",
                 style: TextStyle(fontSize: AppText.bodyLg, fontWeight: FontWeight.w700),
               ),
               style: ElevatedButton.styleFrom(

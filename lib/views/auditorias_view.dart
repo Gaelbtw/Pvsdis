@@ -8,6 +8,7 @@ import '../controllers/auditoria_controller.dart';
 import '../core/utils/auditoria_helpers.dart';
 import '../models/auditoria_model.dart';
 import '../widgets/nav_bar.dart';
+import '../widgets/toast.dart';
 
 class AuditoriasView extends StatefulWidget {
   const AuditoriasView({super.key});
@@ -56,13 +57,13 @@ class _AuditoriasViewState extends State<AuditoriasView> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: CustomHeader(
-        titulo: "Auditorias",
+        titulo: "Auditorías",
         mostrarVolver: true,
         extraActions: [
           IconButton(
             onPressed: _exportAuditoriasPDF,
             icon: const Icon(Icons.download, color: Colors.black87),
-            tooltip: "Exportar auditoria",
+            tooltip: "Exportar auditoría",
           ),
         ],
       ),
@@ -110,7 +111,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
           child: TextField(
             onChanged: (value) => setState(() => busqueda = value),
             decoration: InputDecoration(
-              hintText: "Buscar por usuario, tabla o descripcion...",
+              hintText: "Buscar por usuario, módulo o descripción…",
               prefixIcon: const Icon(Icons.search),
               filled: true,
               fillColor: AppColors.surface,
@@ -134,9 +135,9 @@ class _AuditoriasViewState extends State<AuditoriasView> {
               value: accionFiltro,
               icon: const Icon(Icons.filter_list),
               items: [
-                const DropdownMenuItem(value: "TODAS", child: Text("Todas")),
+                const DropdownMenuItem(value: "TODAS", child: Text("Todas las acciones")),
                 ...accionesAuditoria.map(
-                  (a) => DropdownMenuItem(value: a, child: Text(a)),
+                  (a) => DropdownMenuItem(value: a, child: Text(etiquetaAccionAuditoria(a))),
                 ),
               ],
               onChanged: (value) {
@@ -221,7 +222,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withValues(alpha: 0.7),
                 borderRadius: BorderRadius.circular(AppRadius.md),
               ),
               child: Icon(icon, color: Colors.black87),
@@ -266,11 +267,11 @@ class _AuditoriasViewState extends State<AuditoriasView> {
       child: const Row(
         children: [
           Expanded(flex: 22, child: Text("FECHA Y HORA", style: auditoriaHeaderStyle)),
-          Expanded(flex: 16, child: Text("USUARIO", style: auditoriaHeaderStyle)),
-          Expanded(flex: 14, child: Text("TABLA", style: auditoriaHeaderStyle)),
-          Expanded(flex: 12, child: Text("ACCION", style: auditoriaHeaderStyle)),
-          Expanded(flex: 12, child: Text("REGISTRO", style: auditoriaHeaderStyle)),
-          Expanded(flex: 24, child: Text("DESCRIPCION", style: auditoriaHeaderStyle)),
+          Expanded(flex: 14, child: Text("USUARIO", style: auditoriaHeaderStyle)),
+          Expanded(flex: 14, child: Text("MÓDULO", style: auditoriaHeaderStyle)),
+          Expanded(flex: 16, child: Text("ACCIÓN", style: auditoriaHeaderStyle)),
+          Expanded(flex: 10, child: Text("FOLIO", style: auditoriaHeaderStyle)),
+          Expanded(flex: 24, child: Text("DESCRIPCIÓN", style: auditoriaHeaderStyle)),
         ],
       ),
     );
@@ -287,10 +288,10 @@ class _AuditoriasViewState extends State<AuditoriasView> {
       child: Row(
         children: [
           Expanded(flex: 22, child: Text(formatearFechaHora(auditoria.fechaHora))),
-          Expanded(flex: 16, child: Text(auditoria.usuario)),
-          Expanded(flex: 14, child: Text(auditoria.tabla)),
+          Expanded(flex: 14, child: Text(auditoria.usuario)),
+          Expanded(flex: 14, child: Text(etiquetaModuloAuditoria(auditoria.tabla))),
           Expanded(
-            flex: 12,
+            flex: 16,
             child: Align(
               alignment: Alignment.centerLeft,
               child: Container(
@@ -299,11 +300,11 @@ class _AuditoriasViewState extends State<AuditoriasView> {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: colorPorAccionAuditoria(auditoria.accion).withOpacity(0.12),
+                  color: colorPorAccionAuditoria(auditoria.accion).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
-                  auditoria.accion,
+                  etiquetaAccionAuditoria(auditoria.accion),
                   style: TextStyle(
                     fontSize: AppText.caption,
                     fontWeight: FontWeight.w800,
@@ -314,7 +315,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
             ),
           ),
           Expanded(
-            flex: 12,
+            flex: 10,
             child: Text(auditoria.idRegistro?.toString() ?? "-"),
           ),
           Expanded(
@@ -353,9 +354,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
     final datos = auditoriasFiltradas;
     if (datos.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay auditorias para exportar.')),
-      );
+      Toast.info(context, 'No hay auditorías para exportar.');
       return;
     }
 
@@ -365,24 +364,24 @@ class _AuditoriasViewState extends State<AuditoriasView> {
         pageFormat: PdfPageFormat.a4,
         build: (context) {
           return [
-            pw.Header(level: 0, text: 'Auditoria del sistema'),
-            pw.Paragraph(text: 'Generado el ${DateTime.now().toLocal()}'),
+            pw.Header(level: 0, text: 'Auditoría del sistema'),
+            pw.Paragraph(text: 'Generado el ${formatearFechaHora(DateTime.now().toIso8601String())}'),
             pw.SizedBox(height: 10),
-            pw.Table.fromTextArray(
+            pw.TableHelper.fromTextArray(
               headers: [
-                'Fecha y Hora',
+                'Fecha y hora',
                 'Usuario',
-                'Tabla',
-                'Accion',
-                'Registro',
-                'Descripcion',
+                'Módulo',
+                'Acción',
+                'Folio',
+                'Descripción',
               ],
               data: datos.map((auditoria) {
                 return [
                   formatearFechaHora(auditoria.fechaHora),
                   auditoria.usuario,
-                  auditoria.tabla,
-                  auditoria.accion,
+                  etiquetaModuloAuditoria(auditoria.tabla),
+                  etiquetaAccionAuditoria(auditoria.accion),
                   auditoria.idRegistro?.toString() ?? '-',
                   auditoria.descripcion,
                 ];

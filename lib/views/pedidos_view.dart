@@ -5,8 +5,9 @@ import '../models/cliente_model.dart';
 import '../services/cliente_services.dart';
 import '../controllers/pedidos_controller.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/toast.dart';
 import '../widgets/pedidos/editar_pedido_dialog.dart';
-import 'crearPedido_view.dart';
+import 'crear_pedido_view.dart';
 import '../widgets/nav_bar.dart';
 
 class PedidosView extends StatefulWidget {
@@ -54,6 +55,12 @@ class _PedidosViewState extends State<PedidosView> {
           .where((c) => c.nombre.toLowerCase().contains(value.toLowerCase()))
           .toList();
     });
+  }
+
+  @override
+  void dispose() {
+    searchCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -563,17 +570,10 @@ class _PedidosViewState extends State<PedidosView> {
         textoConfirmar: 'Eliminar',
         textoCancelar: 'Cancelar',
         onConfirm: () async {
-          final messenger = ScaffoldMessenger.of(context);
           await pedidosController.eliminar(idPedido);
           if (!mounted) return;
           cargarPedidos();
-          messenger.showSnackBar(
-            SnackBar(
-              content: const Text('Pedido eliminado con éxito'),
-              backgroundColor: AppColors.error,
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          Toast.exito(context, 'Pedido eliminado con éxito');
         },
       ),
     );

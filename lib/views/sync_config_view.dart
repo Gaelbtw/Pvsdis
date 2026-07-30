@@ -6,6 +6,7 @@ import '../core/sync/models/sync_auth_models.dart';
 import '../core/sync/network/api_exceptions.dart';
 import '../core/sync/network/conectividad_probe.dart';
 import '../core/sync/network/sync_prefs_store.dart';
+import '../core/sync/sync_scheduler.dart';
 import '../core/theme/app_colors.dart';
 import '../widgets/custom_alert.dart';
 import '../widgets/nav_bar.dart';
@@ -60,6 +61,7 @@ class _SyncConfigViewState extends State<SyncConfigView> {
     setState(() => _guardandoUrl = true);
     BackendConfig.actualizar(url);
     await _prefs.guardarUrlBackend(BackendConfig.baseUrl);
+    SyncScheduler.instancia.marcarConfigurada();
     if (!mounted) return;
     setState(() {
       _urlCtrl.text = BackendConfig.baseUrl; // refleja la URL ya normalizada
@@ -100,6 +102,7 @@ class _SyncConfigViewState extends State<SyncConfigView> {
     // porque una sesión válida implica que esa URL sirve).
     BackendConfig.actualizar(_urlCtrl.text.trim());
     await _prefs.guardarUrlBackend(BackendConfig.baseUrl);
+    SyncScheduler.instancia.marcarConfigurada();
 
     setState(() => _iniciandoSesion = true);
     try {
@@ -229,7 +232,7 @@ class _SyncConfigViewState extends State<SyncConfigView> {
             keyboardType: TextInputType.url,
             autocorrect: false,
             decoration: const InputDecoration(
-              labelText: 'URL del backend',
+              labelText: 'Dirección del servidor',
               hintText: 'http://192.168.1.100:5242',
               border: OutlineInputBorder(),
             ),

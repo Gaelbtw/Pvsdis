@@ -144,6 +144,12 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
   }
 
   @override
+  void dispose() {
+    direccionCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,

@@ -174,7 +174,7 @@ class VentasController {
 
         if (disponible < linea.cantidad) {
           throw Exception(
-            "Stock insuficiente para \"${linea.nombre}\" (disponible: $disponible, solicitado: ${linea.cantidad})",
+            "Inventario insuficiente para \"${linea.nombre}\" (disponible: $disponible, solicitado: ${linea.cantidad})",
           );
         }
 

@@ -201,7 +201,7 @@ final confirmar = await showDialog<bool>(
                   ),
                 ),
                 Text(
-                  SessionManager.currentUserRole.toUpperCase(),
+                  SessionManager.currentUserRoleLabel,
                   style: TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: AppText.overline,
@@ -300,10 +300,10 @@ final confirmar = await showDialog<bool>(
           padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
           child: Row(
             children: [
-              Radio<String>(
-                value: 'backup-action',
+              RadioGroup<String>(
                 groupValue: 'backup-action',
-                onChanged: loading ? null : (_) {},
+                onChanged: (_) {},
+                child: Radio<String>(value: 'backup-action', enabled: !loading),
               ),
               const Expanded(
                 flex: 7,
@@ -339,37 +339,35 @@ final confirmar = await showDialog<bool>(
       );
     }
 
-    return ListView.separated(
-      itemCount: backups.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
-      itemBuilder: (_, index) {
-        final backup = backups[index];
-        return Container(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-          child: Row(
-            children: [
-              Radio<String>(
-                value: backup.path,
-                groupValue: selectedBackupPath,
-                onChanged: loading
-                    ? null
-                    : (value) => setState(() => selectedBackupPath = value),
-              ),
-              Expanded(
-                flex: 7,
-                child: Text(
-                  backup.backupFileName,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+    return RadioGroup<String>(
+      groupValue: selectedBackupPath,
+      onChanged: (value) => setState(() => selectedBackupPath = value),
+      child: ListView.separated(
+        itemCount: backups.length,
+        separatorBuilder: (_, _) => const Divider(height: 1),
+        itemBuilder: (_, index) {
+          final backup = backups[index];
+          return Container(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+            child: Row(
+              children: [
+                Radio<String>(value: backup.path, enabled: !loading),
+                Expanded(
+                  flex: 7,
+                  child: Text(
+                    backup.backupFileName,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
-              ),
-              Expanded(
-                flex: 5,
-                child: Text(_fechaHora(backup.modifiedAt)),
-              ),
-            ],
-          ),
-        );
-      },
+                Expanded(
+                  flex: 5,
+                  child: Text(_fechaHora(backup.modifiedAt)),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -462,10 +460,10 @@ final confirmar = await showDialog<bool>(
     const dias = [
       'lunes',
       'martes',
-      'miercoles',
+      'miércoles',
       'jueves',
       'viernes',
-      'sabado',
+      'sábado',
       'domingo',
     ];
     const meses = [

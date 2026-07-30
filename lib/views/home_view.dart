@@ -16,10 +16,12 @@ import 'caja_view.dart';
 import 'clientes_view.dart';
 import 'compras_view.dart';
 import 'configuracion_view.dart';
+import 'cuentas_por_pagar_view.dart';
 import 'inventario_view.dart';
 import 'login_view.dart';
 import 'pedidos_view.dart';
 import 'productos_view.dart';
+import 'promociones_view.dart';
 import 'proveedores_view.dart';
 import 'reporte_view.dart';
 import 'ventas_view.dart';
@@ -151,6 +153,10 @@ class _HomeViewState extends State<HomeView> {
           _Modulo('Inventario', 'Control de existencias', Icons.layers_outlined, (_) => const InventarioView()),
           _Modulo('Proveedores', 'Gestión de proveedores', Icons.local_shipping_outlined, (_) => const ProveedorView()),
           _Modulo('Compras', 'Compras a proveedores', Icons.shopping_cart_outlined, (_) => ComprasView()),
+          _Modulo('Pedidos', 'Gestión de pedidos', Icons.receipt_long_outlined, (_) => const PedidosView()),
+          _Modulo('Apartados', 'Reservas con anticipo', Icons.bookmark_outline, (_) => const ApartadosView()),
+          _Modulo('Promociones', 'Descuentos automáticos', Icons.local_offer_outlined, (_) => const PromocionesView()),
+          _Modulo('Cuentas por pagar', 'Deuda con proveedores', Icons.account_balance_wallet_outlined, (_) => const CuentasPorPagarView()),
           _Modulo('Caja', 'Apertura, cierre e historial', Icons.point_of_sale_outlined, (_) => const CajaView()),
         ]
       : [
@@ -212,23 +218,12 @@ class _HomeViewState extends State<HomeView> {
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             const _RelojPill(),
-            _pill(Icons.cloud_done_outlined, 'Sincronizado', fondo: AppColors.success.withValues(alpha: 0.12), colorTexto: AppColors.success),
             _menuUsuario(inicial),
           ],
         ),
       ],
     );
   }
-
-  Widget _pill(IconData icon, String texto, {required Color fondo, required Color colorTexto}) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-        decoration: BoxDecoration(color: fondo, borderRadius: BorderRadius.circular(999)),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 17, color: colorTexto),
-          const SizedBox(width: 7),
-          Text(texto, style: TextStyle(fontSize: AppText.small, fontWeight: FontWeight.w700, color: colorTexto)),
-        ]),
-      );
 
   /// Avatar de la cuenta (solo la inicial). Al hacer clic despliega el menú de
   /// sesión: Configuración (solo admin), cambiar de cuenta y cerrar sesión.
@@ -251,7 +246,7 @@ class _HomeViewState extends State<HomeView> {
               Text(SessionManager.currentUserName,
                   style: const TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
               const SizedBox(height: 2),
-              Text(SessionManager.currentUserRole.toUpperCase(),
+              Text(SessionManager.currentUserRoleLabel,
                   style: const TextStyle(fontSize: AppText.overline, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.4)),
             ],
           ),
@@ -331,6 +326,7 @@ class _HomeViewState extends State<HomeView> {
             valor: _cargando ? '—' : AppConfig.formatoMoneda(_ventasHoy),
             pie: _cambioVsAyer == null ? 'Sin datos de ayer' : '${_cambioVsAyer! >= 0 ? '↑' : '↓'} ${_cambioVsAyer!.abs().toStringAsFixed(0)}% vs. ayer',
             pieColor: _cambioVsAyer == null || _cambioVsAyer! >= 0 ? AppColors.success : AppColors.error,
+            onTap: () => _abrir((_) => const ReporteView()),
           ),
           _kpi(
             icono: Icons.point_of_sale_outlined, iconoColor: AppColors.success,
@@ -338,6 +334,7 @@ class _HomeViewState extends State<HomeView> {
             valor: cajaAbierta ? AppConfig.formatoMoneda(_enCaja) : '—',
             pie: cajaAbierta ? '● Abierta${desde != null ? ' desde $desde' : ''}' : 'Sin abrir',
             pieColor: cajaAbierta ? AppColors.success : AppColors.textSecondary,
+            onTap: () => _abrir((_) => const CajaView()),
           ),
           _kpi(
             icono: Icons.warning_amber_rounded, iconoColor: AppColors.warning,
@@ -347,6 +344,7 @@ class _HomeViewState extends State<HomeView> {
             pieColor: AppColors.warning,
             fondo: _stockBajo > 0 ? AppColors.warning.withValues(alpha: 0.08) : null,
             grande: false,
+            onTap: () => _abrir((_) => const InventarioView()),
           ),
         ],
       );
@@ -360,11 +358,12 @@ class _HomeViewState extends State<HomeView> {
     required String valor,
     required String pie,
     required Color pieColor,
+    required VoidCallback onTap,
     Color? fondo,
     bool grande = true,
   }) {
     return _Hoverable(
-      onTap: () {},
+      onTap: onTap,
       builder: (hover) => Container(
         padding: const EdgeInsets.fromLTRB(20, 16, 16, 16),
         decoration: BoxDecoration(

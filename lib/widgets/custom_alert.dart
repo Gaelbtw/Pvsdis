@@ -92,9 +92,15 @@ class _CustomAlertState extends State<CustomAlert> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.lg),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+        // Sin límite de ancho, el `Dialog` deja que la Column (con su franja
+        // superior de `width: double.infinity`) se estire hasta casi toda la
+        // pantalla en escritorio. Lo acotamos a un ancho de diálogo cómodo
+        // para que se vea como un aviso y no como un panel gigante.
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
             // Franja superior de color
             Container(
               width: double.infinity,
@@ -196,6 +202,7 @@ class _CustomAlertState extends State<CustomAlert> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );

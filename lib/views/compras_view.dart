@@ -385,7 +385,7 @@ class _ComprasViewState extends State<ComprasView> {
 
                           // 🏢 PROVEEDOR
                           DropdownButtonFormField<Proveedores>(
-                            value: proveedorSeleccionado,
+                            initialValue: proveedorSeleccionado,
 
                             decoration: InputDecoration(
                               labelText: "Proveedor",
@@ -450,7 +450,7 @@ class _ComprasViewState extends State<ComprasView> {
                                 : ListView.separated(
                                     itemCount: carrito.length,
 
-                                    separatorBuilder: (_, __) =>
+                                    separatorBuilder: (_, _) =>
                                         const SizedBox(height: 12),
 
                                     itemBuilder: (_, i) {
@@ -567,7 +567,7 @@ class _ComprasViewState extends State<ComprasView> {
                                                 const Spacer(),
 
                                                 Text(
-                                                  "${AppConfig.formatoMoneda(((item['precio_compra'] ?? 0) * item['cantidad']))}",
+                                                  AppConfig.formatoMoneda((item['precio_compra'] ?? 0) * item['cantidad']),
 
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.bold,

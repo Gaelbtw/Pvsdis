@@ -51,6 +51,13 @@ Future<void> _inicializarSync() async {
   final urlBackend = await SyncPrefsStore().leerUrlBackend();
   if (urlBackend != null) BackendConfig.actualizar(urlBackend);
   await AuthService.instancia.inicializar();
+
+  // Si este dispositivo ya configuró la sincronización (guardó un servidor o
+  // tiene sesión), se muestra el badge de nube en la barra superior. Si nunca
+  // se activó, queda oculto (ver [SyncScheduler.configurada]).
+  if (urlBackend != null || AuthService.instancia.estaAutenticado) {
+    SyncScheduler.instancia.marcarConfigurada();
+  }
 }
 
 class MyApp extends StatelessWidget {

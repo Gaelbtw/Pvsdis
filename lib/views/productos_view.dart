@@ -128,7 +128,7 @@ class _ProductosViewState extends State<ProductosView> {
               borderRadius: BorderRadius.circular(AppRadius.md),
             ),
             child: DropdownButtonFormField<int>(
-              value: categoriaSeleccionada,
+              initialValue: categoriaSeleccionada,
               decoration: const InputDecoration(border: InputBorder.none),
               hint: const Text("Seleccionar categoría"),
               items: categorias.map((cat) {
@@ -159,7 +159,7 @@ class _ProductosViewState extends State<ProductosView> {
               borderRadius: BorderRadius.circular(AppRadius.md),
             ),
             child: DropdownButtonFormField<String>(
-              value: estado,
+              initialValue: estado,
               decoration: const InputDecoration(border: InputBorder.none),
               items: ["Activo", "Inactivo"]
                   .map((e) => DropdownMenuItem(value: e, child: Text(e)))
@@ -182,7 +182,7 @@ class _ProductosViewState extends State<ProductosView> {
             );
 
             if (duplicado) {
-              if (!context.mounted) return;
+              if (!mounted) return;
               showDialog(
                 context: context,
                 builder: (_) => const CustomAlert(
@@ -216,7 +216,7 @@ class _ProductosViewState extends State<ProductosView> {
               // El stock actual se gestiona desde la vista de Inventario
             }
           } catch (e) {
-            if (!context.mounted) return;
+            if (!mounted) return;
             showDialog(
               context: context,
               builder: (_) => CustomAlert(
@@ -229,7 +229,7 @@ class _ProductosViewState extends State<ProductosView> {
             return;
           }
 
-          if (!context.mounted) return;
+          if (!mounted) return;
           Navigator.pop(context);
           cargar();
 
@@ -245,6 +245,16 @@ class _ProductosViewState extends State<ProductosView> {
   void eliminar(int id) async {
     await controller.eliminar(id);
     cargar();
+  }
+
+  @override
+  void dispose() {
+    nombreCtrl.dispose();
+    descCtrl.dispose();
+    precioCtrl.dispose();
+    precioCompraCtrl.dispose();
+    codigoBarrasCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -426,6 +436,7 @@ class _ProductosViewState extends State<ProductosView> {
                                     PopupMenuItem(
                                       onTap: () {
                                         Future.delayed(Duration.zero, () {
+                                          if (!context.mounted) return;
                                           confirmarAccion(
                                             context: context,
                                             tituloConfirmar: "Eliminar producto",

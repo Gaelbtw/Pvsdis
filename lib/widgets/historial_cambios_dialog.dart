@@ -77,7 +77,7 @@ Future<void> mostrarHistorialCambios(
                     setDialogState(() => filtro = value);
                   },
                   decoration: InputDecoration(
-                    hintText: "Buscar por usuario, producto, accion o folio...",
+                    hintText: "Buscar por usuario, producto, acción o folio…",
                     prefixIcon: const Icon(Icons.search),
                     filled: true,
                     fillColor: AppColors.surface,
@@ -94,7 +94,7 @@ Future<void> mostrarHistorialCambios(
                       ? const Center(child: Text("No hay cambios registrados"))
                       : ListView.separated(
                           itemCount: filtrados.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          separatorBuilder: (_, _) => const SizedBox(height: 10),
                           itemBuilder: (_, i) => _filaCambio(filtrados[i]),
                         ),
                 ),

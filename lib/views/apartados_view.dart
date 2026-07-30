@@ -140,7 +140,7 @@ class _ApartadosViewState extends State<ApartadosView> {
                           ? const Center(child: Text('No hay apartados registrados'))
                           : ListView.separated(
                               itemCount: _filtrados.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 12),
+                              separatorBuilder: (_, _) => const SizedBox(height: 12),
                               itemBuilder: (_, i) {
                                 final a = _filtrados[i];
                                 final estado = a['estado'] as String;
@@ -187,7 +187,7 @@ class _ApartadosViewState extends State<ApartadosView> {
                                                     padding: const EdgeInsets.symmetric(
                                                         horizontal: 10, vertical: 4),
                                                     decoration: BoxDecoration(
-                                                      color: _colorEstado(estado).withOpacity(0.12),
+                                                      color: _colorEstado(estado).withValues(alpha: 0.12),
                                                       borderRadius: BorderRadius.circular(AppRadius.pill),
                                                     ),
                                                     child: Text(

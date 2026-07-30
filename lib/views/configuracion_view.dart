@@ -15,12 +15,8 @@ import '../services/configuracion_service.dart';
 import '../widgets/menu_card.dart';
 import '../widgets/nav_bar.dart';
 import '../widgets/toast.dart';
-import 'apartados_view.dart';
 import 'auditorias_view.dart';
 import 'base_datos_view.dart';
-import 'cuentas_por_pagar_view.dart';
-import 'pedidos_view.dart';
-import 'promociones_view.dart';
 import 'reporte_view.dart';
 import 'sync_config_view.dart';
 import 'usuarios_view.dart';
@@ -78,7 +74,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
     (Icons.print_outlined, 'Impresión', 'Papel, impresora y ticket automático', 'VENTAS'),
     (Icons.schedule_outlined, 'Turnos', 'Horario matutino y vespertino', 'OPERACIÓN'),
     (Icons.inventory_2_outlined, 'Inventario y caja', 'Inventario mínimo y fondo de caja', 'OPERACIÓN'),
-    (Icons.grid_view_rounded, 'Accesos', 'Usuarios, reportes, respaldos y más', 'ADMINISTRACIÓN'),
+    (Icons.grid_view_rounded, 'Accesos', '', 'ADMINISTRACIÓN'),
   ];
 
   String? logoPath;
@@ -263,10 +259,10 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
     });
   }
 
-  /// Accesos administrativos que antes vivían como tarjetas sueltas en el
-  /// inicio del Administrador (Usuarios, Reportes, Auditorías, Base de
-  /// datos) más Apartados, Promociones y Pedidos, agrupados aquí para no
-  /// duplicar accesos en dos partes distintas de la app.
+  /// Accesos de administración/sistema que no viven en la rejilla del inicio:
+  /// Usuarios, Reportes, Actividad (auditoría), Copias de seguridad y
+  /// Sincronización. Los módulos operativos (Apartados, Promociones, Pedidos,
+  /// Cuentas por pagar) se muestran directamente en el inicio.
   Widget _accesosAdministracion(BuildContext context) {
     final accesos = <Widget>[
       MenuCard(
@@ -310,46 +306,6 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
         ),
       ),
       MenuCard(
-        title: "Apartados",
-        subtitle: "Reservas con anticipo",
-        icon: Icons.event_available,
-        color: AppColors.primaryLighter,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ApartadosView()),
-        ),
-      ),
-      MenuCard(
-        title: "Promociones",
-        subtitle: "Descuentos automáticos",
-        icon: Icons.local_offer,
-        color: AppColors.primaryLight,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const PromocionesView()),
-        ),
-      ),
-      MenuCard(
-        title: "Pedidos",
-        subtitle: "Gestión de pedidos",
-        icon: Icons.receipt_long,
-        color: AppColors.primaryLight,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const PedidosView()),
-        ),
-      ),
-      MenuCard(
-        title: "Cuentas por pagar",
-        subtitle: "Deuda con proveedores",
-        icon: Icons.account_balance_wallet_outlined,
-        color: AppColors.primaryLighter,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const CuentasPorPagarView()),
-        ),
-      ),
-      MenuCard(
         title: "Sincronización",
         subtitle: "Conexión con la nube",
         icon: Icons.cloud_sync_outlined,
@@ -364,11 +320,6 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          "Estos módulos no aparecen en el inicio para mantenerlo enfocado en la venta diaria. Ábrelos desde aquí cuando los necesites.",
-          style: TextStyle(fontSize: AppText.small, color: AppColors.textSecondary),
-        ),
-        const SizedBox(height: 20),
         LayoutBuilder(
           builder: (context, constraints) {
             int columnas = 2;
@@ -464,9 +415,20 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
         filled: true,
         fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+        // El panel de configuración es blanco: sin un borde visible, un campo
+        // con relleno blanco se pierde por completo. Se le da el mismo borde
+        // que los botones de hora para que se distinga sobre la tarjeta.
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: BorderSide.none,
+          borderSide: const BorderSide(color: AppColors.borderLight),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: const BorderSide(color: AppColors.borderLight),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: BorderSide(color: AppColors.primary, width: 1.5),
         ),
       ),
     );
@@ -573,6 +535,22 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
         );
       }).toList(),
     );
+  }
+
+  @override
+  void dispose() {
+    stockCtrl.dispose();
+    fondoCtrl.dispose();
+    nombreCtrl.dispose();
+    direccionCtrl.dispose();
+    telefonoCtrl.dispose();
+    correoCtrl.dispose();
+    rfcCtrl.dispose();
+    monedaCtrl.dispose();
+    ivaCtrl.dispose();
+    mensajeTicketCtrl.dispose();
+    descuentoMaximoCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -737,8 +715,10 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(titulo, style: const TextStyle(fontSize: AppText.title, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
-                      const SizedBox(height: 2),
-                      Text(subtitulo, style: const TextStyle(fontSize: AppText.small, color: AppColors.textSecondary)),
+                      if (subtitulo.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(subtitulo, style: const TextStyle(fontSize: AppText.small, color: AppColors.textSecondary)),
+                      ],
                     ],
                   ),
                 ),
@@ -852,8 +832,8 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text("Imprimir automáticamente al cobrar"),
-            subtitle: const Text("Sin diálogo de impresión. Requiere una impresora seleccionada"),
+            title: const Text("Impresión directa (sin diálogo)"),
+            subtitle: const Text("Al imprimir un ticket se envía directo a la impresora seleccionada, sin abrir el diálogo del sistema. Requiere una impresora seleccionada"),
             value: autoImprimirTicket,
             activeThumbColor: AppColors.primary,
             onChanged: (v) => setState(() => autoImprimirTicket = v),

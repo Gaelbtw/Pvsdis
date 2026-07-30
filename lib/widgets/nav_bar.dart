@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../core/config/app_config.dart';
 import '../core/session/session_manager.dart';
+import '../core/sync/sync_scheduler.dart';
 import '../core/theme/app_colors.dart';
 import 'sync_estado_badge.dart';
 
@@ -85,8 +86,17 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
           _topInfo(Icons.calendar_today_outlined, _fechaLarga(now)),
           const SizedBox(width: 16),
           _topInfo(Icons.access_time, _hora(now)),
-          const SizedBox(width: 16),
-          const SyncEstadoBadge(),
+          // El badge de nube solo aparece si la sincronización ya se activó
+          // alguna vez; en un negocio 100% offline no se muestra nada.
+          ValueListenableBuilder<bool>(
+            valueListenable: SyncScheduler.instancia.configurada,
+            builder: (_, configurada, _) => configurada
+                ? const Padding(
+                    padding: EdgeInsets.only(left: 16),
+                    child: SyncEstadoBadge(),
+                  )
+                : const SizedBox.shrink(),
+          ),
           const SizedBox(width: 12),
           _usuarioBox(),
         ],
@@ -118,7 +128,7 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
             ),
           ),
           Text(
-            SessionManager.currentUserRole.toUpperCase(),
+            SessionManager.currentUserRoleLabel,
             style: TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: AppText.overline,
@@ -156,7 +166,7 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
 
   String _fechaLarga(DateTime value) {
     const dias = [
-      "lunes","martes","miercoles","jueves","viernes","sabado","domingo",
+      "lunes","martes","miércoles","jueves","viernes","sábado","domingo",
     ];
     const meses = [
       "enero","febrero","marzo","abril","mayo","junio",

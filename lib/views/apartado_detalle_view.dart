@@ -275,7 +275,7 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                     decoration: BoxDecoration(
-                      color: _colorEstado(estado).withOpacity(0.12),
+                      color: _colorEstado(estado).withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(AppRadius.pill),
                     ),
                     child: Text(estado, style: TextStyle(color: _colorEstado(estado), fontWeight: FontWeight.bold)),

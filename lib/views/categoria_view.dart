@@ -80,7 +80,7 @@ class _CategoriasViewState extends State<CategoriasView> {
             await controller.actualizar(nueva);
           }
 
-          if (!context.mounted) return;
+          if (!mounted) return;
           Navigator.pop(context);
           cargar();
 
@@ -297,11 +297,12 @@ class _CategoriasViewState extends State<CategoriasView> {
                                     PopupMenuItem(
                                       onTap: () {
                                         Future.delayed(Duration.zero, () {
+                                          if (!context.mounted) return;
                                           confirmarAccion(
                                             context: context,
-                                            tituloConfirmar: "Eliminar categoria",
+                                            tituloConfirmar: "Eliminar categoría",
                                             mensajeConfirmar:
-                                                "¿Seguro que deseas eliminar esta categoria?",
+                                                "¿Seguro que deseas eliminar esta categoría?",
                                             iconoConfirmar: Icons.warning_amber_rounded,
                                             textoConfirmar: "Eliminar",
                                             accion: () async {

@@ -120,7 +120,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
                           ? _emptyState()
                           : ListView.separated(
                               itemCount: cuentas.length,
-                              separatorBuilder: (_, __) => const SizedBox(height: 10),
+                              separatorBuilder: (_, _) => const SizedBox(height: 10),
                               itemBuilder: (_, i) => _filaCuenta(cuentas[i]),
                             ),
                     ),
@@ -431,7 +431,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
               : ListView.separated(
                   shrinkWrap: true,
                   itemCount: historial.length,
-                  separatorBuilder: (_, __) => const Divider(),
+                  separatorBuilder: (_, _) => const Divider(),
                   itemBuilder: (_, i) {
                     final abono = historial[i];
                     final fecha = DateTime.tryParse(abono['fecha']?.toString() ?? '');
@@ -525,6 +525,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
               if (!mounted) return;
               Toast.exito(context, 'Abono registrado correctamente');
             } catch (e) {
+              if (!dialogContext.mounted) return;
               showDialog(
                 context: dialogContext,
                 builder: (_) => CustomAlert(

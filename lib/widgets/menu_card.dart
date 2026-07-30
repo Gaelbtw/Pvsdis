@@ -50,7 +50,7 @@ class MenuCard extends StatelessWidget {
                 height: tablet ? 60 : 50,
 
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.75),
+                  color: Colors.white.withValues(alpha: 0.75),
 
                   borderRadius: BorderRadius.circular(AppRadius.md),
                 ),

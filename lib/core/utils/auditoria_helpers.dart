@@ -112,6 +112,73 @@ const modulosAuditoria = [
   'Configuracion',
 ];
 
+/// Etiqueta legible del tipo de acción. La columna "Acción" y los filtros la
+/// muestran en vez del código interno (`CREATE`/`EDIT`/`DELETE`…), que es
+/// jerga de base de datos y no le dice nada al usuario del negocio.
+String etiquetaAccionAuditoria(String accion) {
+  switch (accion) {
+    case 'CREATE':
+      return 'Alta';
+    case 'EDIT':
+      return 'Edición';
+    case 'DELETE':
+      return 'Baja';
+    case 'LOGIN':
+      return 'Inicio de sesión';
+    case 'LOGOUT':
+      return 'Cierre de sesión';
+    case 'APERTURA_CAJA':
+      return 'Apertura de caja';
+    case 'CIERRE_CAJA':
+      return 'Cierre de caja';
+    case 'CANCEL':
+      return 'Cancelación';
+    case 'DEVOLUCION':
+      return 'Devolución';
+    case 'ACTIVAR':
+      return 'Activación';
+    case 'DESACTIVAR':
+      return 'Desactivación';
+    case 'DESCUENTO':
+      return 'Descuento';
+    case 'PROMOCION':
+      return 'Promoción';
+    case 'ABONO_PROVEEDOR':
+      return 'Pago a proveedor';
+    default:
+      return _legible(accion);
+  }
+}
+
+/// Etiqueta legible del módulo de origen (columna "Módulo"): traduce el
+/// nombre técnico de la tabla (`Configuracion`, `Sesion`, `Movimiento_Caja`…)
+/// a un término del negocio. Los nombres que ya están en español correcto
+/// (`Ventas`, `Clientes`…) pasan por el caso por defecto sin cambios.
+String etiquetaModuloAuditoria(String tabla) {
+  switch (tabla) {
+    case 'Configuracion':
+      return 'Configuración';
+    case 'Sesion':
+      return 'Sesión';
+    case 'Cajas':
+    case 'Movimiento_Caja':
+      return 'Caja';
+    case 'Producto':
+      return 'Productos';
+    default:
+      return _legible(tabla);
+  }
+}
+
+/// Convierte un valor crudo (`ABONO_PROVEEDOR`, `Movimiento_Caja`) en algo
+/// presentable ("Abono proveedor") como red de seguridad para códigos nuevos
+/// que aún no tengan una etiqueta propia arriba.
+String _legible(String valor) {
+  final limpio = valor.replaceAll('_', ' ').trim().toLowerCase();
+  if (limpio.isEmpty) return valor;
+  return limpio[0].toUpperCase() + limpio.substring(1);
+}
+
 String formatearFechaHora(String value) {
   final fecha = DateTime.tryParse(value);
   if (fecha == null) return value;

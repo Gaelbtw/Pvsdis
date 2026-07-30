@@ -2,7 +2,7 @@ import 'producto_model.dart';
 
 /// Datos del carrito al armar un pedido: agregar productos, ajustar
 /// cantidades y calcular el total. Antes vivía mezclado directamente en los
-/// métodos del `State` de `crearPedido_view.dart`.
+/// métodos del `State` de `crear_pedido_view.dart`.
 ///
 /// A diferencia de [CarritoVenta]/[CarritoCompra] (que guardan campos
 /// planos), aquí cada ítem conserva el [Producto] completo porque la vista

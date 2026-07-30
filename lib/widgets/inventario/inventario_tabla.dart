@@ -40,7 +40,7 @@ class InventarioTabla extends StatelessWidget {
                 ? const Center(child: Text("No hay productos"))
                 : ListView.separated(
                     itemCount: productos.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    separatorBuilder: (_, _) => const Divider(height: 1),
                     itemBuilder: (_, i) => _filaProducto(productos[i]),
                   ),
           ),

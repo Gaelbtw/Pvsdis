@@ -37,6 +37,11 @@ class Configuracion {
   final String? impresoraUrl;
   final String? impresoraNombre;
 
+  /// Si es `true`, se abre el cajón de dinero (pulso ESC/POS a la impresora)
+  /// al cobrar en efectivo y al cerrar la caja. Requiere una impresora térmica
+  /// con el cajón conectado a su puerto RJ11. Solo tiene efecto en Windows.
+  final bool abrirCajonEfectivo;
+
   // Descuentos: ver DevolucionesController/VentasController y
   // core/utils/descuento_utils.dart para cómo se usan.
   final double descuentoMaximoPorcentaje;
@@ -65,6 +70,7 @@ class Configuracion {
     this.autoImprimirTicket = false,
     this.impresoraUrl,
     this.impresoraNombre,
+    this.abrirCajonEfectivo = false,
     this.descuentoMaximoPorcentaje = 20,
     this.descuentoCajeroPuedeAplicar = true,
     this.descuentoCajeroRequiereAutorizacion = true,

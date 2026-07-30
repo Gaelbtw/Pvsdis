@@ -4,6 +4,7 @@ import '../core/theme/app_colors.dart';
 import '../controllers/usuarios_controller.dart';
 import '../core/security/password_hasher.dart';
 import '../core/security/permisos.dart';
+import '../core/session/session_manager.dart';
 import '../models/usuarios_model.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/confirm_action.dart';
@@ -90,7 +91,7 @@ class _UsuariosViewState extends State<UsuariosView> {
                 initialValue: rolSeleccionado,
                 decoration: const InputDecoration(border: InputBorder.none),
                 items: Roles.todos
-                    .map((r) => DropdownMenuItem(value: r, child: Text(r)))
+                    .map((r) => DropdownMenuItem(value: r, child: Text(SessionManager.etiquetaRol(r))))
                     .toList(),
                 onChanged: (value) {
                   if (value == null) return;
@@ -498,7 +499,7 @@ class _UsuariosViewState extends State<UsuariosView> {
               ),
 
               child: Text(
-                u.rol,
+                SessionManager.etiquetaRol(u.rol),
 
                 textAlign: TextAlign.center,
 

@@ -28,4 +28,25 @@ class SessionManager {
   static bool get isSupervisor => currentUserRole == 'Supervisor';
 
   static bool get isCajero => !isAdmin && !isSupervisor;
+
+  /// Etiqueta legible del rol para mostrar en la UI. Es SOLO presentación: el
+  /// valor guardado en `Usuarios.rol` sigue siendo 'Admin'/'Cajero'/
+  /// 'Supervisor', que es lo que comparan los permisos ([isAdmin], etc.).
+  /// Acepta también 'Administrador' (el default histórico de esta clase).
+  static String etiquetaRol(String rol) {
+    switch (rol) {
+      case 'Admin':
+      case 'Administrador':
+        return 'Administrador';
+      case 'Cajero':
+        return 'Cajero';
+      case 'Supervisor':
+        return 'Supervisor';
+      default:
+        return rol;
+    }
+  }
+
+  /// Etiqueta del rol del usuario en sesión (ver [etiquetaRol]).
+  static String get currentUserRoleLabel => etiquetaRol(currentUserRole);
 }

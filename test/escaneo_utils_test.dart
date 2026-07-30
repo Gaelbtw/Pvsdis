@@ -83,7 +83,7 @@ void main() {
     );
 
     expect(resultado.tipo, TipoResultadoEscaneo.stockInsuficiente);
-    expect(resultado.mensaje, contains('Stock insuficiente'));
+    expect(resultado.mensaje, contains('Inventario insuficiente'));
   });
 
   test('ya está en el carrito pero todavía hay stock: se agrega otra unidad', () {

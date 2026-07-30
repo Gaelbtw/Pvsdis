@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../controllers/pedidos_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/pedidos_model.dart';
+import '../toast.dart';
 
 /// Diálogo de edición de un pedido (estado, tipo de entrega, fecha,
 /// dirección). Antes vivía completo dentro de `pedidos_view.dart` (~230
@@ -143,7 +144,6 @@ void mostrarEditarPedidoDialog(
               );
 
               final nav = Navigator.of(ctx);
-              final messenger = ScaffoldMessenger.of(context);
 
               // Actualiza el pedido y ajusta el inventario (si el cambio
               // de estado lo requiere) en una sola transacción atómica.
@@ -153,25 +153,22 @@ void mostrarEditarPedidoDialog(
               );
 
               if (!context.mounted) return;
+
+              // El aviso se muestra ANTES de cerrar el diálogo: el toast vive
+              // en el overlay raíz de la app, así que sobrevive al pop y queda
+              // visible aunque el diálogo (y su context) ya se hayan ido.
+              final entregado = estado == 'Entregado' && estadoAnterior != 'Entregado';
+              final cancelado = estado == 'Cancelado' && estadoAnterior == 'Entregado';
+              if (entregado) {
+                Toast.exito(context, 'Pedido entregado — inventario actualizado');
+              } else if (cancelado) {
+                Toast.error(context, 'Pedido cancelado — inventario restaurado');
+              } else {
+                Toast.info(context, 'Pedido editado con éxito');
+              }
+
               nav.pop();
               onGuardado();
-              messenger.showSnackBar(
-                SnackBar(
-                  content: Text(
-                    estado == 'Entregado' && estadoAnterior != 'Entregado'
-                        ? 'Pedido entregado — inventario actualizado'
-                        : estado == 'Cancelado' && estadoAnterior == 'Entregado'
-                            ? 'Pedido cancelado — inventario restaurado'
-                            : 'Pedido editado con éxito',
-                  ),
-                  backgroundColor: estado == 'Entregado'
-                      ? AppColors.success
-                      : estado == 'Cancelado'
-                          ? AppColors.error
-                          : Colors.blueGrey,
-                  duration: const Duration(seconds: 3),
-                ),
-              );
             },
             child: const Text('Guardar', style: TextStyle(fontWeight: FontWeight.bold)),
           ),

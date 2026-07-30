@@ -110,6 +110,53 @@ class _PagosMixtosSectionState extends State<PagosMixtosSection> {
     _notificar();
   }
 
+  /// Montos de efectivo sugeridos para cobrar rápido: los billetes estándar
+  /// inmediatamente por encima del total (el cliente paga con uno de ellos) y,
+  /// si el total ya supera esos billetes, redondeos hacia arriba. Devuelve
+  /// hasta tres, de menor a mayor.
+  List<double> _sugerenciasEfectivo() {
+    final total = widget.total;
+    if (total <= 0) return const [];
+    const billetes = [20.0, 50.0, 100.0, 200.0, 500.0, 1000.0];
+    final sugeridos = <double>[];
+    for (final b in billetes) {
+      if (b > total && sugeridos.length < 3) sugeridos.add(b);
+    }
+    for (final multiplo in [100.0, 500.0, 1000.0]) {
+      if (sugeridos.length >= 3) break;
+      final techo = (total / multiplo).ceil() * multiplo;
+      if (techo > total && !sugeridos.contains(techo)) sugeridos.add(techo);
+    }
+    sugeridos.sort();
+    return sugeridos;
+  }
+
+  /// Rellena el (único) pago en efectivo con [monto] y deja de auto-seguir el
+  /// total, para que el cambio se calcule al instante sin teclear.
+  void _fijarEfectivo(double monto) {
+    setState(() {
+      _autoSync = false;
+      _filas.first.controller.text = monto.toStringAsFixed(2);
+    });
+    _notificar();
+  }
+
+  Widget _botonEfectivo(String etiqueta, VoidCallback onTap) {
+    return OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.primaryDark,
+        side: const BorderSide(color: AppColors.border),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
+      ),
+      child: Text(etiqueta,
+          style: const TextStyle(fontSize: AppText.caption, fontWeight: FontWeight.w700)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final resultado = _resultado;
@@ -124,13 +171,14 @@ class _PagosMixtosSectionState extends State<PagosMixtosSection> {
         const SizedBox(height: 10),
         ..._filas.map(
           (fila) => Padding(
+            key: ValueKey(fila),
             padding: const EdgeInsets.only(bottom: 10),
             child: Row(
               children: [
                 Expanded(
                   flex: 4,
                   child: DropdownButtonFormField<String>(
-                    value: fila.metodoPago,
+                    initialValue: fila.metodoPago,
                     decoration: InputDecoration(
                       isDense: true,
                       filled: true,
@@ -189,6 +237,19 @@ class _PagosMixtosSectionState extends State<PagosMixtosSection> {
             ),
           ),
         ),
+        if (_filas.length == 1 && esMetodoEfectivo(_filas.first.metodoPago) && widget.total > 0)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final monto in _sugerenciasEfectivo())
+                  _botonEfectivo(AppConfig.formatoMoneda(monto), () => _fijarEfectivo(monto)),
+                _botonEfectivo('Exacto', () => _fijarEfectivo(widget.total)),
+              ],
+            ),
+          ),
         if (_filas.length < metodosPagoDisponibles.length)
           TextButton.icon(
             onPressed: _agregarFila,
@@ -200,7 +261,7 @@ class _PagosMixtosSectionState extends State<PagosMixtosSection> {
           width: double.infinity,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: resultado.esValido ? AppColors.success.withOpacity(0.1) : AppColors.error.withOpacity(0.1),
+            color: resultado.esValido ? AppColors.success.withValues(alpha: 0.1) : AppColors.error.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(AppRadius.md),
           ),
           child: Column(

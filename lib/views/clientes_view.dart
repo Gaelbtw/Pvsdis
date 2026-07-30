@@ -123,7 +123,7 @@ class _ClientesViewState extends State<ClientesView> {
             await controller.actualizar(nuevo);
           }
 
-          if (!context.mounted) return;
+          if (!mounted) return;
           Navigator.pop(context);
           cargar();
 
@@ -134,6 +134,12 @@ class _ClientesViewState extends State<ClientesView> {
         },
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    searchCtrl.dispose();
+    super.dispose();
   }
 
   @override

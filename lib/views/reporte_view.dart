@@ -3,6 +3,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../widgets/custom_alert.dart';
+import '../widgets/toast.dart';
 import '../controllers/auditoria_controller.dart';
 import '../controllers/reporte_controller.dart';
 import '../controllers/usuarios_controller.dart';
@@ -191,6 +192,7 @@ Future<void> _cargarReportesVentas() async {
       lastDate: DateTime.now(),
     );
     if (fechaInicio == null) return;
+    if (!mounted) return;
 
     final fechaFin = await showDatePicker(
       context: context,
@@ -311,7 +313,7 @@ Future<void> _cargarReportesVentas() async {
       return pw.Text('Sin productos en este rango.');
     }
 
-    return pw.Table.fromTextArray(
+    return pw.TableHelper.fromTextArray(
       headers: const ['Producto', 'Cantidad'],
       data: productos
           .map((item) => [item['nombre']?.toString() ?? '', '${item['total']}'])
@@ -331,7 +333,7 @@ Future<void> _cargarReportesVentas() async {
       return pw.Text('Sin movimientos en este rango.');
     }
 
-    return pw.Table.fromTextArray(
+    return pw.TableHelper.fromTextArray(
       headers: esVentas
           ? const ['Folio', 'Fecha', 'Cliente', 'Pago', 'Estado', 'Total']
           : const ['Folio', 'Fecha', 'Proveedor', 'Total'],
@@ -355,7 +357,7 @@ Future<void> _cargarReportesVentas() async {
           '#${item['id_compra']}',
           fecha == null ? '' : _formatDate(fecha),
           item['proveedor']?.toString() ?? 'Sin proveedor',
-          '${AppConfig.formatoMoneda(((item['total'] as num?)?.toDouble() ?? 0))}',
+          AppConfig.formatoMoneda((item['total'] as num?)?.toDouble() ?? 0),
         ];
       }).toList(),
       headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
@@ -650,7 +652,7 @@ Future<void> _cargarReportesVentas() async {
           items: [
             const DropdownMenuItem(value: null, child: Text('Todos')),
             ...accionesAuditoria.map(
-              (a) => DropdownMenuItem(value: a, child: Text(a)),
+              (a) => DropdownMenuItem(value: a, child: Text(etiquetaAccionAuditoria(a))),
             ),
           ],
           onChanged: (value) {
@@ -664,7 +666,7 @@ Future<void> _cargarReportesVentas() async {
           items: [
             const DropdownMenuItem(value: null, child: Text('Todos')),
             ...modulosAuditoria.map(
-              (t) => DropdownMenuItem(value: t, child: Text(t)),
+              (t) => DropdownMenuItem(value: t, child: Text(etiquetaModuloAuditoria(t))),
             ),
           ],
           onChanged: (value) {
@@ -773,11 +775,11 @@ Future<void> _cargarReportesVentas() async {
         children: [
           Expanded(flex: 16, child: Text("FECHA Y HORA", style: auditoriaHeaderStyle)),
           Expanded(flex: 14, child: Text("USUARIO", style: auditoriaHeaderStyle)),
-          Expanded(flex: 10, child: Text("ACCION", style: auditoriaHeaderStyle)),
-          Expanded(flex: 12, child: Text("MODULO", style: auditoriaHeaderStyle)),
-          Expanded(flex: 10, child: Text("REGISTRO", style: auditoriaHeaderStyle)),
+          Expanded(flex: 14, child: Text("ACCIÓN", style: auditoriaHeaderStyle)),
+          Expanded(flex: 12, child: Text("MÓDULO", style: auditoriaHeaderStyle)),
+          Expanded(flex: 10, child: Text("FOLIO", style: auditoriaHeaderStyle)),
           Expanded(flex: 8, child: Text("CAJA", style: auditoriaHeaderStyle)),
-          Expanded(flex: 22, child: Text("DESCRIPCION", style: auditoriaHeaderStyle)),
+          Expanded(flex: 18, child: Text("DESCRIPCIÓN", style: auditoriaHeaderStyle)),
         ],
       ),
     );
@@ -797,7 +799,7 @@ Future<void> _cargarReportesVentas() async {
           Expanded(flex: 16, child: Text(formatearFechaHora(m.fechaHora))),
           Expanded(flex: 14, child: Text(m.usuario)),
           Expanded(
-            flex: 10,
+            flex: 14,
             child: Align(
               alignment: Alignment.centerLeft,
               child: Container(
@@ -812,12 +814,16 @@ Future<void> _cargarReportesVentas() async {
                     Icon(iconoPorAccionAuditoria(m.accion),
                         size: 14, color: colorPorAccionAuditoria(m.accion)),
                     const SizedBox(width: 4),
-                    Text(
-                      m.accion,
-                      style: TextStyle(
-                        fontSize: AppText.overline,
-                        fontWeight: FontWeight.w800,
-                        color: colorPorAccionAuditoria(m.accion),
+                    Flexible(
+                      child: Text(
+                        etiquetaAccionAuditoria(m.accion),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: AppText.overline,
+                          fontWeight: FontWeight.w800,
+                          color: colorPorAccionAuditoria(m.accion),
+                        ),
                       ),
                     ),
                   ],
@@ -825,11 +831,11 @@ Future<void> _cargarReportesVentas() async {
               ),
             ),
           ),
-          Expanded(flex: 12, child: Text(m.tabla)),
+          Expanded(flex: 12, child: Text(etiquetaModuloAuditoria(m.tabla))),
           Expanded(flex: 10, child: Text(m.idRegistro?.toString() ?? '-')),
           Expanded(flex: 8, child: Text(m.idCaja?.toString() ?? '-')),
           Expanded(
-            flex: 22,
+            flex: 18,
             child: Text(m.descripcion, overflow: TextOverflow.ellipsis),
           ),
         ],
@@ -839,9 +845,7 @@ Future<void> _cargarReportesVentas() async {
 
   Future<void> _exportarMovimientosPDF() async {
     if (movimientos.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay movimientos para exportar.')),
-      );
+      Toast.info(context, 'No hay movimientos para exportar.');
       return;
     }
 
@@ -851,15 +855,15 @@ Future<void> _cargarReportesVentas() async {
         pageFormat: PdfPageFormat.a4,
         build: (context) => [
           pw.Header(level: 0, text: 'Movimientos por usuario'),
-          pw.Paragraph(text: 'Generado el ${DateTime.now().toLocal()}'),
+          pw.Paragraph(text: 'Generado el ${formatearFechaHora(DateTime.now().toIso8601String())}'),
           pw.SizedBox(height: 10),
-          pw.Table.fromTextArray(
+          pw.TableHelper.fromTextArray(
             headers: [
               'Fecha y hora',
               'Usuario',
               'Acción',
               'Módulo',
-              'Registro',
+              'Folio',
               'Caja',
               'Descripción',
             ],
@@ -867,8 +871,8 @@ Future<void> _cargarReportesVentas() async {
               return [
                 formatearFechaHora(m.fechaHora),
                 m.usuario,
-                m.accion,
-                m.tabla,
+                etiquetaAccionAuditoria(m.accion),
+                etiquetaModuloAuditoria(m.tabla),
                 m.idRegistro?.toString() ?? '-',
                 m.idCaja?.toString() ?? '-',
                 m.descripcion,
@@ -973,10 +977,10 @@ Future<void> _cargarReportesVentas() async {
         ],
         const SizedBox(width: 18),
         if (!esCajero && paginaSeleccionada != 2 && paginaSeleccionada != 3)
-        _buildRangeButton('7 dias', () => _seleccionarRango(7)),
+        _buildRangeButton('7 días', () => _seleccionarRango(7)),
         const SizedBox(width: 8),
         if (!esCajero && paginaSeleccionada != 2 && paginaSeleccionada != 3)
-        _buildRangeButton('30 dias', () => _seleccionarRango(30)),
+        _buildRangeButton('30 días', () => _seleccionarRango(30)),
         const SizedBox(width: 8),
         if (!esCajero && paginaSeleccionada != 2 && paginaSeleccionada != 3)
         OutlinedButton.icon(
@@ -1126,7 +1130,7 @@ Future<void> _cargarReportesVentas() async {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withValues(alpha: 0.7),
                 borderRadius: BorderRadius.circular(AppRadius.md),
               ),
               child: Icon(icon, color: Colors.black87),
@@ -1177,7 +1181,7 @@ Future<void> _cargarReportesVentas() async {
             )
           : ListView.separated(
               itemCount: productos.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
               itemBuilder: (_, index) {
                 final item = productos[index];
                 return Container(
@@ -1237,7 +1241,7 @@ Future<void> _cargarReportesVentas() async {
             )
           : ListView.separated(
               itemCount: movimientos.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
               itemBuilder: (_, index) {
                 return esVentas
                     ? _ventaTile(movimientos[index])

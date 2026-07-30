@@ -24,7 +24,7 @@ class ProductoController {
     }
 
     if (stockInicial < 0) {
-      throw Exception("Stock inválido");
+      throw Exception("Inventario inválido");
     }
 
     final id = await ejecutarConMensajeDeDuplicado(

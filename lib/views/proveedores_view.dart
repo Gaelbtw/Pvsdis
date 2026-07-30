@@ -134,7 +134,7 @@ void abrirFormulario({Proveedores? proveedor}) {
         );
 
         if (duplicado) {
-          if (!context.mounted) return;
+          if (!mounted) return;
           showDialog(
             context: context,
             builder: (_) => CustomAlert(
@@ -163,7 +163,7 @@ void abrirFormulario({Proveedores? proveedor}) {
           await controller.actualizar(nuevo);
         }
 
-        if (!context.mounted) return;
+        if (!mounted) return;
         Navigator.pop(context);
         cargar();
 

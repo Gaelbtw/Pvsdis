@@ -77,7 +77,7 @@ class _SyncProblemasViewState extends State<SyncProblemasView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
-      appBar: const CustomHeader(titulo: 'Pendientes y problemas de sync', mostrarVolver: true),
+      appBar: const CustomHeader(titulo: 'Pendientes y problemas de sincronización', mostrarVolver: true),
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
           : Center(

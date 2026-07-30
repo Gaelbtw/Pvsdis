@@ -247,7 +247,7 @@ class _PromocionesViewState extends State<PromocionesView> {
                       flex: 3,
                       child: dropdownContainer(
                         DropdownButtonFormField<int>(
-                          value: comboProductoSeleccionado,
+                          initialValue: comboProductoSeleccionado,
                           decoration: const InputDecoration(border: InputBorder.none),
                           hint: const Text("Producto"),
                           items: productos
@@ -304,7 +304,7 @@ class _PromocionesViewState extends State<PromocionesView> {
               AppTextField(controller: nombreCtrl, hint: "Nombre"),
               dropdownContainer(
                 DropdownButtonFormField<TipoPromocion>(
-                  value: tipo,
+                  initialValue: tipo,
                   decoration: const InputDecoration(border: InputBorder.none),
                   items: TipoPromocion.values
                       .map((t) => DropdownMenuItem(value: t, child: Text(_etiquetaTipo(t))))
@@ -388,7 +388,7 @@ class _PromocionesViewState extends State<PromocionesView> {
                 ),
                 dropdownContainer(
                   DropdownButtonFormField<TipoDescuento>(
-                    value: tipoValorCantidad,
+                    initialValue: tipoValorCantidad,
                     decoration: const InputDecoration(border: InputBorder.none),
                     items: const [
                       DropdownMenuItem(value: TipoDescuento.porcentaje, child: Text("Porcentaje")),
@@ -541,7 +541,7 @@ class _PromocionesViewState extends State<PromocionesView> {
                     ? const Center(child: Text("No hay promociones registradas"))
                     : ListView.separated(
                         itemCount: filtradas.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: 12),
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
                         itemBuilder: (_, i) {
                           final p = filtradas[i];
                           return Container(
@@ -572,8 +572,8 @@ class _PromocionesViewState extends State<PromocionesView> {
                                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                             decoration: BoxDecoration(
                                               color: p.activo
-                                                  ? AppColors.success.withOpacity(0.12)
-                                                  : AppColors.textSecondary.withOpacity(0.15),
+                                                  ? AppColors.success.withValues(alpha: 0.12)
+                                                  : AppColors.textSecondary.withValues(alpha: 0.15),
                                               borderRadius: BorderRadius.circular(AppRadius.pill),
                                             ),
                                             child: Text(
@@ -616,6 +616,7 @@ class _PromocionesViewState extends State<PromocionesView> {
                                       PopupMenuItem(
                                         onTap: () {
                                           Future.delayed(Duration.zero, () {
+                                            if (!context.mounted) return;
                                             confirmarAccion(
                                               context: context,
                                               tituloConfirmar: "Eliminar promoción",

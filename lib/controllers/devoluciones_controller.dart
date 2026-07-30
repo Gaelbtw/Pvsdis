@@ -78,12 +78,21 @@ class DevolucionesController {
     }
     final venta = ventaRows.first;
 
+    // Se agrupa SOLO por id_producto (una fila por producto garantizada) y se
+    // ponderan los precios por cantidad: si la misma SKU llegara a tener más
+    // de una fila de Detalle_Venta con distinto precio, la cantidad no se
+    // subcontaría al indexar por id_producto. Con el flujo actual (el carrito
+    // fusiona la misma línea) hay una sola fila por producto, así que el
+    // promedio ponderado es idéntico al precio único.
     final vendidos = await db.rawQuery('''
-      SELECT dv.id_producto, p.nombre, dv.precio, dv.precio_neto, SUM(dv.cantidad) as cantidad_vendida
+      SELECT dv.id_producto, p.nombre,
+             SUM(dv.precio * dv.cantidad) / SUM(dv.cantidad) as precio,
+             SUM(COALESCE(dv.precio_neto, dv.precio) * dv.cantidad) / SUM(dv.cantidad) as precio_neto,
+             SUM(dv.cantidad) as cantidad_vendida
       FROM Detalle_Venta dv
       INNER JOIN Producto p ON p.id_producto = dv.id_producto
       WHERE dv.id_venta = ?
-      GROUP BY dv.id_producto, dv.precio, dv.precio_neto
+      GROUP BY dv.id_producto
     ''', [idVenta]);
 
     final devueltoPorProducto = await _devueltoPorProducto(db, idVenta);
@@ -262,12 +271,18 @@ class DevolucionesController {
       }
       final idCaja = cajaAbierta.first['id_caja'] as int;
 
+      // Ver el comentario del mismo GROUP BY en obtenerDetalleVenta: se agrupa
+      // por id_producto con precios ponderados para no subcontar si una SKU
+      // tuviera varias filas de Detalle_Venta con distinto precio.
       final vendidos = await txn.rawQuery('''
-        SELECT dv.id_producto, p.nombre, dv.precio, dv.precio_neto, SUM(dv.cantidad) as cantidad_vendida
+        SELECT dv.id_producto, p.nombre,
+               SUM(dv.precio * dv.cantidad) / SUM(dv.cantidad) as precio,
+               SUM(COALESCE(dv.precio_neto, dv.precio) * dv.cantidad) / SUM(dv.cantidad) as precio_neto,
+               SUM(dv.cantidad) as cantidad_vendida
         FROM Detalle_Venta dv
         INNER JOIN Producto p ON p.id_producto = dv.id_producto
         WHERE dv.id_venta = ?
-        GROUP BY dv.id_producto, dv.precio, dv.precio_neto
+        GROUP BY dv.id_producto
       ''', [idVenta]);
 
       if (vendidos.isEmpty) {

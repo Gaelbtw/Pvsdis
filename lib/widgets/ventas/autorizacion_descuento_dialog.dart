@@ -92,7 +92,7 @@ Future<void> mostrarAutorizacionDescuentoDialog(
                   TextField(
                     controller: usuarioCtrl,
                     decoration: InputDecoration(
-                      labelText: 'Usuario admin',
+                      labelText: 'Usuario administrador',
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
                     ),
                   ),
