@@ -240,6 +240,14 @@ class ProductoController {
     return result.isNotEmpty;
   }
 
+  /// Suma [cantidadNueva] al inventario de [idProducto] y deja constancia
+  /// (bitácora de movimiento + auditoría).
+  ///
+  /// Todo ocurre en una sola transacción: antes eran cuatro operaciones
+  /// sueltas, así que un fallo intermedio podía dejar el stock ya modificado
+  /// sin ningún rastro de quién ni por qué —exactamente lo que la bitácora
+  /// existe para impedir—. El resto de controladores que tocan inventario ya
+  /// usaban `db.transaction`; este se había quedado fuera.
   Future<void> agregarStock(int idProducto, int cantidadNueva) async {
     final db = await DatabaseHelper().database;
 
@@ -247,40 +255,43 @@ class ProductoController {
       throw Exception("Cantidad inválida");
     }
 
-    final producto = await _obtenerNombreProducto(db, idProducto);
-    // Solo para el mensaje de auditoría; el incremento real se hace de
-    // forma atómica abajo para evitar que dos ventas/compras concurrentes
-    // sobre el mismo producto se pisen entre sí (lost update).
-    final actual = await _obtenerStockActual(db, idProducto);
+    await db.transaction((txn) async {
+      final producto = await _obtenerNombreProducto(txn, idProducto);
+      // Solo para el mensaje de auditoría; el incremento real se hace de
+      // forma atómica abajo para evitar que dos ventas/compras concurrentes
+      // sobre el mismo producto se pisen entre sí (lost update).
+      final actual = await _obtenerStockActual(txn, idProducto);
 
-    final filas = await db.rawUpdate(
-      'UPDATE Inventario SET cantidad = cantidad + ? WHERE id_producto = ?',
-      [cantidadNueva, idProducto],
-    );
+      final filas = await txn.rawUpdate(
+        'UPDATE Inventario SET cantidad = cantidad + ? WHERE id_producto = ?',
+        [cantidadNueva, idProducto],
+      );
 
-    if (filas == 0) {
-      throw Exception("El producto no tiene un registro de inventario");
-    }
+      if (filas == 0) {
+        throw Exception("El producto no tiene un registro de inventario");
+      }
 
-    final nuevo = actual + cantidadNueva;
+      final nuevo = actual + cantidadNueva;
 
-    await _movimientoInventarioLogger.registrar(
-      db,
-      idProducto: idProducto,
-      tipoMovimiento: 'AjustePositivo',
-      cantidad: cantidadNueva,
-      cantidadAnterior: actual,
-      cantidadNueva: nuevo,
-      motivo: 'Entrada manual de stock',
-    );
+      await _movimientoInventarioLogger.registrar(
+        txn,
+        idProducto: idProducto,
+        tipoMovimiento: 'AjustePositivo',
+        cantidad: cantidadNueva,
+        cantidadAnterior: actual,
+        cantidadNueva: nuevo,
+        motivo: 'Entrada manual de stock',
+      );
 
-    await _auditoriaController.registrar(
-      tabla: 'Inventario',
-      accion: 'EDIT',
-      idRegistro: idProducto,
-      descripcion:
-          'Stock de $producto aumentado de $actual a $nuevo (+$cantidadNueva)',
-    );
+      await _auditoriaController.registrar(
+        tabla: 'Inventario',
+        accion: 'EDIT',
+        idRegistro: idProducto,
+        descripcion:
+            'Stock de $producto aumentado de $actual a $nuevo (+$cantidadNueva)',
+        executor: txn,
+      );
+    });
   }
 
   Future<Map<int, int>> obtenerStockMap() async {

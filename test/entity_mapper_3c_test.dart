@@ -357,6 +357,26 @@ void main() {
       expect(detallePayload['productoId'], isNotNull);
       expect(detallePayload['subtotal'], 116.0);
 
+      // Con `cantidad: 1` el subtotal de línea y el precio unitario valen lo
+      // mismo, así que ese caso NO distingue si el mapper multiplica o no.
+      // Esta línea con cantidad 3 es la que de verdad cubre el cálculo:
+      // `precio_neto` es unitario, el `subtotal` que se manda es de línea.
+      final idDetalleMultiple = await DatabaseHelper.insertarConGuidSync(db, 'Detalle_Venta', {
+        'id_venta': idVenta,
+        'id_producto': idProducto,
+        'cantidad': 3,
+        'precio': 50.0,
+        'precio_neto': 40.0, // unitario, ya con descuento
+      });
+      final detalleMultiplePayload = await VentaDetalleMapper().aBackend(
+        filaLocal: await filaDe('Detalle_Venta', 'id_detalleV', idDetalleMultiple),
+        tenantId: _tenantId,
+        usuarioIdSync: _usuarioIdSync,
+        resolver: resolver,
+      );
+      expect(detalleMultiplePayload['precioUnitario'], 50.0);
+      expect(detalleMultiplePayload['subtotal'], 120.0); // 40 x 3, no 40
+
       final idPago = await DatabaseHelper.insertarConGuidSync(db, 'Venta_Pagos', {
         'id_venta': idVenta,
         'metodo_pago': 'efectivo',

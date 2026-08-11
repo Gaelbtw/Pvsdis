@@ -12,6 +12,7 @@ import '../core/utils/promociones_engine.dart';
 import '../models/apartado_model.dart';
 import 'producto_controller.dart';
 import 'promociones_controller.dart';
+import '../core/security/autorizadores.dart';
 
 /// Apartados (layaway): un cliente reserva productos con uno o varios
 /// abonos y liquida el saldo después, sin que los precios/descuentos/
@@ -63,7 +64,8 @@ class ApartadosController {
       descuentoMaximoPorcentaje: config.descuentoMaximoPorcentaje,
     );
 
-    final esCajero = SessionManager.currentUserRole == 'Cajero';
+    final db = await dbHelper.database;
+    final esCajero = SessionManager.isCajero;
     validarPermisoDescuento(
       calculo: calculo,
       esCajero: esCajero,
@@ -71,6 +73,9 @@ class ApartadosController {
       cajeroRequiereAutorizacion: config.descuentoCajeroRequiereAutorizacion,
       descuentoMotivo: descuentoMotivo,
       descuentoAutorizadoPor: descuentoAutorizadoPor,
+      // Mismo criterio que en `VentasController`: se confirma contra la base
+      // que el autorizador sea realmente administrador.
+      autorizadorEsAdmin: await esAdministrador(db, descuentoAutorizadoPor),
     );
 
     if (montoAnticipo < 0) {
@@ -80,8 +85,7 @@ class ApartadosController {
       throw Exception('El anticipo no puede superar el total del apartado.');
     }
 
-    final db = await dbHelper.database;
-    final idUsuario = SessionManager.currentUserId ?? 1;
+    final idUsuario = SessionManager.requiredUserId;
 
     return db.transaction((txn) async {
       final idApartado = await txn.insert('Apartados', {
@@ -106,8 +110,16 @@ class ApartadosController {
       final idsDetalleApartado = <int>[];
 
       for (final linea in calculo.lineas) {
+        // `precio_compra` viaja en la misma consulta del stock (JOIN, no una
+        // consulta extra) para congelar el costo en la línea -- ver abajo y
+        // el mismo patrón en `VentasController.insertarVentaCompleta`.
         final stock = await txn.rawQuery(
-          'SELECT cantidad, cantidad_reservada FROM Inventario WHERE id_producto = ?',
+          '''
+          SELECT i.cantidad, i.cantidad_reservada, p.precio_compra
+          FROM Inventario i
+          INNER JOIN Producto p ON p.id_producto = i.id_producto
+          WHERE i.id_producto = ?
+          ''',
           [linea.idProducto],
         );
 
@@ -116,7 +128,7 @@ class ApartadosController {
         }
 
         final disponible =
-            (stock.first['cantidad'] as int) - (stock.first['cantidad_reservada'] as int? ?? 0);
+            (stock.first['cantidad'] as int? ?? 0) - (stock.first['cantidad_reservada'] as int? ?? 0);
 
         if (disponible < linea.cantidad) {
           throw Exception(
@@ -129,6 +141,8 @@ class ApartadosController {
           'id_producto': linea.idProducto,
           'cantidad': linea.cantidad,
           'precio': linea.precioOriginal,
+          // Costo congelado al apartar (ver `_ensureCostoUnitarioColumns`).
+          'costo_unitario': (stock.first['precio_compra'] as num?)?.toDouble(),
           'descuento_tipo': linea.descuentoTipo?.nombre,
           'descuento_valor': linea.descuentoValor,
           'descuento_monto': linea.descuentoMonto,
@@ -278,7 +292,7 @@ class ApartadosController {
       throw Exception(resultadoPagos.mensajeError ?? 'Los pagos no cubren el abono.');
     }
 
-    final idUsuario = SessionManager.currentUserId ?? 1;
+    final idUsuario = SessionManager.requiredUserId;
     final cajaAbierta = await txn.query(
       'Cajas',
       where: 'id_usuario = ? AND estado = ?',
@@ -346,7 +360,7 @@ class ApartadosController {
 
     final detalles = await txn.query('Detalle_Apartado', where: 'id_apartado = ?', whereArgs: [idApartado]);
 
-    final idUsuario = SessionManager.currentUserId ?? 1;
+    final idUsuario = SessionManager.requiredUserId;
     final ultimoAbono = await txn.query(
       'Apartado_Abonos',
       where: 'id_apartado = ?',
@@ -379,6 +393,15 @@ class ApartadosController {
         'id_producto': detalle['id_producto'],
         'cantidad': detalle['cantidad'],
         'precio': detalle['precio'],
+        // Se arrastra el costo que se congeló al CREAR el apartado, no el
+        // vigente hoy. Un apartado puede tardar semanas en liquidarse y el
+        // proveedor puede haber cambiado precios en ese lapso; la utilidad
+        // debe medirse contra lo que costó la mercancía cuando se separó.
+        //
+        // Sin esta línea, toda venta originada en un apartado quedaba con
+        // `costo_unitario` en NULL y desaparecía del reporte de utilidad
+        // para siempre, aun siendo posterior a la v22.
+        'costo_unitario': detalle['costo_unitario'],
         'descuento_tipo': detalle['descuento_tipo'],
         'descuento_valor': detalle['descuento_valor'],
         'descuento_monto': detalle['descuento_monto'],

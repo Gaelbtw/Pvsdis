@@ -89,7 +89,7 @@ class CajaController {
     }
 
     final db = await dbHelper.database;
-    final idUsuario = SessionManager.currentUserId ?? 1;
+    final idUsuario = SessionManager.requiredUserId;
 
     return db.transaction((txn) async {
       final abiertas = await txn.query(
@@ -299,7 +299,7 @@ class CajaController {
     }
 
     final db = await dbHelper.database;
-    final idUsuario = SessionManager.currentUserId ?? 1;
+    final idUsuario = SessionManager.requiredUserId;
 
     return db.transaction((txn) async {
       final abiertas = await txn.query(

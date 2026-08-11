@@ -13,6 +13,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:pvapp/controllers/devoluciones_controller.dart';
 import 'package:pvapp/controllers/reporte_controller.dart';
 import 'package:pvapp/core/database/database_helper.dart';
+import 'package:pvapp/core/session/session_manager.dart';
 import 'package:pvapp/core/security/password_hasher.dart';
 
 void main() {
@@ -34,9 +35,15 @@ void main() {
     devoluciones = DevolucionesController();
     reportes = ReporteController();
 
-    // DevolucionesController exige caja abierta; sin SessionManager.setUser
-    // cae en id_usuario=1 (ver `?? 1`), así que se siembra ese usuario
-    // (requerido por la FK de Cajas.id_usuario) y su caja abierta.
+    // DevolucionesController exige caja abierta, así que se siembra el
+    // usuario (requerido por la FK de Cajas.id_usuario) y su caja abierta.
+    //
+    // Los controladores exigen una sesión activa (SessionManager.requiredUserId
+    // lanza si no la hay). Antes caían en silencio a `currentUserId ?? 1`, que
+    // atribuía la operación al usuario 1 y falseaba la auditoría. Se fija esa
+    // misma identidad para no alterar lo que estas pruebas verifican.
+    SessionManager.setUser(id: 1, nombre: 'Sistema', rol: 'Admin');
+
     await db.insert('Usuarios', {
       'nombre': 'Sistema',
       'contra': PasswordHasher.hash('x'),
@@ -51,6 +58,7 @@ void main() {
   });
 
   tearDown(() async {
+    SessionManager.clear();
     await DatabaseHelper().closeDatabase();
     DatabaseHelper.setTestDatabase(null);
     if (await tempDir.exists()) {

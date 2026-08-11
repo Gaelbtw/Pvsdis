@@ -10,6 +10,7 @@ import '../models/caja_model.dart';
 import '../services/ticket_cierre_caja_service.dart';
 import '../services/ticket_corte_x_service.dart';
 import '../services/impresion_service.dart';
+import '../services/cajon_service.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/custom_alert.dart';
 import '../widgets/form_dialog.dart';
@@ -51,8 +52,11 @@ class _CajaViewState extends State<CajaView> {
   Future<void> cargar() async {
     setState(() => cargando = true);
 
-    final idUsuario = SessionManager.currentUserId ?? 1;
-    final caja = await _cajaController.obtenerCajaAbierta(idUsuario);
+    // Sin sesión no hay caja que buscar. Antes se consultaba con el id 1,
+    // así que se mostraba la caja de otro usuario.
+    final idUsuario = SessionManager.currentUserId;
+    final caja =
+        idUsuario == null ? null : await _cajaController.obtenerCajaAbierta(idUsuario);
 
     ResumenCaja? nuevoResumen;
     if (caja != null) {
@@ -71,6 +75,20 @@ class _CajaViewState extends State<CajaView> {
   double get contado => double.tryParse(contadoCtrl.text.replaceAll(',', '.')) ?? 0;
 
   double get diferencia => resumen == null ? 0 : contado - resumen!.efectivoEsperado;
+
+  /// Arqueo ciego: quien cuenta el dinero no debe saber cuánto "debería"
+  /// haber hasta después de haber declarado su conteo.
+  ///
+  /// Antes esta pantalla mostraba (1) una tarjeta con el efectivo esperado
+  /// durante todo el turno y (2) la DIFERENCIA recalculada en vivo mientras
+  /// se teclea el conteo. Con eso el arqueo dejaba de ser un control: a un
+  /// cajero al que le falta dinero el sistema le estaba diciendo exactamente
+  /// cuánto poner para que la diferencia marcara cero.
+  ///
+  /// Se oculta solo al cajero. El administrador es quien audita, no el
+  /// auditado, y necesita el dato para operar. Mismo criterio que usa
+  /// `VentasView.esCajero` para la política de descuentos.
+  bool get arqueoCiego => SessionManager.isCajero;
 
   void abrirCajaDialog() {
     final fondoCtrl = TextEditingController(text: AppConfig.actual.fondoCaja.toStringAsFixed(2));
@@ -135,11 +153,14 @@ class _CajaViewState extends State<CajaView> {
     final r = resumen;
     if (r == null) return;
 
-    showDialog(
-      context: context,
-      builder: (_) => CustomAlert(
-        titulo: "Cerrar caja",
-        mensaje: "Fondo inicial: ${AppConfig.formatoMoneda(r.fondoInicial)}\n"
+    // Con arqueo ciego el diálogo NO puede mostrar el esperado ni la
+    // diferencia: sería un oráculo: abrir, leer el número, cancelar y
+    // corregir el conteo. Solo se confirma lo que el cajero declaró; el
+    // resultado se revela después de cerrar, cuando ya no se puede cambiar.
+    final desglose = arqueoCiego
+        ? "Efectivo contado: ${AppConfig.formatoMoneda(contado)}\n\n"
+            "Se registrará este conteo y no podrá modificarse."
+        : "Fondo inicial: ${AppConfig.formatoMoneda(r.fondoInicial)}\n"
             "Ventas efectivo: ${AppConfig.formatoMoneda(r.ventasEfectivo)}\n"
             "Ventas tarjeta: ${AppConfig.formatoMoneda(r.ventasTarjeta)}\n"
             "Ventas transferencia: ${AppConfig.formatoMoneda(r.ventasTransferencia)}\n"
@@ -148,12 +169,39 @@ class _CajaViewState extends State<CajaView> {
             "Devoluciones: ${AppConfig.formatoMoneda(r.devoluciones)}\n"
             "Efectivo esperado: ${AppConfig.formatoMoneda(r.efectivoEsperado)}\n"
             "Efectivo contado: ${AppConfig.formatoMoneda(contado)}\n"
-            "Diferencia: ${AppConfig.formatoMoneda(diferencia)}\n\n"
-            "¿Confirmas el cierre? Esta acción no se puede deshacer.",
+            "Diferencia: ${AppConfig.formatoMoneda(diferencia)}";
+
+    showDialog(
+      context: context,
+      builder: (_) => CustomAlert(
+        titulo: "Cerrar caja",
+        mensaje: "$desglose\n\n¿Confirmas el cierre? Esta acción no se puede deshacer.",
         icono: Icons.point_of_sale,
         textoCancelar: "Cancelar",
         textoConfirmar: "Cerrar caja",
         onConfirm: _cerrarCaja,
+      ),
+    );
+  }
+
+  /// Revela el resultado del arqueo DESPUÉS de cerrar, cuando el conteo ya
+  /// quedó registrado y no se puede ajustar. Es la contraparte de ocultarlo
+  /// antes: el cajero sí tiene derecho a saber cómo le fue.
+  void _mostrarResultadoArqueo(ResumenCaja r, double contadoFinal, double diferenciaFinal) {
+    final texto = diferenciaFinal == 0
+        ? 'El conteo cuadró exactamente.'
+        : diferenciaFinal > 0
+            ? 'Sobrante de ${AppConfig.formatoMoneda(diferenciaFinal)}.'
+            : 'Faltante de ${AppConfig.formatoMoneda(diferenciaFinal.abs())}.';
+
+    showDialog(
+      context: context,
+      builder: (_) => CustomAlert(
+        titulo: 'Resultado del arqueo',
+        mensaje: "Efectivo esperado: ${AppConfig.formatoMoneda(r.efectivoEsperado)}\n"
+            "Efectivo contado: ${AppConfig.formatoMoneda(contadoFinal)}\n\n"
+            "$texto",
+        icono: diferenciaFinal == 0 ? Icons.check_circle_outline : Icons.error_outline,
       ),
     );
   }
@@ -163,6 +211,12 @@ class _CajaViewState extends State<CajaView> {
     final r = resumen;
     if (caja == null || r == null) return;
 
+    // Se capturan ANTES de `cargar()`, que limpia `contadoCtrl` y recalcula
+    // `resumen`: después de recargar, `contado` y `diferencia` ya valen otra
+    // cosa y el resultado que se muestra sería incorrecto.
+    final contadoFinal = contado;
+    final diferenciaFinal = diferencia;
+
     try {
       await _cajaController.cerrarCaja(idCaja: caja.idCaja!, efectivoContado: contado);
 
@@ -171,17 +225,27 @@ class _CajaViewState extends State<CajaView> {
         fechaCierre: DateTime.now().toIso8601String(),
         cajero: SessionManager.currentUserName,
         resumen: r,
-        contado: contado,
-        diferencia: diferencia,
+        contado: contadoFinal,
+        diferencia: diferenciaFinal,
         observacionesApertura: caja.observacionesApertura,
       );
 
       await ImpresionService.imprimir(pdf);
 
+      // Abre el cajón al cerrar (para sacar el efectivo), si la config lo permite.
+      await CajonService.abrirSiCorresponde();
+
+      final eraCiego = arqueoCiego;
+
       await cargar();
 
       if (!mounted) return;
       Toast.exito(context, 'Caja cerrada. El cierre se registró correctamente.');
+
+      // Ahora sí se revela el resultado: el conteo ya quedó grabado.
+      if (eraCiego) {
+        _mostrarResultadoArqueo(r, contadoFinal, diferenciaFinal);
+      }
     } catch (e) {
       if (!mounted) return;
       final mensaje = e.toString().replaceFirst("Exception: ", "");
@@ -271,6 +335,10 @@ class _CajaViewState extends State<CajaView> {
         fechaApertura: caja.fechaApertura,
         fechaCorte: DateTime.now().toIso8601String(),
         resumen: r,
+        // Si no, imprimir un Corte X sería la puerta trasera del arqueo
+        // ciego: el cajero saca el ticket, lee el esperado y captura ese
+        // mismo número al cerrar.
+        ocultarEfectivoEsperado: arqueoCiego,
       );
       await ImpresionService.imprimir(pdf);
       if (!mounted) return;
@@ -382,7 +450,10 @@ class _CajaViewState extends State<CajaView> {
                   _statCard("Entradas de efectivo", r.entradasEfectivo, Icons.south_west),
                 if (r.salidasEfectivo > 0)
                   _statCard("Salidas de efectivo", r.salidasEfectivo, Icons.north_east),
-                _statCard("Efectivo esperado", r.efectivoEsperado, Icons.point_of_sale),
+                // Ver [arqueoCiego]: al cajero no se le adelanta el total que
+                // debería tener en el cajón.
+                if (!arqueoCiego)
+                  _statCard("Efectivo esperado", r.efectivoEsperado, Icons.point_of_sale),
               ],
             ),
             const SizedBox(height: 24),
@@ -456,6 +527,34 @@ class _CajaViewState extends State<CajaView> {
               ),
             ),
             const SizedBox(height: 16),
+            // Con arqueo ciego este bloque se sustituye por una nota: mostrar
+            // la diferencia mientras se teclea convertía el conteo en un
+            // "adivina el número" (ver [arqueoCiego]).
+            if (arqueoCiego)
+              Container(
+                width: 320,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.visibility_off_outlined,
+                        size: 18, color: AppColors.textSecondary),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Cuenta el efectivo y captura el total. La diferencia '
+                        'se muestra al confirmar el cierre.',
+                        style: TextStyle(
+                            fontSize: AppText.small, color: AppColors.textSecondary),
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else
             AnimatedBuilder(
               animation: contadoCtrl,
               builder: (_, child) {

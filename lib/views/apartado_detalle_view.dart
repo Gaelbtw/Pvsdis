@@ -143,7 +143,11 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
           );
         },
       ),
-    );
+    ).whenComplete(() {
+      // Creados por esta función, no por un State: sin esto no se
+      // liberan nunca (tampoco si el diálogo se descarta sin guardar).
+      montoCtrl.dispose();
+    });
 
     if (confirmado != true) return;
 
@@ -217,7 +221,11 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
           ),
         ],
       ),
-    );
+    ).whenComplete(() {
+      // Creados por esta función, no por un State: sin esto no se
+      // liberan nunca (tampoco si el diálogo se descarta sin guardar).
+      motivoCtrl.dispose();
+    });
 
     if (motivo == null || motivo.trim().isEmpty || !mounted) return;
 

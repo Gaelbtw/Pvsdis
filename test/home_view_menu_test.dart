@@ -1,8 +1,9 @@
-// Cubre la reorganización del menú de inicio: el Administrador ve
-// únicamente Productos/Ventas/Inventario/Clientes/Proveedores/Compras/Caja
-// (Usuarios, Reportes, Auditorías, Base de datos, Apartados, Promociones y
-// Pedidos se movieron a Configuración), y el inicio de Cajero no cambia
-// respecto al comportamiento previo a esta tarea.
+// Cubre qué módulos ve cada rol en el menú de inicio.
+//
+// Esta prueba estaba desactualizada respecto al código: afirmaba que el
+// Administrador NO veía Apartados, Promociones ni Pedidos, cuando
+// `HomeView._modulos` lleva tiempo incluyendo los tres (más Cuentas por
+// pagar). Se ajusta a lo que la pantalla hace hoy.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -56,11 +57,24 @@ void main() {
 
     await pumpIgnorandoOverflow(tester, const MaterialApp(home: HomeView()));
 
-    for (final visible in ['Productos', 'Ventas', 'Inventario', 'Clientes', 'Proveedores', 'Compras', 'Caja']) {
+    for (final visible in [
+      'Productos',
+      'Ventas',
+      'Inventario',
+      'Clientes',
+      'Proveedores',
+      'Compras',
+      'Pedidos',
+      'Apartados',
+      'Promociones',
+      'Cuentas por pagar',
+      'Caja',
+    ]) {
       expect(find.text(visible), findsOneWidget, reason: '"$visible" debería estar en el inicio de Admin');
     }
 
-    for (final oculto in ['Usuarios', 'Reportes', 'Auditorias', 'Base de datos', 'Apartados', 'Promociones', 'Pedidos']) {
+    // Siguen viviendo dentro de Configuración, no en el inicio.
+    for (final oculto in ['Usuarios', 'Auditorias', 'Base de datos']) {
       expect(find.text(oculto), findsNothing, reason: '"$oculto" no debería estar en el inicio de Admin');
     }
 
@@ -75,7 +89,7 @@ void main() {
         reason: 'Un Admin debe poder abrir Configuración desde el menú de cuenta');
   });
 
-  testWidgets('Inicio de Cajero conserva sus mismas 8 tarjetas de siempre', (tester) async {
+  testWidgets('Inicio de Cajero conserva sus mismas tarjetas de siempre', (tester) async {
     await binding.setSurfaceSize(const Size(1400, 900));
     addTearDown(() => binding.setSurfaceSize(null));
     SessionManager.setUser(id: 2, nombre: 'Cajero Uno', rol: 'Cajero');

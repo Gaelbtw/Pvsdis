@@ -37,6 +37,33 @@ class UsuariosController {
     return result.map((e) => Usuarios.fromMap(e)).toList();
   }
 
+  /// Indica si ya existe otro usuario con ese [nombre], comparando sin
+  /// distinguir mayúsculas —igual que hace el login—. [exceptoId] excluye al
+  /// propio usuario al editarlo.
+  ///
+  /// Es imprescindible porque `Authcontroller.login` resuelve con
+  /// `WHERE LOWER(nombre) = ? LIMIT 1`: con dos cuentas homónimas, la de
+  /// mayor id nunca podría iniciar sesión. La base también lo impone con el
+  /// índice único `idx_usuarios_nombre`; esta comprobación existe para dar un
+  /// mensaje claro en vez de una excepción de SQLite.
+  Future<bool> nombreEnUso(String nombre, {int? exceptoId}) async {
+    final normalizado = nombre.trim().toLowerCase();
+    if (normalizado.isEmpty) return false;
+
+    final db = await DatabaseHelper().database;
+    final filas = await db.query(
+      'Usuarios',
+      columns: ['id_usuario'],
+      where: exceptoId == null
+          ? 'LOWER(nombre) = ?'
+          : 'LOWER(nombre) = ? AND id_usuario != ?',
+      whereArgs: exceptoId == null ? [normalizado] : [normalizado, exceptoId],
+      limit: 1,
+    );
+
+    return filas.isNotEmpty;
+  }
+
   /// Indica si algún otro usuario ya usa este [pin]. Como los PIN se guardan
   /// hasheados, no se puede comparar por igualdad en SQL: se verifica uno por
   /// uno con bcrypt. [exceptoId] excluye al propio usuario al editarlo.

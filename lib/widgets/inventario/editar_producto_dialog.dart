@@ -11,10 +11,17 @@ import '../toast.dart';
 /// Diálogo de edición rápida de un producto desde Inventario (nombre,
 /// precio e inventario disponible). Antes vivía completo dentro de
 /// `inventario_view.dart` (~227 líneas) armado a mano con `Dialog`/`Container`.
+/// [puedeEditarProducto] habilita nombre y precio; [puedeAjustarInventario]
+/// habilita las existencias. Son dos permisos distintos (ver
+/// `Permiso.gestionarProductos` y `Permiso.ajustarInventario`): hay negocios
+/// donde el cajero cuenta inventario pero no toca precios. Cada campo
+/// deshabilitado además NO se persiste, para que la vista no sea el único
+/// control.
 void mostrarEditarProductoDialog(
   BuildContext context, {
   required Map<String, dynamic> producto,
-  required bool esCajero,
+  required bool puedeEditarProducto,
+  required bool puedeAjustarInventario,
   required Configuracion config,
   required ProductoController productoController,
   required Future<void> Function() onGuardado,
@@ -30,7 +37,7 @@ void mostrarEditarProductoDialog(
       subtitulo: "Actualiza la información del producto.",
       textoGuardar: "Guardar",
       campos: [
-        if (!esCajero)
+        if (puedeEditarProducto)
           AppTextField(
             controller: nombreCtrl,
             hint: "Nombre del producto",
@@ -38,7 +45,7 @@ void mostrarEditarProductoDialog(
             iconColor: AppColors.primaryDark,
             fillColor: AppColors.surface,
           ),
-        if (!esCajero)
+        if (puedeEditarProducto)
           AppTextField(
             controller: precioCtrl,
             hint: "Precio",
@@ -46,34 +53,39 @@ void mostrarEditarProductoDialog(
             iconColor: AppColors.primaryDark,
             keyboardType: TextInputType.number,
           ),
-        AppTextField(
-          controller: stockCtrl,
-          hint: "Inventario disponible",
-          icon: Icons.layers_outlined,
-          iconColor: AppColors.primaryDark,
-          keyboardType: TextInputType.number,
-        ),
+        if (puedeAjustarInventario)
+          AppTextField(
+            controller: stockCtrl,
+            hint: "Inventario disponible",
+            icon: Icons.layers_outlined,
+            iconColor: AppColors.primaryDark,
+            keyboardType: TextInputType.number,
+          ),
       ],
       onGuardar: () async {
-        await productoController.actualizar(
-          Producto(
-            idProducto: producto['id_producto'],
-            nombre: nombreCtrl.text,
-            descripcion: "",
-            precio: double.parse(precioCtrl.text),
-            categoriaId: producto['id_categoria'],
-            estado: producto['estado'] ?? "Activo",
-            stockMinimo: config.stockMinimo,
-            // Preserva el código existente: este diálogo no lo edita, y
-            // toMap() sobrescribe la fila completa al guardar.
-            codigoBarras: producto['codigo_barras'],
-          ),
-        );
+        if (puedeEditarProducto) {
+          await productoController.actualizar(
+            Producto(
+              idProducto: producto['id_producto'],
+              nombre: nombreCtrl.text,
+              descripcion: "",
+              precio: double.parse(precioCtrl.text),
+              categoriaId: producto['id_categoria'],
+              estado: producto['estado'] ?? "Activo",
+              stockMinimo: config.stockMinimo,
+              // Preserva el código existente: este diálogo no lo edita, y
+              // toMap() sobrescribe la fila completa al guardar.
+              codigoBarras: producto['codigo_barras'],
+            ),
+          );
+        }
 
-        await productoController.actualizarStock(
-          producto['id_producto'],
-          int.tryParse(stockCtrl.text) ?? producto['cantidad'],
-        );
+        if (puedeAjustarInventario) {
+          await productoController.actualizarStock(
+            producto['id_producto'],
+            int.tryParse(stockCtrl.text) ?? producto['cantidad'],
+          );
+        }
 
         if (!context.mounted) return;
         Navigator.pop(context);
@@ -84,5 +96,13 @@ void mostrarEditarProductoDialog(
         Toast.exito(context, "Producto actualizado");
       },
     ),
-  );
+    // Los TextEditingController viven fuera del árbol de widgets (los crea
+    // esta función, no un State), así que hay que liberarlos a mano cuando
+    // el diálogo se cierra -- por cualquier vía, incluido descartarlo sin
+    // guardar.
+  ).whenComplete(() {
+    nombreCtrl.dispose();
+    precioCtrl.dispose();
+    stockCtrl.dispose();
+  });
 }

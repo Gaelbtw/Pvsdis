@@ -11,6 +11,7 @@ import '../widgets/app_text_field.dart';
 import '../widgets/custom_alert.dart';
 import '../widgets/form_dialog.dart';
 import '../widgets/nav_bar.dart';
+import '../widgets/ventas/autorizacion_descuento_dialog.dart';
 
 /// Detalle de una venta: sus productos, lo que llevan de devuelto/pendiente,
 /// el historial de devoluciones previas, y las acciones de cancelación
@@ -68,11 +69,50 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
     });
   }
 
+  /// `true` si la venta NO se cobró íntegramente en efectivo.
+  ///
+  /// El reembolso siempre sale en efectivo, así que en ese caso la
+  /// devolución mueve dinero real de la caja sin revertir el cargo original
+  /// (ver `DevolucionesController`). El controlador lo rechaza sin
+  /// autorización; aquí se pide por adelantado para no hacerle escribir el
+  /// motivo al cajero y rebotarlo después.
+  bool get _requiereAutorizacionAdmin {
+    final metodo = detalle?.metodoPago.trim().toLowerCase();
+    if (metodo == null || metodo.isEmpty) return false;
+    return metodo != 'efectivo';
+  }
+
+  /// Pide credenciales de administrador y devuelve su id, o `null` si se
+  /// canceló o no se validaron.
+  Future<int?> _pedirAutorizacionAdmin() async {
+    int? autorizadoPor;
+    await mostrarAutorizacionDescuentoDialog(
+      context,
+      requiereCredencialesAdmin: true,
+      titulo: 'Devolución requiere autorización',
+      mensaje:
+          'Esta venta no se pagó en efectivo, pero el reembolso sí se entrega '
+          'en efectivo. Indica el motivo y pide a un administrador que '
+          'autorice la operación.',
+      onConfirmar: (_, id) => autorizadoPor = id,
+    );
+    return autorizadoPor;
+  }
+
   Future<void> _pedirMotivoYEjecutar({
     required String titulo,
     required String subtitulo,
-    required Future<int> Function(String motivo) accion,
+    required Future<int> Function(String motivo, int? autorizadoPor) accion,
   }) async {
+    // La autorización se pide ANTES del motivo: si no se concede, no tiene
+    // sentido hacerle escribir nada al cajero.
+    int? autorizadoPor;
+    if (_requiereAutorizacionAdmin) {
+      autorizadoPor = await _pedirAutorizacionAdmin();
+      if (autorizadoPor == null) return;
+      if (!mounted) return;
+    }
+
     final motivoCtrl = TextEditingController();
 
     showDialog(
@@ -105,7 +145,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
           }
 
           try {
-            final idDevolucion = await accion(motivo);
+            final idDevolucion = await accion(motivo, autorizadoPor);
 
             if (!dialogContext.mounted) return;
             Navigator.pop(dialogContext);
@@ -129,7 +169,11 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
           }
         },
       ),
-    );
+    ).whenComplete(() {
+      // Creados por esta función, no por un State: sin esto no se
+      // liberan nunca (tampoco si el diálogo se descarta sin guardar).
+      motivoCtrl.dispose();
+    });
   }
 
   void _cancelarVentaCompleta() {
@@ -141,7 +185,11 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
       subtitulo:
           'Se devolverán todos los productos pendientes de la venta #${d.idVenta} '
           'y se reintegrarán al inventario. Esta acción no se puede deshacer.',
-      accion: (motivo) => _controller.cancelarVenta(idVenta: d.idVenta, motivo: motivo),
+      accion: (motivo, autorizadoPor) => _controller.cancelarVenta(
+        idVenta: d.idVenta,
+        motivo: motivo,
+        autorizadoPor: autorizadoPor,
+      ),
     );
   }
 
@@ -158,10 +206,11 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
       subtitulo:
           'Se devolverán $totalUnidadesSeleccionadas unidad(es) seleccionadas '
           'y se reintegrarán al inventario.',
-      accion: (motivo) => _controller.devolverParcial(
+      accion: (motivo, autorizadoPor) => _controller.devolverParcial(
         idVenta: d.idVenta,
         motivo: motivo,
         items: items,
+        autorizadoPor: autorizadoPor,
       ),
     );
   }

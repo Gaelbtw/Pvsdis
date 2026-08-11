@@ -6,6 +6,7 @@ import '../core/security/permisos_service.dart';
 import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
 import '../views/home_view.dart';
+import '../core/security/permisos.dart';
 
 
 class LoginView extends StatefulWidget {
@@ -40,7 +41,20 @@ class _LoginViewState extends State<LoginView> {
       _error = null;
     });
 
-    final resultado = await authController.login(usuario, password);
+    // `login` lanza cuando el throttle exige esperar (ver LoginThrottle):
+    // ese mensaje sí se muestra tal cual, porque es accionable y no revela
+    // nada sobre si la cuenta existe.
+    final LoginResult resultado;
+    try {
+      resultado = await authController.login(usuario, password);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        _error = e.toString().replaceFirst('Exception: ', '');
+      });
+      return;
+    }
 
     if (!mounted) return;
     setState(() => loading = false);
@@ -72,7 +86,18 @@ class _LoginViewState extends State<LoginView> {
       _error = null;
     });
 
-    final resultado = await authController.loginConPin(pin);
+    final LoginResult resultado;
+    try {
+      resultado = await authController.loginConPin(pin);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        loading = false;
+        _error = e.toString().replaceFirst('Exception: ', '');
+        pinController.clear();
+      });
+      return;
+    }
 
     if (!mounted) return;
     setState(() => loading = false);
@@ -80,6 +105,7 @@ class _LoginViewState extends State<LoginView> {
     if (resultado.status == LoginStatus.success) {
       await _entrar(resultado.usuario!);
     } else {
+      if (!mounted) return;
       setState(() {
         _error = "PIN incorrecto.";
         pinController.clear();
@@ -92,8 +118,10 @@ class _LoginViewState extends State<LoginView> {
   Future<void> _entrar(Map<String, dynamic> user) async {
     SessionManager.setUser(
       id: user['id_usuario'] as int?,
-      nombre: user['nombre']?.toString() ?? 'Admin',
-      rol: user['rol']?.toString() ?? 'Administrador',
+      nombre: user['nombre']?.toString() ?? '',
+      // Sin rol legible NO se asume administrador: se cae al rol de menor
+      // privilegio. Antes el default era 'Administrador'.
+      rol: user['rol']?.toString() ?? Roles.cajero,
     );
     await PermisosService.instancia.cargar();
     await AuditoriaController().registrar(

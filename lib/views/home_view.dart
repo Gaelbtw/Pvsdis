@@ -25,6 +25,7 @@ import 'promociones_view.dart';
 import 'proveedores_view.dart';
 import 'reporte_view.dart';
 import 'ventas_view.dart';
+import '../core/security/permisos_service.dart';
 
 class _Modulo {
   const _Modulo(this.titulo, this.subtitulo, this.icono, this.builder);
@@ -67,13 +68,14 @@ class _HomeViewState extends State<HomeView> {
   Future<void> _cargarTablero() async {
     final hoy = DateTime.now();
     final ayer = hoy.subtract(const Duration(days: 1));
-    final idUsuario = SessionManager.currentUserId ?? 1;
+    final idUsuario = SessionManager.currentUserId;
 
     try {
       final resultados = await Future.wait([
         _reporte.obtenerReporteVentas(desde: hoy, hasta: hoy, filtrarPorUsuario: false),
         _reporte.obtenerReporteVentas(desde: ayer, hasta: ayer, filtrarPorUsuario: false),
-        _caja.obtenerCajaAbierta(idUsuario),
+        // Sin sesión no hay caja abierta que mostrar en el KPI.
+        idUsuario == null ? Future<Caja?>.value() : _caja.obtenerCajaAbierta(idUsuario),
         _producto.obtenerConStock(),
       ]);
 
@@ -142,6 +144,10 @@ class _HomeViewState extends State<HomeView> {
 
     await AuditoriaController().registrar(tabla: 'Sesion', accion: 'LOGOUT', descripcion: 'Cierre de sesión');
     SessionManager.clear();
+    // La matriz cargada en memoria pertenece al usuario que se va: si no se
+    // descarta, el siguiente login la hereda hasta que `cargar()` la
+    // reemplace.
+    PermisosService.instancia.limpiar();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginView()), (r) => false);
   }
@@ -331,7 +337,16 @@ class _HomeViewState extends State<HomeView> {
           _kpi(
             icono: Icons.point_of_sale_outlined, iconoColor: AppColors.success,
             label: 'En caja',
-            valor: cajaAbierta ? AppConfig.formatoMoneda(_enCaja) : '—',
+            // `_enCaja` ES el efectivo esperado. Mostrárselo al cajero en el
+            // dashboard anulaba por completo el arqueo ciego del cierre (ver
+            // `CajaView.arqueoCiego`): no hacía falta ni entrar a Caja, el
+            // número estaba en la pantalla de inicio todo el turno. Para el
+            // cajero la tarjeta solo informa si la caja está abierta.
+            valor: !cajaAbierta
+                ? '—'
+                : SessionManager.isCajero
+                    ? '•••'
+                    : AppConfig.formatoMoneda(_enCaja),
             pie: cajaAbierta ? '● Abierta${desde != null ? ' desde $desde' : ''}' : 'Sin abrir',
             pieColor: cajaAbierta ? AppColors.success : AppColors.textSecondary,
             onTap: () => _abrir((_) => const CajaView()),

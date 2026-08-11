@@ -53,8 +53,10 @@ class _SyncConfigViewState extends State<SyncConfigView> {
 
   Future<void> _guardarUrl() async {
     final url = _urlCtrl.text.trim();
-    if (url.isEmpty) {
-      await _aviso('URL vacía', 'Escribe la dirección del backend antes de guardar.', esError: true);
+
+    final error = BackendConfig.validar(url);
+    if (error != null) {
+      await _aviso('Dirección inválida', error, esError: true);
       return;
     }
 
@@ -67,7 +69,18 @@ class _SyncConfigViewState extends State<SyncConfigView> {
       _urlCtrl.text = BackendConfig.baseUrl; // refleja la URL ya normalizada
       _guardandoUrl = false;
     });
-    await _aviso('URL guardada', 'Este dispositivo apuntará a:\n${BackendConfig.baseUrl}');
+
+    // Se guarda igual (muchas instalaciones sincronizan por LAN contra un
+    // servidor propio sin TLS), pero el usuario debe saber lo que implica.
+    final aviso = BackendConfig.esInseguro(BackendConfig.baseUrl)
+        ? '\n\n⚠ Esta dirección usa HTTP sin cifrar: la contraseña de '
+            'sincronización y los datos de ventas y clientes viajan en claro '
+            'por la red. Usa https:// si el servidor lo admite.'
+        : '';
+    await _aviso(
+      'URL guardada',
+      'Este dispositivo apuntará a:\n${BackendConfig.baseUrl}$aviso',
+    );
   }
 
   Future<void> _probarConexion() async {
@@ -104,6 +117,7 @@ class _SyncConfigViewState extends State<SyncConfigView> {
     await _prefs.guardarUrlBackend(BackendConfig.baseUrl);
     SyncScheduler.instancia.marcarConfigurada();
 
+    if (!mounted) return;
     setState(() => _iniciandoSesion = true);
     try {
       await AuthService.instancia.login(email, password);

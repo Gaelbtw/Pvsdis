@@ -539,6 +539,12 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
           },
         ),
       ),
-    );
+    ).whenComplete(() {
+      // Creados por esta función, no por un State: sin esto no se
+      // liberan nunca (tampoco si el diálogo se descarta sin guardar).
+      montoCtrl.dispose();
+      referenciaCtrl.dispose();
+      observacionesCtrl.dispose();
+    });
   }
 }

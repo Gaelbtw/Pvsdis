@@ -1,0 +1,87 @@
+name: CI
+
+# Se dispara en cada push (incluidas las ramas de trabajo como
+# `feat/...`, que es donde de verdad hace falta el aviso temprano) y a mano
+# desde la pestaña Actions. No se agrega `pull_request` a propósito: en un
+# repo donde las ramas se suben al mismo origin, el evento `push` ya cubre
+# la PR y añadirlo solo duplicaría cada corrida.
+on:
+  push:
+  workflow_dispatch:
+
+# Si se empuja dos veces seguidas a la misma rama, la corrida anterior se
+# cancela en vez de gastar minutos en un commit ya superado.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Análisis estático
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # `channel: stable` en vez de una versión fija: el pubspec solo pide
+      # `sdk: ^3.11.3` y no fija versión de Flutter, así que clavar un número
+      # aquí sería inventar un requisito que el proyecto no declara. Si algún
+      # día hace falta reproducibilidad exacta, cambiar por
+      # `flutter-version: 'X.Y.Z'`.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # Sin `--fatal-infos`: hoy el proyecto no está verificado contra ese
+      # nivel y arrancar el CI en rojo hace que se ignore. Subir el listón
+      # cuando la base esté limpia.
+      - run: flutter analyze
+
+  test:
+    name: Pruebas
+    # windows-latest, NO ubuntu, y es deliberado: las pruebas usan
+    # `sqflite_common_ffi`, que en Windows trae su propio sqlite3.dll (en
+    # Linux habría que instalar libsqlite3-dev aparte), y el proyecto declara
+    # plugins que solo existen en Windows (`win32`, `window_manager`,
+    # `printing`). Probar en la misma plataforma en la que se despliega
+    # evita fallos que no le pasarían nunca a un cliente real.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - run: flutter test
+
+  build:
+    name: Build Windows
+    runs-on: windows-latest
+    # No tiene sentido gastar ~10 min compilando si el código ni siquiera
+    # analiza o las pruebas fallan.
+    needs: [analyze, test]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # El entregable real es el .exe de Windows. Compilarlo en CI detecta
+      # roturas del lado nativo (CMake, plugins) que `flutter test` no ve.
+      - run: flutter build windows --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pvapp-windows-${{ github.sha }}
+          path: build/windows/x64/runner/Release/
+          retention-days: 7

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../core/security/permisos.dart';
 import '../core/security/permisos_service.dart';
 import '../core/theme/app_colors.dart';
+import '../core/utils/mensaje_error.dart';
+import '../widgets/toast.dart';
 import '../widgets/nav_bar.dart';
 
 /// Editor de la matriz de permisos por rol (solo Admin). Muestra una fila por
@@ -35,7 +37,17 @@ class _PermisosViewState extends State<PermisosView> {
   }
 
   Future<void> _cambiar(String rol, Permiso permiso, bool valor) async {
-    await _servicio.establecer(rol, permiso, valor);
+    // Si el guardado falla y no se avisa, la casilla se queda marcada en
+    // pantalla pero el permiso NO cambió en la base: el administrador cree
+    // que restringió algo que sigue abierto.
+    try {
+      await _servicio.establecer(rol, permiso, valor);
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, mensajeDeError(e));
+      setState(() {}); // repinta con el valor real, no con el que se tocó
+      return;
+    }
     if (!mounted) return;
     setState(() {});
   }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_colors.dart';
+import '../core/utils/mensaje_error.dart';
 import '../core/config/app_config.dart';
 import '../models/cliente_model.dart';
 import '../services/cliente_services.dart';
@@ -38,6 +39,7 @@ class _PedidosViewState extends State<PedidosView> {
 
   Future<void> cargarClientes() async {
     final data = await clienteService.obtenerTodos();
+    if (!mounted) return;
     setState(() {
       clientes = data;
       filtrados = data;
@@ -46,6 +48,7 @@ class _PedidosViewState extends State<PedidosView> {
 
   Future<void> cargarPedidos() async {
     final data = await pedidosController.obtenerPedidosConCliente();
+    if (!mounted) return;
     setState(() => _pedidos = data);
   }
 
@@ -232,7 +235,9 @@ class _PedidosViewState extends State<PedidosView> {
                               ),
                               const SizedBox(height: 8),
                               Text(
-                                cliente.telefono.toString(),
+                                // Sin el `?? "-"` un cliente sin teléfono
+                                // mostraba la cadena "null" en pantalla.
+                                cliente.telefono ?? "-",
                                 style: TextStyle(
                                     color: AppColors.textSecondary),
                               ),
@@ -304,8 +309,7 @@ class _PedidosViewState extends State<PedidosView> {
                     ),
                     const SizedBox(height: 30),
                     _info("Nombre", seleccionado!.nombre),
-                    _info("Telefono",
-                        seleccionado!.telefono.toString()),
+                    _info("Telefono", seleccionado!.telefono ?? "-"),
                     _info("Correo", seleccionado!.correo ?? "-"),
                     _info("Direccion",
                         seleccionado!.direccion ?? "-"),
@@ -570,7 +574,13 @@ class _PedidosViewState extends State<PedidosView> {
         textoConfirmar: 'Eliminar',
         textoCancelar: 'Cancelar',
         onConfirm: () async {
-          await pedidosController.eliminar(idPedido);
+          try {
+            await pedidosController.eliminar(idPedido);
+          } catch (e) {
+            if (!mounted) return;
+            Toast.error(context, mensajeDeError(e));
+            return;
+          }
           if (!mounted) return;
           cargarPedidos();
           Toast.exito(context, 'Pedido eliminado con éxito');

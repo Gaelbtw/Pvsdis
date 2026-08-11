@@ -8,7 +8,6 @@ import 'package:path_provider/path_provider.dart';
 
 import '../controllers/auditoria_controller.dart';
 import '../core/config/app_config.dart';
-import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
 import '../models/configuracion_model.dart';
 import '../services/configuracion_service.dart';
@@ -20,6 +19,8 @@ import 'base_datos_view.dart';
 import 'reporte_view.dart';
 import 'sync_config_view.dart';
 import 'usuarios_view.dart';
+import '../core/security/permisos.dart';
+import '../core/security/permisos_service.dart';
 
 class ConfiguracionView extends StatefulWidget {
   const ConfiguracionView({super.key});
@@ -57,6 +58,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
 
   String tamanoPapel = '80mm';
   bool autoImprimirTicket = false;
+  bool abrirCajonEfectivo = false;
   String? impresoraUrl;
   String? impresoraNombre;
 
@@ -101,6 +103,8 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
   Future<void> cargarConfig() async {
     final config = await _configuracionService.obtener();
 
+    if (!mounted) return;
+
     setState(() {
       stockCtrl.text = config.stockMinimo.toString();
       fondoCtrl.text = config.fondoCaja.toString();
@@ -122,6 +126,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
       mostrarIvaDesglosado = config.mostrarIvaDesglosado;
       tamanoPapel = config.tamanoPapel;
       autoImprimirTicket = config.autoImprimirTicket;
+      abrirCajonEfectivo = config.abrirCajonEfectivo;
       impresoraUrl = config.impresoraUrl;
       impresoraNombre = config.impresoraNombre;
       mensajeTicketCtrl.text = config.mensajeTicket;
@@ -148,10 +153,33 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
         ? await getApplicationSupportDirectory()
         : Directory(await getDatabasesPathFallback());
 
+    // Nombre ÚNICO por cada logo elegido, no un fijo `logo.<ext>`.
+    //
+    // Con un nombre fijo, cambiar el logo por otro de la misma extensión
+    // producía exactamente la misma ruta. Flutter cachea las imágenes por
+    // clave (ruta + tamaño de decodificación), así que `Image.file` seguía
+    // sirviendo el logo ANTERIOR ya decodificado: el usuario elegía una
+    // imagen nueva, la app confirmaba el cambio, y en pantalla no pasaba
+    // nada hasta reiniciar. Con un nombre distinto la clave cambia y la
+    // caché deja de aplicar.
     final extension = p.extension(rutaOrigen);
-    final destino = p.join(baseDir.path, 'logo$extension');
+    final marca = DateTime.now().millisecondsSinceEpoch;
+    final destino = p.join(baseDir.path, 'logo_$marca$extension');
 
     await File(rutaOrigen).copy(destino);
+
+    // Se borra el archivo del logo anterior para no ir dejando copias
+    // acumuladas en el directorio de datos. Best-effort: si falla (archivo
+    // en uso, permisos), no tiene por qué impedir el cambio de logo.
+    final anterior = logoPath;
+    if (anterior != null && anterior != destino) {
+      try {
+        final archivoAnterior = File(anterior);
+        if (await archivoAnterior.exists()) await archivoAnterior.delete();
+      } catch (_) {}
+    }
+
+    if (!mounted) return;
 
     setState(() {
       logoPath = destino;
@@ -200,6 +228,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
       mostrarIvaDesglosado: mostrarIvaDesglosado,
       tamanoPapel: tamanoPapel,
       autoImprimirTicket: autoImprimirTicket,
+      abrirCajonEfectivo: abrirCajonEfectivo,
       impresoraUrl: impresoraUrl,
       impresoraNombre: impresoraNombre,
       mensajeTicket: mensajeTicketCtrl.text.trim().isEmpty
@@ -493,7 +522,15 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
           ),
           clipBehavior: Clip.antiAlias,
           child: logoPath != null && File(logoPath!).existsSync()
-              ? Image.file(File(logoPath!), fit: BoxFit.cover)
+              ? Image.file(
+                  File(logoPath!),
+                  fit: BoxFit.cover,
+                  // La vista previa mide 64px: decodificar a 128 (2x por
+                  // densidad) en vez de a la resolución nativa del archivo,
+                  // que puede ser de varios megapíxeles.
+                  cacheWidth: 128,
+                  cacheHeight: 128,
+                )
               : Icon(Icons.storefront_outlined, color: AppColors.primaryDark),
         ),
         const SizedBox(width: 16),
@@ -555,7 +592,10 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
 
   @override
   Widget build(BuildContext context) {
-    if (!SessionManager.isAdmin) {
+    // El permiso es la fuente de verdad (el Admin siempre lo tiene); antes
+    // era un `isAdmin` duro, así que la casilla "Abrir configuración" de la
+    // matriz de permisos no servía para nada.
+    if (!PermisosService.instancia.puedeActual(Permiso.abrirConfiguracion)) {
       return Scaffold(
         backgroundColor: AppColors.background,
         appBar: CustomHeader(titulo: "Configuración", mostrarVolver: Navigator.canPop(context), mostrarInfo: false),
@@ -837,6 +877,14 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
             value: autoImprimirTicket,
             activeThumbColor: AppColors.primary,
             onChanged: (v) => setState(() => autoImprimirTicket = v),
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text("Abrir cajón de dinero"),
+            subtitle: const Text("Abre el cajón automáticamente al cobrar en efectivo y al cerrar la caja. Requiere una impresora térmica con el cajón conectado a su puerto RJ11 (solo Windows)."),
+            value: abrirCajonEfectivo,
+            activeThumbColor: AppColors.primary,
+            onChanged: (v) => setState(() => abrirCajonEfectivo = v),
           ),
         ],
       );

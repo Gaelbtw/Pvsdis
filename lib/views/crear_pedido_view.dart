@@ -47,6 +47,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
   Future<void> cargarProductos() async {
     final prods = await productoService.obtenerTodos();
     final stock = await productoService.obtenerStockMap();
+    if (!mounted) return;
     setState(() {
       productos = prods;
       _stock = stock;

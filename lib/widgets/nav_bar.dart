@@ -30,7 +30,8 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final puedeVolver = mostrarVolver ?? Navigator.canPop(context);
-    final logoPath = AppConfig.actual.logoPath;
+    // Ya resuelto al cargar la configuración: aquí no se toca el disco.
+    final logoPath = AppConfig.logoPathValido;
 
     return AppBar(
       backgroundColor: AppColors.background,
@@ -50,10 +51,24 @@ class CustomHeader extends StatelessWidget implements PreferredSizeWidget {
           : null,
       title: Row(
         children: [
-          if (logoPath != null && File(logoPath).existsSync())
+          if (logoPath != null)
             ClipRRect(
               borderRadius: BorderRadius.circular(AppRadius.sm),
-              child: Image.file(File(logoPath), width: 22, height: 22, fit: BoxFit.cover),
+              child: Image.file(
+                File(logoPath),
+                width: 22,
+                height: 22,
+                fit: BoxFit.cover,
+                // Sin esto, Flutter decodifica el archivo a su resolución
+                // NATIVA y recién después lo escala a 22px. Un logo de
+                // 3000x2000 que suba el cliente son ~24 MB de RAM
+                // (3000*2000*4 bytes) permanentes en la caché de imágenes
+                // para pintar 22 píxeles. `cacheWidth/Height` le dicen al
+                // decodificador que trabaje directo al tamaño útil (2x por
+                // densidad de pantalla).
+                cacheWidth: 44,
+                cacheHeight: 44,
+              ),
             )
           else
             Container(

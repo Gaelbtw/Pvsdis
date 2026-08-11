@@ -40,6 +40,13 @@ void main() {
     AppConfig.actualizar(Configuracion.porDefecto());
     SessionManager.clear();
 
+    // `VentasController` exige una sesión activa
+    // (`SessionManager.requiredUserId` lanza si no la hay). Antes caía en
+    // silencio a `currentUserId ?? 1`, que atribuía la venta al usuario 1 y
+    // falseaba la auditoría; se fija esa misma identidad para no alterar lo
+    // que estas pruebas verifican.
+    SessionManager.setUser(id: 1, nombre: 'Sistema', rol: 'Admin');
+
     await db.insert('Usuarios', {
       'nombre': 'Sistema',
       'contra': PasswordHasher.hash('x'),

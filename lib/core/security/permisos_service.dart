@@ -44,9 +44,19 @@ class PermisosService {
     return permisosPorDefecto[rol]?.contains(permiso) ?? false;
   }
 
-  /// `true` si el usuario con la sesión actual tiene [permiso].
-  bool puedeActual(Permiso permiso) =>
+  /// `true` si el usuario con la sesión actual tiene [permiso]. Sin sesión
+  /// activa no hay permisos: se responde `false` sin siquiera mirar la
+  /// matriz (ver el default cerrado de [SessionManager]).
+  bool puedeActual(Permiso permiso) => SessionManager.haySesion &&
       tienePermisoDeRol(SessionManager.currentUserRole, permiso);
+
+  /// Descarta la matriz cargada en memoria. Se llama al cerrar sesión para
+  /// que la del usuario siguiente no herede los overrides del anterior
+  /// mientras `cargar()` vuelve a correr.
+  void limpiar() {
+    _overrides.clear();
+    cargado = false;
+  }
 
   /// Guarda (upsert) un cambio de la matriz y lo refleja en memoria. Ignora el
   /// Admin: siempre tiene todo, no es configurable.

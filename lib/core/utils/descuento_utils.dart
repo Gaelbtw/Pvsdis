@@ -310,6 +310,13 @@ VentaCalculada calcularVenta({
 /// permite aplicar descuentos, o si el descuento superó el umbral y falta
 /// motivo/autorización, lanza una excepción con el mensaje correspondiente.
 /// No hace nada si todo está en regla.
+///
+/// [autorizadorEsAdmin] debe traer el resultado de verificar contra la base
+/// de datos que [descuentoAutorizadoPor] es realmente un administrador (ver
+/// `esAdministrador` en `lib/core/security/autorizadores.dart`). Esta función
+/// se mantiene pura a propósito —no toca base de datos ni UI—, así que no
+/// puede resolverlo por su cuenta; antes solo comprobaba que el id no fuera
+/// `null`, con lo que mandar el id del propio cajero bastaba para pasar.
 void validarPermisoDescuento({
   required VentaCalculada calculo,
   required bool esCajero,
@@ -317,6 +324,7 @@ void validarPermisoDescuento({
   required bool cajeroRequiereAutorizacion,
   String? descuentoMotivo,
   int? descuentoAutorizadoPor,
+  bool autorizadorEsAdmin = false,
 }) {
   // Red de seguridad a nivel de negocio: aunque la UI ya debería impedir
   // llegar hasta aquí en estos casos, la lógica financiera/autorización no
@@ -330,8 +338,15 @@ void validarPermisoDescuento({
     if (motivoLimpio.isEmpty) {
       throw Exception('El motivo es obligatorio para este descuento.');
     }
-    if (esCajero && cajeroRequiereAutorizacion && descuentoAutorizadoPor == null) {
-      throw Exception('Este descuento requiere autorización de un administrador.');
+    if (esCajero && cajeroRequiereAutorizacion) {
+      if (descuentoAutorizadoPor == null) {
+        throw Exception('Este descuento requiere autorización de un administrador.');
+      }
+      if (!autorizadorEsAdmin) {
+        throw Exception(
+          'El usuario indicado como autorizador no es administrador.',
+        );
+      }
     }
   }
 }

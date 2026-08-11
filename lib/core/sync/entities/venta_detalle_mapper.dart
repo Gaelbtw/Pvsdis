@@ -45,8 +45,20 @@ class VentaDetalleMapper extends EntityMapper {
       throw StateError('Detalle_Venta ${filaLocal['id_detalleV']}: su Producto (id_producto=$idProducto) no tiene guid_sync.');
     }
 
-    final subtotal = (filaLocal['precio_neto'] as num?)?.toDouble() ??
-        ((filaLocal['cantidad'] as num).toDouble() * (filaLocal['precio'] as num).toDouble() -
+    // OJO con `precio_neto`: es el precio UNITARIO ya con descuentos
+    // aplicados (`LineaVentaCalculada.precioNetoUnitario` =
+    // montoNeto / cantidad, ver `core/utils/descuento_utils.dart`), NO el
+    // subtotal de la línea. Antes se mandaba tal cual como `subtotal`, así
+    // que toda línea con cantidad > 1 llegaba al backend dividida entre la
+    // cantidad: 3 piezas de $10 se reportaban como $10 en vez de $30. El
+    // fallback de abajo sí calculaba un total de línea, lo que dejaba las
+    // dos ramas midiendo cosas distintas.
+    final cantidad = (filaLocal['cantidad'] as num).toDouble();
+    final precioNetoUnitario = (filaLocal['precio_neto'] as num?)?.toDouble();
+
+    final subtotal = precioNetoUnitario != null
+        ? precioNetoUnitario * cantidad
+        : (cantidad * (filaLocal['precio'] as num).toDouble() -
             ((filaLocal['descuento_monto'] as num?)?.toDouble() ?? 0));
 
     final tasaDecimal = AppConfig.actual.tasaImpuestoPorcentaje / 100;
@@ -89,13 +101,21 @@ class VentaDetalleMapper extends EntityMapper {
     final idProductoLocal = await resolver.idLocalPorGuid('Producto', 'id_producto', productoGuid);
     if (idProductoLocal == null) return;
 
+    // Bug espejo del de `aBackend`: `subtotal` del backend es el total de la
+    // línea, mientras que `precio_neto` local es UNITARIO. Guardarlo sin
+    // dividir inflaba el precio neto por la cantidad al bajar una venta del
+    // servidor. Se divide por la cantidad (con guarda para no dividir entre
+    // cero si llegara una línea con cantidad 0).
+    final cantidadBackend = (elementoBackend['cantidad'] as num?)?.toDouble() ?? 0;
+    final subtotalLinea = (elementoBackend['subtotal'] as num?)?.toDouble() ?? 0;
+
     final valoresLocales = <String, Object?>{
       'id_venta': idVentaLocal,
       'id_producto': idProductoLocal,
       'cantidad': elementoBackend['cantidad'],
       'precio': (elementoBackend['precioUnitario'] as num?)?.toDouble() ?? 0,
       'descuento_monto': (elementoBackend['descuento'] as num?)?.toDouble() ?? 0,
-      'precio_neto': (elementoBackend['subtotal'] as num?)?.toDouble() ?? 0,
+      'precio_neto': cantidadBackend == 0 ? 0.0 : subtotalLinea / cantidadBackend,
     };
 
     final idLocalExistente = await resolver.idLocalPorGuid(tablaLocal, columnaIdLocal, guid);

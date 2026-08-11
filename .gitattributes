@@ -1,0 +1,34 @@
+# Normalización de fin de línea.
+#
+# Sin esto y con `core.autocrlf` sin configurar, el árbol de trabajo aparece
+# COMPLETO como modificado en cuanto el repo se toca desde otra plataforma o
+# con otra config de Git: `git diff` muestra los 361 archivos reescritos
+# enteros y los cambios reales quedan enterrados en el ruido.
+#
+# `text=auto` deja LF en el repositorio y CRLF en el disco de Windows, que es
+# lo que quieren tanto Git como los editores de Windows. Los binarios se
+# detectan solos, pero los más comunes se marcan explícitos por si acaso.
+* text=auto
+
+# Scripts que SIEMPRE deben conservar su final de línea nativo.
+*.ps1   text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.sh    text eol=lf
+
+# Binarios: nunca tocar.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
+*.pdf   binary
+*.db    binary
+*.exe   binary
+*.dll   binary
+*.jar   binary
+*.keystore binary

@@ -197,7 +197,7 @@ void main() {
       expect(payload['email'], 'uno@test.com');
     });
 
-    test('upsertLocal convierte telefono de string backend a int local', () async {
+    test('upsertLocal guarda el telefono como texto, tal cual llega del backend', () async {
       await clienteMapper.upsertLocal(
         db: db,
         elementoBackend: {
@@ -212,8 +212,29 @@ void main() {
       );
 
       final filas = await db.query('Clientes', where: 'guid_sync = ?', whereArgs: ['guid-cliente-1']);
-      expect(filas.first['telefono'], 5559876543);
+      // Texto, no número: `Clientes.telefono` pasó a TEXT en la v22. Antes el
+      // mapper hacía `int.tryParse`, así que un teléfono con formato real
+      // ('+52 55 1234 5678') devolvía null y el dato se perdía al sincronizar.
+      expect(filas.first['telefono'], '5559876543');
       expect(filas.first['correo'], 'backend@test.com');
+    });
+
+    test('upsertLocal conserva un telefono con formato que int.tryParse perdía', () async {
+      await clienteMapper.upsertLocal(
+        db: db,
+        elementoBackend: {
+          'id': 'guid-cliente-formato',
+          'nombre': 'Cliente con lada',
+          'telefono': '+52 55 1234 5678',
+          'email': 'lada@test.com',
+          'isDeleted': false,
+        },
+        resolver: FkResolver(db),
+      );
+
+      final filas = await db.query('Clientes',
+          where: 'guid_sync = ?', whereArgs: ['guid-cliente-formato']);
+      expect(filas.first['telefono'], '+52 55 1234 5678');
     });
 
     test('aBackend tolera telefono null', () async {

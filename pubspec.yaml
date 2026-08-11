@@ -49,6 +49,10 @@ dependencies:
   # -- ver lib/core/sync/README-fase2.md para el detalle de esas decisiones.
   http: ^1.2.2
   window_manager: ^0.5.2
+  # Apertura del cajón de dinero (pulso ESC/POS en RAW al spooler de Windows,
+  # ver lib/services/cajon_service.dart). Ambos ya venían de forma transitiva.
+  win32: ^5.15.0
+  ffi: ^2.1.0
 
 dev_dependencies:
   flutter_test:

@@ -4,6 +4,8 @@ import 'controllers/auth_controller.dart';
 import 'core/config/app_config.dart';
 import 'core/config/backend_config.dart';
 import 'core/database/database_helper.dart';
+import 'core/security/login_throttle.dart';
+import 'core/security/throttle_archivo_store.dart';
 import 'core/sync/auth_service.dart';
 import 'core/sync/network/sync_prefs_store.dart';
 import 'core/sync/sync_scheduler.dart';
@@ -16,6 +18,15 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await DatabaseHelper().database;
   await AppConfig.cargar();
+
+  // Restaura el contador de intentos fallidos de login. Sin esto vivía solo
+  // en memoria y bastaba cerrar y reabrir el .exe para ponerlo a cero, así
+  // que la escalada de espera no frenaba un ataque por fuerza bruta contra un
+  // PIN de 4 dígitos. Los contadores caducan solos (ver
+  // `LoginThrottle.ventanaFallos`), así que un corte de luz no deja la caja
+  // bloqueada.
+  await LoginThrottle.instancia.cargar(ThrottleArchivoStore());
+
   await _inicializarSync();
   // Arranca el ciclo automático de sync (corrida inmediata + cada 2 min). No
   // se hace `await`: no debe demorar el arranque de la UI, y el motor ya

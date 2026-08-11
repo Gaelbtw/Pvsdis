@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_colors.dart';
+import '../core/utils/mensaje_error.dart';
 import '../views/ventas_view.dart';
 import '../controllers/cliente_controller.dart';
 import '../models/cliente_model.dart';
@@ -20,6 +21,12 @@ class ClientesView extends StatefulWidget {
 }
 
 class _ClientesViewState extends State<ClientesView> {
+  /// Falso hasta que la primera carga termina. Sin esto la vista
+  /// pintaba una lista vacía mientras consultaba, y en un equipo lento
+  /// con catálogo grande eso se lee como "no hay nada" en vez de
+  /// "todavía estoy cargando".
+  bool _cargandoVista = true;
+
   final controller = ClienteController();
 
   List<Cliente> clientes = [];
@@ -36,8 +43,11 @@ class _ClientesViewState extends State<ClientesView> {
   void cargar() async {
     final data = await controller.obtenerTodos();
 
+    if (!mounted) return;
+
     setState(() {
       clientes = data;
+      _cargandoVista = false;
 
       if (selectedIndex != null && selectedIndex! >= clientes.length) {
         selectedIndex = null;
@@ -51,6 +61,8 @@ class _ClientesViewState extends State<ClientesView> {
     } else {
       final data = await controller.buscar(query);
 
+      if (!mounted) return;
+
       setState(() {
         clientes = data;
 
@@ -62,15 +74,23 @@ class _ClientesViewState extends State<ClientesView> {
   }
 
   void eliminar(int id) async {
-    await controller.eliminar(id);
-    cargar();
+    // Un cliente con ventas no se puede borrar (FK RESTRICT). El controlador
+    // convierte ese error de SQLite en un mensaje claro -- que antes se
+    // perdía porque aquí no se capturaba nada.
+    try {
+      await controller.eliminar(id);
+      cargar();
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, mensajeDeError(e));
+    }
   }
 
   // FORMULARIO MODAL (crear si [cliente] es null, editar si no)
   void _mostrarFormulario({Cliente? cliente}) {
     final nombreCtrl = TextEditingController(text: cliente?.nombre);
     final direccionCtrl = TextEditingController(text: cliente?.direccion);
-    final telefonoCtrl = TextEditingController(text: cliente?.telefono?.toString());
+    final telefonoCtrl = TextEditingController(text: cliente?.telefono);
     final correoCtrl = TextEditingController(text: cliente?.correo);
 
     showDialog(
@@ -112,15 +132,23 @@ class _ClientesViewState extends State<ClientesView> {
             idCliente: cliente?.idCliente,
             nombre: nombreCtrl.text,
             direccion: direccionCtrl.text,
-            telefono: int.tryParse(telefonoCtrl.text),
+            // Texto tal cual lo escribió el usuario (ver `Cliente.telefono`);
+            // vacío se guarda como null, no como cadena en blanco.
+            telefono: telefonoCtrl.text.trim().isEmpty ? null : telefonoCtrl.text.trim(),
             correo: correoCtrl.text,
             fechaRegistro: DateTime.now().toIso8601String(),
           );
 
-          if (cliente == null) {
-            await controller.insertar(nuevo);
-          } else {
-            await controller.actualizar(nuevo);
+          try {
+            if (cliente == null) {
+              await controller.insertar(nuevo);
+            } else {
+              await controller.actualizar(nuevo);
+            }
+          } catch (e) {
+            if (!mounted) return;
+            Toast.error(context, mensajeDeError(e));
+            return; // el diálogo se queda abierto para poder corregir
           }
 
           if (!mounted) return;
@@ -149,7 +177,9 @@ class _ClientesViewState extends State<ClientesView> {
 
       appBar: CustomHeader(titulo: "Clientes", mostrarVolver: true),
 
-      body: Padding(
+      body: _cargandoVista
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
 
         child: Container(
@@ -418,7 +448,7 @@ class _ClientesViewState extends State<ClientesView> {
 
                                           children: [
                                             Text(
-                                              c.telefono?.toString() ?? "-",
+                                              c.telefono ?? "-",
 
                                               style: const TextStyle(
                                                 fontWeight: FontWeight.w700,
@@ -548,7 +578,7 @@ class _ClientesViewState extends State<ClientesView> {
 
         _infoModern(Icons.location_on_outlined, "Dirección", c.direccion),
 
-        _infoModern(Icons.phone_outlined, "Teléfono", c.telefono?.toString()),
+        _infoModern(Icons.phone_outlined, "Teléfono", c.telefono),
 
         _infoModern(Icons.email_outlined, "Correo", c.correo),
 

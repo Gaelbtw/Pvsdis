@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../controllers/usuarios_controller.dart';
 import '../core/security/password_hasher.dart';
 import '../core/theme/app_colors.dart';
+import '../core/utils/mensaje_error.dart';
 import '../models/usuarios_model.dart';
 import '../widgets/toast.dart';
 import 'login_view.dart';
@@ -53,14 +54,23 @@ class _SetupAdminViewState extends State<SetupAdminView> {
 
     setState(() => _guardando = true);
 
-    await _usuariosController.insertar(
-      Usuarios(
-        idUsuario: null,
-        nombre: nombre,
-        contra: password,
-        rol: "Admin",
-      ),
-    );
+    // Es el primer arranque de la instalación: si esto falla y no se avisa,
+    // el usuario se queda en una pantalla muerta sin poder entrar nunca.
+    try {
+      await _usuariosController.insertar(
+        Usuarios(
+          idUsuario: null,
+          nombre: nombre,
+          contra: password,
+          rol: "Admin",
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _guardando = false);
+      Toast.error(context, mensajeDeError(e));
+      return;
+    }
 
     if (!mounted) return;
     setState(() => _guardando = false);

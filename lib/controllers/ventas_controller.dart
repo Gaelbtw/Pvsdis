@@ -10,12 +10,11 @@ import '../core/utils/money.dart';
 import '../core/utils/pagos_mixtos.dart';
 import '../core/utils/promociones_engine.dart';
 import '../models/ventas_model.dart';
-import 'auditoria_controller.dart';
 import 'promociones_controller.dart';
+import '../core/security/autorizadores.dart';
 
 class VentasController {
   final dbHelper = DatabaseHelper();
-  final _auditoriaController = AuditoriaController();
   final _promocionesController = PromocionesController();
   final _movimientoInventarioLogger = MovimientoInventarioLogger();
   final _movimientoCajaLogger = MovimientoCajaLogger();
@@ -63,7 +62,8 @@ class VentasController {
       descuentoMaximoPorcentaje: config.descuentoMaximoPorcentaje,
     );
 
-    final esCajero = SessionManager.currentUserRole == 'Cajero';
+    final db = await dbHelper.database;
+    final esCajero = SessionManager.isCajero;
 
     validarPermisoDescuento(
       calculo: calculo,
@@ -72,6 +72,10 @@ class VentasController {
       cajeroRequiereAutorizacion: config.descuentoCajeroRequiereAutorizacion,
       descuentoMotivo: descuentoMotivo,
       descuentoAutorizadoPor: descuentoAutorizadoPor,
+      // No basta con que venga un id: se confirma contra la base que sea de
+      // verdad un administrador (el diálogo de la vista ya pide sus
+      // credenciales, pero el controlador no puede confiar en eso).
+      autorizadorEsAdmin: await esAdministrador(db, descuentoAutorizadoPor),
     );
 
     for (final pago in pagos) {
@@ -100,10 +104,8 @@ class VentasController {
 
     final metodoPagoGuardado = pagos.length == 1 ? pagos.first['metodo_pago'] as String : 'Mixto';
 
-    final db = await dbHelper.database;
-
     return db.transaction((txn) async {
-      final idUsuario = SessionManager.currentUserId ?? 1;
+      final idUsuario = SessionManager.requiredUserId;
       final cajaAbierta = await txn.query(
         'Cajas',
         where: 'id_usuario = ? AND estado = ?',
@@ -158,8 +160,16 @@ class VentasController {
 
       for (var i = 0; i < calculo.lineas.length; i++) {
         final linea = calculo.lineas[i];
+        // Se trae también `precio_compra` en la MISMA consulta que ya se
+        // hacía para el stock (un JOIN, no una consulta extra): es el costo
+        // que se congela en la línea, ver más abajo.
         final stock = await txn.rawQuery(
-          'SELECT cantidad, cantidad_reservada FROM Inventario WHERE id_producto = ?',
+          '''
+          SELECT i.cantidad, i.cantidad_reservada, p.precio_compra
+          FROM Inventario i
+          INNER JOIN Producto p ON p.id_producto = i.id_producto
+          WHERE i.id_producto = ?
+          ''',
           [linea.idProducto],
         );
 
@@ -170,7 +180,7 @@ class VentasController {
         // Las unidades ya reservadas por un Apartado no están disponibles
         // para una venta normal, aunque físicamente sigan en la tienda.
         final disponible =
-            (stock.first['cantidad'] as int) - (stock.first['cantidad_reservada'] as int? ?? 0);
+            (stock.first['cantidad'] as int? ?? 0) - (stock.first['cantidad_reservada'] as int? ?? 0);
 
         if (disponible < linea.cantidad) {
           throw Exception(
@@ -183,6 +193,12 @@ class VentasController {
           "id_producto": linea.idProducto,
           "cantidad": linea.cantidad,
           "precio": linea.precioOriginal,
+          // Costo CONGELADO al momento de vender. `Producto.precio_compra` se
+          // sobrescribe con cada compra, así que sin esta copia la utilidad
+          // histórica se recalcularía con el costo de hoy y saldría mal. Es
+          // NULL si el producto nunca tuvo costo capturado: preferible a
+          // guardar un 0 que se leería como "margen del 100%".
+          "costo_unitario": (stock.first['precio_compra'] as num?)?.toDouble(),
           "descuento_tipo": linea.descuentoTipo?.nombre,
           "descuento_valor": linea.descuentoValor,
           "descuento_monto": linea.descuentoMonto,
@@ -199,7 +215,7 @@ class VentasController {
           linea.idProducto,
         ]);
 
-        final cantidadAnterior = stock.first['cantidad'] as int;
+        final cantidadAnterior = stock.first['cantidad'] as int? ?? 0;
         await _movimientoInventarioLogger.registrar(
           txn,
           idProducto: linea.idProducto,
@@ -306,39 +322,16 @@ class VentasController {
     return result.map((e) => Ventas.fromMap(e)).toList();
   }
 
-  Future<int> actualizar(Ventas venta) async {
-    if (venta.idVenta == null) {
-      throw Exception("La venta no tiene ID");
-    }
-
-    final db = await dbHelper.database;
-
-    return await db.update(
-      'Ventas',
-      venta.toMap(),
-      where: 'id_venta = ?',
-      whereArgs: [venta.idVenta],
-    );
-  }
-
-  Future<int> eliminar(int id) async {
-    final db = await dbHelper.database;
-
-    final rows = await db.delete(
-      'Ventas',
-      where: 'id_venta = ?',
-      whereArgs: [id],
-    );
-
-    if (rows > 0) {
-      await _auditoriaController.registrar(
-        tabla: 'Ventas',
-        accion: 'DELETE',
-        idRegistro: id,
-        descripcion: 'Venta eliminada',
-      );
-    }
-
-    return rows;
-  }
+  // `actualizar(Ventas)` y `eliminar(int)` se retiraron a propósito.
+  //
+  // Ninguna vista los usaba, y ambos eran una trampa esperando a que alguien
+  // los llamara: `eliminar` borraba la fila en duro, arrastrando por CASCADE
+  // su `Detalle_Venta` y sus `Venta_Pagos`, sin revertir el inventario ni los
+  // movimientos de caja, sin pasar por `Devoluciones` y sin encolar nada en
+  // el outbox -- el backend habría conservado esa venta para siempre,
+  // divergiendo del local sin forma de reconciliar. `actualizar` tenía el
+  // mismo problema de sincronización.
+  //
+  // Una venta no se borra ni se edita: se cancela o se devuelve, que es lo
+  // que hace `DevolucionesController` dejando el rastro contable completo.
 }

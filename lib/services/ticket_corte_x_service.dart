@@ -9,11 +9,20 @@ import '../controllers/caja_controller.dart';
 /// haber hasta el momento, para que el cajero/supervisor haga un arqueo
 /// parcial durante el turno.
 class TicketCorteXService {
+  /// [ocultarEfectivoEsperado] omite del ticket el total que debería haber en
+  /// el cajón.
+  ///
+  /// El Corte X es una lectura parcial que el cajero puede imprimir en
+  /// cualquier momento del turno. Si trae el efectivo esperado, basta con
+  /// sacarlo antes de contar para saber el número exacto y anular el arqueo
+  /// ciego de la pantalla de cierre (ver `CajaView.arqueoCiego`). Cerrar solo
+  /// la pantalla y dejar abierta esta puerta no serviría de nada.
   static Future<pw.Document> generar({
     required String cajero,
     required String fechaApertura,
     required String fechaCorte,
     required ResumenCaja resumen,
+    bool ocultarEfectivoEsperado = false,
   }) async {
     final pdf = pw.Document();
     final config = AppConfig.actual;
@@ -66,17 +75,18 @@ class TicketCorteXService {
               pw.Text("CAJA", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 5),
               _row("Fondo inicial", resumen.fondoInicial),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text("Efectivo esperado",
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                  pw.Text(
-                    AppConfig.formatoMoneda(resumen.efectivoEsperado),
-                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                  ),
-                ],
-              ),
+              if (!ocultarEfectivoEsperado)
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text("Efectivo esperado",
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                    pw.Text(
+                      AppConfig.formatoMoneda(resumen.efectivoEsperado),
+                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                    ),
+                  ],
+                ),
               pw.SizedBox(height: 20),
               pw.Center(
                 child: pw.Text("Lectura parcial - la caja sigue abierta"),

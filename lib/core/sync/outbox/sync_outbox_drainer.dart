@@ -120,6 +120,24 @@ class SyncOutboxDrainer {
       // resultado por ítem -- ver `PushAsync` en SyncService.cs): si esto
       // dejara de cumplirse sería un cambio de contrato del backend, no un
       // caso a tolerar en silencio acá.
+      //
+      // Se comprueba ANTES de tocar nada: sin esta guarda, un desajuste hacía
+      // saltar un `RangeError` a media iteración, dejando parte del lote ya
+      // borrado del outbox y parte no -- justo el estado a medias que este
+      // diseño evita en todos los demás caminos. Tratado como fallo de lote,
+      // las filas se conservan y se reintentan enteras.
+      if (respuesta.resultados.length != filas.length) {
+        await _registrarFalloDeLote(
+          db,
+          filas,
+          'El servidor devolvió ${respuesta.resultados.length} resultados para '
+              '${filas.length} cambios enviados.',
+          progresaDeadLetter: true,
+        );
+        fallidos += filas.length;
+        continue;
+      }
+
       for (var i = 0; i < filas.length; i++) {
         final fila = filas[i];
         final resultado = respuesta.resultados[i];

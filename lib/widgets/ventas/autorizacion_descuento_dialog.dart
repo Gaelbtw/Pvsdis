@@ -4,25 +4,38 @@ import '../../controllers/auth_controller.dart';
 import '../../core/theme/app_colors.dart';
 
 /// Diálogo que pide motivo obligatorio (y, si corresponde, credenciales de
-/// un administrador) antes de aplicar un descuento que superó el umbral
-/// configurado. Reutiliza `Authcontroller.login` para validar al admin sin
-/// duplicar la lógica de verificación de contraseña.
+/// un administrador) antes de una acción sensible. Reutiliza
+/// `Authcontroller.login` para validar al admin sin duplicar la lógica de
+/// verificación de contraseña.
+///
+/// Nació para los descuentos que superan el umbral configurado, de ahí el
+/// nombre; [titulo] y [mensaje] lo hacen reutilizable para cualquier otra
+/// acción que necesite el visto bueno de un administrador (hoy también las
+/// devoluciones de ventas que no se pagaron en efectivo).
 Future<void> mostrarAutorizacionDescuentoDialog(
   BuildContext context, {
   required bool requiereCredencialesAdmin,
   required void Function(String motivo, int? autorizadoPor) onConfirmar,
+  String titulo = 'Descuento requiere autorización',
+  String mensaje =
+      'Este descuento supera el máximo habitual. Indica el motivo para continuar.',
 }) {
   final motivoCtrl = TextEditingController();
   final usuarioCtrl = TextEditingController();
   final passwordCtrl = TextEditingController();
 
+  // FUERA del builder a propósito. Declaradas dentro, `setDialog()` disparaba
+  // el rebuild y el builder volvía a ejecutar estas dos líneas, devolviendo
+  // `error` a null y `verificando` a false antes de pintar: el mensaje de
+  // error nunca llegaba a verse y el estado "Verificando…" tampoco. El
+  // cajero pulsaba Confirmar y no pasaba nada visible.
+  String? error;
+  var verificando = false;
+
   return showDialog(
     context: context,
     builder: (dialogContext) => StatefulBuilder(
       builder: (dialogContext, setDialog) {
-        String? error;
-        var verificando = false;
-
         Future<void> confirmar() async {
           final motivo = motivoCtrl.text.trim();
           if (motivo.isEmpty) {
@@ -41,10 +54,20 @@ Future<void> mostrarAutorizacionDescuentoDialog(
             error = null;
           });
 
-          final resultado = await Authcontroller().login(
-            usuarioCtrl.text.trim(),
-            passwordCtrl.text,
-          );
+          final LoginResult resultado;
+          try {
+            resultado = await Authcontroller().login(
+              usuarioCtrl.text.trim(),
+              passwordCtrl.text,
+            );
+          } catch (e) {
+            // Throttle por intentos fallidos: se muestra el motivo real.
+            setDialog(() {
+              verificando = false;
+              error = e.toString().replaceFirst('Exception: ', '');
+            });
+            return;
+          }
 
           final rol = resultado.usuario?['rol']?.toString();
           if (resultado.status != LoginStatus.success || rol != 'Admin') {
@@ -62,15 +85,13 @@ Future<void> mostrarAutorizacionDescuentoDialog(
 
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.lg)),
-          title: const Text('Descuento requiere autorización'),
+          title: Text(titulo),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Este descuento supera el máximo habitual. Indica el motivo para continuar.',
-                ),
+                Text(mensaje),
                 const SizedBox(height: 16),
                 TextField(
                   controller: motivoCtrl,
@@ -130,5 +151,11 @@ Future<void> mostrarAutorizacionDescuentoDialog(
         );
       },
     ),
-  );
+  ).whenComplete(() {
+    // Creados por esta función, no por un State: no hay dispose automático.
+    // El de la contraseña, además, deja de retener el texto en claro.
+    motivoCtrl.dispose();
+    usuarioCtrl.dispose();
+    passwordCtrl.dispose();
+  });
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/utils/mensaje_error.dart';
 import 'custom_alert.dart';
 import 'toast.dart';
 
@@ -31,7 +32,25 @@ Future<void> confirmarAccion({
       textoCancelar: 'Cancelar',
       esDestructivo: true,
       onConfirm: () async {
-        await accion();
+        // Sin este try, cualquier fallo de [accion] subía sin manejar. El
+        // caso normal no es un bug raro: es intentar borrar un registro que
+        // otro usa. `Clientes`, `Producto`, `Proveedores` y `Usuarios` están
+        // referenciados con `ON DELETE RESTRICT`, así que SQLite rechaza el
+        // borrado y los controladores ya convierten ese rechazo en un mensaje
+        // legible ("no se puede eliminar: tiene ventas asociadas"). Ese
+        // mensaje nunca llegaba a la pantalla.
+        //
+        // Va aquí y no en cada vista a propósito: este helper lo usa TODO
+        // botón de eliminar de la app, así que se arregla en un solo sitio en
+        // vez de repetir el mismo try en una docena de archivos.
+        try {
+          await accion();
+        } catch (e) {
+          if (!context.mounted) return;
+          Toast.error(context, mensajeDeError(e));
+          return;
+        }
+
         if (!context.mounted) return;
         Toast.exito(context, mensajeExito);
       },

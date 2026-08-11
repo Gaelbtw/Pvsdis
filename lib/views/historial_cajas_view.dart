@@ -23,7 +23,7 @@ class _HistorialCajasViewState extends State<HistorialCajasView> {
   bool cargando = true;
   List<Caja> cajas = [];
 
-  bool get esAdmin => SessionManager.currentUserRole == 'Admin';
+  bool get esAdmin => SessionManager.isAdmin;
 
   @override
   void initState() {

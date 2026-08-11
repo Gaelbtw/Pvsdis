@@ -1,7 +1,11 @@
+import 'package:sqflite/sqflite.dart';
+
 import '../core/database/database_helper.dart';
+import '../core/security/autorizadores.dart';
 import '../core/session/session_manager.dart';
 import '../core/sync/bitacoras/movimiento_caja_logger.dart';
 import '../core/utils/money.dart';
+import '../core/utils/pagos_mixtos.dart';
 import 'producto_controller.dart';
 
 /// Detalle completo de una venta para la pantalla de devoluciones: sus
@@ -189,12 +193,14 @@ class DevolucionesController {
   Future<int> cancelarVenta({
     required int idVenta,
     required String motivo,
+    int? autorizadoPor,
   }) {
     return _procesarDevolucion(
       idVenta: idVenta,
       tipo: 'Cancelacion',
       motivo: motivo,
       itemsSolicitados: null,
+      autorizadoPor: autorizadoPor,
     );
   }
 
@@ -203,6 +209,7 @@ class DevolucionesController {
     required int idVenta,
     required String motivo,
     required List<Map<String, dynamic>> items,
+    int? autorizadoPor,
   }) {
     if (items.isEmpty) {
       throw Exception('Selecciona al menos un producto para devolver.');
@@ -213,6 +220,7 @@ class DevolucionesController {
       tipo: 'Parcial',
       motivo: motivo,
       itemsSolicitados: items,
+      autorizadoPor: autorizadoPor,
     );
   }
 
@@ -229,6 +237,7 @@ class DevolucionesController {
     required String tipo,
     required String motivo,
     required List<Map<String, dynamic>>? itemsSolicitados,
+    int? autorizadoPor,
   }) async {
     final motivoLimpio = motivo.trim();
     if (motivoLimpio.isEmpty) {
@@ -259,7 +268,7 @@ class DevolucionesController {
       // de quien procesa la devolución (no la de la venta original): de lo
       // contrario ese efectivo saliente no se restaría de ningún cierre y
       // generaría un faltante silencioso.
-      final idUsuarioActual = SessionManager.currentUserId ?? 1;
+      final idUsuarioActual = SessionManager.requiredUserId;
       final cajaAbierta = await txn.query(
         'Cajas',
         where: 'id_usuario = ? AND estado = ?',
@@ -270,6 +279,23 @@ class DevolucionesController {
         throw Exception('Debes abrir la caja antes de procesar devoluciones.');
       }
       final idCaja = cajaAbierta.first['id_caja'] as int;
+
+      // El reembolso SIEMPRE sale en efectivo, sin importar cómo se cobró la
+      // venta. Devolver en efectivo una venta pagada con tarjeta o
+      // transferencia saca dinero real de la caja sin que el cargo original
+      // se revierta: es la vía clásica para convertir una tarjeta en
+      // efectivo. Cuando ese es el caso se exige autorización explícita de un
+      // administrador, y el método original queda registrado en la
+      // devolución para poder auditarlo después.
+      final metodoOriginal = await _metodoPagoOriginal(txn, idVenta);
+      if (metodoOriginal != null && !_esSoloEfectivo(metodoOriginal)) {
+        if (!await esAdministrador(txn, autorizadoPor)) {
+          throw Exception(
+            'Esta venta se pagó con $metodoOriginal. Como el reembolso se '
+            'entrega en efectivo, requiere autorización de un administrador.',
+          );
+        }
+      }
 
       // Ver el comentario del mismo GROUP BY en obtenerDetalleVenta: se agrupa
       // por id_producto con precios ponderados para no subcontar si una SKU
@@ -369,6 +395,7 @@ class DevolucionesController {
         'id_venta': idVenta,
         'id_usuario': SessionManager.currentUserId,
         'id_caja': idCaja,
+        'metodo_pago_original': metodoOriginal,
         'fecha_hora': DateTime.now().toIso8601String(),
         'tipo': tipo,
         'motivo': motivoLimpio,
@@ -455,4 +482,28 @@ class DevolucionesController {
       return idDevolucion;
     });
   }
+
+  /// Métodos con los que se cobró realmente la venta, según `Venta_Pagos`
+  /// (que es el desglose real; `Ventas.metodo_pago` guarda solo `'Mixto'`
+  /// cuando hubo varios). `null` si no hay ninguno registrado.
+  Future<String?> _metodoPagoOriginal(DatabaseExecutor txn, int idVenta) async {
+    final filas = await txn.query(
+      'Venta_Pagos',
+      columns: ['metodo_pago'],
+      where: 'id_venta = ?',
+      whereArgs: [idVenta],
+    );
+    if (filas.isEmpty) return null;
+
+    final metodos = <String>{
+      for (final fila in filas) fila['metodo_pago']?.toString() ?? '',
+    }..removeWhere((m) => m.isEmpty);
+
+    return metodos.isEmpty ? null : metodos.join(' + ');
+  }
+
+  /// `true` si todo lo cobrado fue efectivo (comparando sin distinguir
+  /// mayúsculas: los datos previos a pagos mixtos guardan `'efectivo'`).
+  bool _esSoloEfectivo(String metodos) =>
+      metodos.split(' + ').every(esMetodoEfectivo);
 }

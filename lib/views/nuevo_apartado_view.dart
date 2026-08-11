@@ -81,6 +81,8 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
       _clientes = clientes;
       _clientesFiltrados = clientes;
       _productos = productos;
+      _nombresBusqueda = [for (final p in productos) p.nombre.toLowerCase()];
+      _recalcularFiltroProductos();
       _stockDisponible = stock;
       _promocionesActivas = promociones;
       _cargando = false;
@@ -95,10 +97,27 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
     });
   }
 
-  List<Producto> get _productosFiltrados {
-    final q = _busquedaProducto.toLowerCase();
-    if (q.isEmpty) return _productos;
-    return _productos.where((p) => p.nombre.toLowerCase().contains(q)).toList();
+  // Campo, no getter: se consumía en `itemCount` y dentro del `itemBuilder`,
+  // así que recorría el catálogo completo una vez por celda dibujada. Mismo
+  // arreglo que en `ventas_view` y `compras_view`. `_clientesFiltrados` (más
+  // arriba) ya estaba resuelto así.
+  List<Producto> _productosFiltradosLista = const [];
+
+  /// Nombres en minúsculas, calculados una vez al cargar.
+  List<String> _nombresBusqueda = const [];
+
+  void _recalcularFiltroProductos() {
+    final q = _busquedaProducto.trim().toLowerCase();
+
+    if (q.isEmpty) {
+      _productosFiltradosLista = _productos;
+      return;
+    }
+
+    _productosFiltradosLista = [
+      for (var i = 0; i < _productos.length; i++)
+        if (_nombresBusqueda[i].contains(q)) _productos[i],
+    ];
   }
 
   ResultadoPromociones get _resultadoPromociones =>
@@ -124,6 +143,7 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
       firstDate: DateTime.now(),
       lastDate: DateTime(2100),
     );
+    if (!mounted) return;
     if (elegida != null) setState(() => _fechaLimite = elegida);
   }
 
@@ -249,7 +269,10 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
                           const SizedBox(height: 10),
                           TextField(
                             controller: _busquedaProductoCtrl,
-                            onChanged: (v) => setState(() => _busquedaProducto = v),
+                            onChanged: (v) => setState(() {
+                              _busquedaProducto = v;
+                              _recalcularFiltroProductos();
+                            }),
                             decoration: InputDecoration(
                               hintText: 'Buscar producto...',
                               prefixIcon: const Icon(Icons.search),
@@ -264,7 +287,7 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
                           const SizedBox(height: 12),
                           Expanded(
                             child: GridView.builder(
-                              itemCount: _productosFiltrados.length,
+                              itemCount: _productosFiltradosLista.length,
                               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: 4,
                                 crossAxisSpacing: 12,
@@ -272,7 +295,7 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
                                 childAspectRatio: 1.3,
                               ),
                               itemBuilder: (_, i) {
-                                final p = _productosFiltrados[i];
+                                final p = _productosFiltradosLista[i];
                                 final disponible = _stockDisponible[p.idProducto] ?? 0;
                                 return InkWell(
                                   borderRadius: BorderRadius.circular(AppRadius.md),

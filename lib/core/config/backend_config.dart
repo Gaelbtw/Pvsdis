@@ -24,14 +24,51 @@ class BackendConfig {
   static String get baseUrl => _baseUrl;
 
   /// Cambia el backend en caliente (pantalla de configuración, distintos
-  /// entornos, pruebas). No valida el formato de la URL -- el primer
-  /// request que falle lo hará evidente (ver `ErrorRed` en
-  /// `lib/core/sync/network/api_exceptions.dart`).
+  /// entornos, pruebas). Usar [validar] antes para dar un mensaje decente al
+  /// usuario: aquí solo se normaliza (se quitan espacios y la barra final).
   static void actualizar(String nuevaUrl) {
     final limpia = nuevaUrl.trim();
     _baseUrl = limpia.endsWith('/')
         ? limpia.replaceAll(RegExp(r'/+$'), '')
         : limpia;
+  }
+
+  /// Comprueba que [url] sea utilizable como base del API. Devuelve el motivo
+  /// del rechazo, o `null` si es válida.
+  ///
+  /// Antes no se validaba nada: cualquier texto se aceptaba y el error solo
+  /// aparecía como un fallo de red genérico en el primer request.
+  static String? validar(String url) {
+    final limpia = url.trim();
+    if (limpia.isEmpty) return 'Escribe la dirección del servidor.';
+
+    final uri = Uri.tryParse(limpia);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      return 'Dirección inválida. Debe incluir http:// o https:// y el nombre o IP del servidor '
+          '(por ejemplo, https://192.168.1.100:5242).';
+    }
+    if (uri.scheme != 'http' && uri.scheme != 'https') {
+      return 'Solo se admiten direcciones http:// o https:// (recibido "${uri.scheme}://").';
+    }
+    return null;
+  }
+
+  /// `true` si [url] manda los datos sin cifrar hacia otra máquina.
+  ///
+  /// Sobre HTTP plano viajan en claro el token JWT de la sesión de
+  /// sincronización y todo lo que se sincroniza: ventas, clientes, precios.
+  /// Cualquiera en la misma red (un WiFi de tienda, por ejemplo) puede leerlo
+  /// o alterarlo. No se bloquea porque muchas instalaciones sincronizan
+  /// contra un servidor propio en la LAN sin TLS, pero la pantalla de
+  /// configuración sí lo advierte.
+  ///
+  /// `localhost`/`127.0.0.1` no cuentan: ahí el tráfico no sale de la máquina.
+  static bool esInseguro(String url) {
+    final uri = Uri.tryParse(url.trim());
+    if (uri == null || uri.scheme != 'http') return false;
+
+    final host = uri.host.toLowerCase();
+    return host != 'localhost' && host != '127.0.0.1' && host != '::1';
   }
 
   /// Restaura la URL por defecto (útil en tests).

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
 import '../core/utils/descuento_utils.dart';
 import '../controllers/categoria_controller.dart';
@@ -15,6 +14,8 @@ import '../widgets/custom_alert.dart';
 import '../widgets/toast.dart';
 import '../widgets/form_dialog.dart';
 import '../widgets/nav_bar.dart';
+import '../core/security/permisos.dart';
+import '../core/security/permisos_service.dart';
 
 String _etiquetaTipo(TipoPromocion tipo) {
   switch (tipo) {
@@ -44,6 +45,12 @@ class PromocionesView extends StatefulWidget {
 }
 
 class _PromocionesViewState extends State<PromocionesView> {
+  /// Falso hasta que la primera carga termina. Sin esto la vista
+  /// pintaba una lista vacía mientras consultaba, y en un equipo lento
+  /// con catálogo grande eso se lee como "no hay nada" en vez de
+  /// "todavía estoy cargando".
+  bool _cargandoVista = true;
+
   final controller = PromocionesController();
   final productoController = ProductoController();
   final categoriaController = CategoriaController();
@@ -62,7 +69,10 @@ class _PromocionesViewState extends State<PromocionesView> {
   List<Producto> productos = [];
   List<Categoria> categorias = [];
 
-  bool get esCajero => SessionManager.currentUserRole == "Cajero";
+  /// Crear/editar/borrar promociones se gobierna con el mismo permiso que
+  /// el catálogo: quien puede fijar precios puede fijar descuentos.
+  bool get puedeGestionarPromociones =>
+      PermisosService.instancia.puedeActual(Permiso.gestionarProductos);
 
   @override
   void initState() {
@@ -81,6 +91,7 @@ class _PromocionesViewState extends State<PromocionesView> {
       filtradas = p;
       productos = prod;
       categorias = cat;
+      _cargandoVista = false;
     });
   }
 
@@ -481,7 +492,9 @@ class _PromocionesViewState extends State<PromocionesView> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: CustomHeader(titulo: "Promociones", mostrarVolver: true),
-      body: Padding(
+      body: _cargandoVista
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
         child: Container(
           padding: const EdgeInsets.all(24),
@@ -515,7 +528,7 @@ class _PromocionesViewState extends State<PromocionesView> {
                       ),
                     ),
                   ),
-                  if (!esCajero)
+                  if (puedeGestionarPromociones)
                     ElevatedButton.icon(
                       onPressed: () => mostrarFormulario(),
                       icon: const Icon(Icons.add),
@@ -601,7 +614,7 @@ class _PromocionesViewState extends State<PromocionesView> {
                                     ],
                                   ),
                                 ),
-                                if (!esCajero)
+                                if (puedeGestionarPromociones)
                                   PopupMenuButton(
                                     color: Colors.white,
                                     itemBuilder: (_) => [

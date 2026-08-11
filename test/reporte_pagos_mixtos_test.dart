@@ -42,6 +42,11 @@ void main() {
 
     AppConfig.actualizar(Configuracion.porDefecto());
     SessionManager.clear();
+    // Antes los controladores caían a `currentUserId ?? 1` cuando no había
+    // sesión; ahora exigen una (SessionManager.requiredUserId). Se fija la
+    // misma identidad que ese fallback usaba, para no alterar lo que estas
+    // pruebas verifican. Los tests que necesitan otro usuario lo sobrescriben.
+    SessionManager.setUser(id: 1, nombre: 'Sistema', rol: 'Admin');
     await db.insert('Usuarios', {
       'nombre': 'Sistema',
       'contra': PasswordHasher.hash('x'),
@@ -132,7 +137,11 @@ void main() {
       ],
     );
 
-    await devoluciones.cancelarVenta(idVenta: idVenta, motivo: 'Cliente canceló');
+    await devoluciones.cancelarVenta(
+      idVenta: idVenta,
+      motivo: 'Cliente canceló',
+      autorizadoPor: 1, // venta con tarjeta: reembolso en efectivo autorizado
+    );
 
     final hoy = DateTime.now();
     final totales = await reportes.obtenerTotalesPorMetodoPago(
@@ -180,6 +189,7 @@ void main() {
       items: [
         {'id_producto': idTarjeta, 'cantidad': 1},
       ],
+      autorizadoPor: 1, // venta con tarjeta: reembolso en efectivo autorizado
     );
 
     final hoy = DateTime.now();

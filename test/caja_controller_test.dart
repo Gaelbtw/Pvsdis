@@ -40,6 +40,11 @@ void main() {
 
     AppConfig.actualizar(Configuracion.porDefecto());
     SessionManager.clear();
+    // Antes los controladores caían a `currentUserId ?? 1` cuando no había
+    // sesión; ahora exigen una (SessionManager.requiredUserId). Se fija la
+    // misma identidad que ese fallback usaba, para no alterar lo que estas
+    // pruebas verifican. Los tests que necesitan otro usuario lo sobrescriben.
+    SessionManager.setUser(id: 1, nombre: 'Sistema', rol: 'Admin');
 
     await db.insert('Usuarios', {
       'nombre': 'Sistema',
@@ -178,7 +183,14 @@ void main() {
       );
 
       // Devuelve la venta 2 completa: $500 reembolsados en efectivo.
-      await devoluciones.cancelarVenta(idVenta: idVenta2, motivo: 'Cliente canceló');
+      // Autorizador admin: la venta se pagó con tarjeta/transferencia y el
+      // reembolso sale en efectivo; el controlador exige que un
+      // administrador lo autorice (ver DevolucionesController).
+      await devoluciones.cancelarVenta(
+        idVenta: idVenta2,
+        motivo: 'Cliente canceló',
+        autorizadoPor: 1,
+      );
 
       final resumen = await caja.calcularResumenCaja(idCaja);
 

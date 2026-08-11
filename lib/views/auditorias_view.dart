@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../core/theme/app_colors.dart';
 import 'package:pdf/pdf.dart';
@@ -20,9 +22,31 @@ class AuditoriasView extends StatefulWidget {
 class _AuditoriasViewState extends State<AuditoriasView> {
   final controller = AuditoriaController();
 
+  /// Registros de la página actual, NO la bitácora completa.
+  ///
+  /// Antes esta vista hacía `obtenerTodas()` y filtraba en Dart con un getter
+  /// que se consumía una vez por celda dibujada. `Auditorias` crece con cada
+  /// venta y nunca se purga, así que el coste no tenía techo: en una
+  /// instalación de dos años eran ~145.000 filas en memoria y millones de
+  /// comparaciones de texto por frame. Ahora el filtro va en SQL y solo viajan
+  /// [_porPagina] registros.
   List<Auditoria> auditorias = [];
+
   String busqueda = "";
   String accionFiltro = "TODAS";
+
+  int _total = 0;
+  bool _hayMas = false;
+  bool _cargando = true;
+  bool _cargandoMas = false;
+
+  /// Conteo por acción sobre el filtro completo (ver [_contarAccion]).
+  Map<String, int> _conteoPorAccion = const {};
+
+  static const int _porPagina = 100;
+
+  /// Amortigua el tecleo: sin esto cada carácter dispararía una consulta.
+  Timer? _debounce;
 
   @override
   void initState() {
@@ -30,26 +54,89 @@ class _AuditoriasViewState extends State<AuditoriasView> {
     cargar();
   }
 
-  Future<void> cargar() async {
-    final data = await controller.obtenerTodas();
-    if (!mounted) return;
-    setState(() => auditorias = data);
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
   }
 
-  List<Auditoria> get auditoriasFiltradas {
-    return auditorias.where((a) {
-      final texto = busqueda.toLowerCase();
-      final coincideBusqueda =
-          a.usuario.toLowerCase().contains(texto) ||
-          a.tabla.toLowerCase().contains(texto) ||
-          a.descripcion.toLowerCase().contains(texto) ||
-          (a.idRegistro?.toString().contains(busqueda) ?? false);
+  /// Recarga desde la primera página. Se llama al entrar y cada vez que
+  /// cambia un filtro.
+  Future<void> cargar() async {
+    setState(() => _cargando = true);
 
-      final coincideAccion =
-          accionFiltro == "TODAS" ? true : a.accion == accionFiltro;
+    // Las dos consultas van en paralelo: son independientes y así el reporte
+    // no tarda el doble.
+    final resultados = await Future.wait([
+      controller.obtenerPagina(
+        busqueda: busqueda,
+        accion: accionFiltro,
+        limite: _porPagina,
+      ),
+      // El conteo por acción se pide SIN el filtro de acción: si no, al
+      // seleccionar "Altas" las demás tarjetas se irían a cero y no se
+      // podría comparar.
+      controller.conteoPorAccion(busqueda: busqueda),
+    ]);
 
-      return coincideBusqueda && coincideAccion;
-    }).toList();
+    if (!mounted) return;
+    final pagina = resultados[0] as PaginaAuditorias;
+
+    setState(() {
+      auditorias = pagina.registros;
+      _total = pagina.total;
+      _hayMas = pagina.hayMas;
+      _conteoPorAccion = resultados[1] as Map<String, int>;
+      _cargando = false;
+    });
+  }
+
+  /// Añade la siguiente página al final de la lista ya cargada.
+  Future<void> _cargarMas() async {
+    if (_cargandoMas || !_hayMas) return;
+    setState(() => _cargandoMas = true);
+
+    final pagina = await controller.obtenerPagina(
+      busqueda: busqueda,
+      accion: accionFiltro,
+      limite: _porPagina,
+      desplazamiento: auditorias.length,
+    );
+
+    if (!mounted) return;
+    setState(() {
+      // Se filtran los que ya están en pantalla.
+      //
+      // La paginación por OFFSET asume una tabla quieta, y `Auditorias` NO lo
+      // está: cada venta, cada movimiento de caja y cada login insertan filas
+      // mientras el usuario mira el listado. Como el orden es `fecha_hora
+      // DESC`, si entran 5 registros nuevos entre una página y la siguiente,
+      // el OFFSET queda desplazado y esas 5 filas vuelven a aparecer
+      // duplicadas.
+      //
+      // Deduplicar por id es una curita, no la cura: lo correcto sería
+      // paginación por cursor (`WHERE (fecha_hora, id_auditoria) < (?, ?)`).
+      // Se deja así porque no cambia el SQL ni introduce un modo de fallo
+      // nuevo; si algún día el listado se usa de forma intensiva, ese es el
+      // cambio que toca.
+      final yaVisibles = {for (final a in auditorias) a.idAuditoria};
+      auditorias.addAll(
+        pagina.registros.where((r) => !yaVisibles.contains(r.idAuditoria)),
+      );
+
+      _total = pagina.total;
+      _hayMas = pagina.hayMas;
+      _cargandoMas = false;
+    });
+  }
+
+  void _onBusquedaChanged(String valor) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 250), () {
+      if (!mounted) return;
+      busqueda = valor;
+      cargar();
+    });
   }
 
   @override
@@ -86,19 +173,59 @@ class _AuditoriasViewState extends State<AuditoriasView> {
               _tablaHeader(),
               const SizedBox(height: 10),
               Expanded(
-                child: auditoriasFiltradas.isEmpty
-                    ? _emptyState()
-                    : ListView.separated(
-                        itemCount: auditoriasFiltradas.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 10),
-                        itemBuilder: (_, index) {
-                          return _filaAuditoria(auditoriasFiltradas[index]);
-                        },
-                      ),
+                child: _cargando
+                    ? const Center(child: CircularProgressIndicator())
+                    : auditorias.isEmpty
+                        ? _emptyState()
+                        : ListView.separated(
+                            // Una fila extra al final: o el botón de "cargar
+                            // más", o el aviso de que ya no hay nada más.
+                            itemCount: auditorias.length + 1,
+                            separatorBuilder: (_, _) => const SizedBox(height: 10),
+                            itemBuilder: (_, index) {
+                              if (index == auditorias.length) {
+                                return _pieDeLista();
+                              }
+                              return _filaAuditoria(auditorias[index]);
+                            },
+                          ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// Cierre de la lista: botón para traer la siguiente página, o el conteo
+  /// final. Hace explícito que lo que se ve es una parte, no todo.
+  Widget _pieDeLista() {
+    if (!_hayMas) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: Text(
+            _total == 0
+                ? ''
+                : 'Se muestran los $_total registros que cumplen el filtro.',
+            style: const TextStyle(
+                fontSize: AppText.small, color: AppColors.textSecondary),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: Center(
+        child: _cargandoMas
+            ? const SizedBox(
+                width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
+            : OutlinedButton.icon(
+                onPressed: _cargarMas,
+                icon: const Icon(Icons.expand_more, size: 18),
+                label: Text('Cargar más  (${auditorias.length} de $_total)'),
+              ),
       ),
     );
   }
@@ -109,7 +236,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
         SizedBox(
           width: 360,
           child: TextField(
-            onChanged: (value) => setState(() => busqueda = value),
+            onChanged: _onBusquedaChanged,
             decoration: InputDecoration(
               hintText: "Buscar por usuario, módulo o descripción…",
               prefixIcon: const Icon(Icons.search),
@@ -142,7 +269,10 @@ class _AuditoriasViewState extends State<AuditoriasView> {
               ],
               onChanged: (value) {
                 if (value == null) return;
-                setState(() => accionFiltro = value);
+                // Ahora el filtro se aplica en SQL, así que cambiarlo obliga a
+                // volver a consultar desde la primera página.
+                accionFiltro = value;
+                cargar();
               },
             ),
           ),
@@ -172,7 +302,9 @@ class _AuditoriasViewState extends State<AuditoriasView> {
         _summaryCard(
           icon: Icons.fact_check_outlined,
           label: "Registros",
-          value: "${auditoriasFiltradas.length}",
+          // `_total` y no `auditorias.length`: la tarjeta debe reflejar todo
+          // lo que cumple el filtro, no cuántos caben en la página cargada.
+          value: "$_total",
           color: AppColors.primaryLight,
         ),
         const SizedBox(width: 16),
@@ -200,9 +332,10 @@ class _AuditoriasViewState extends State<AuditoriasView> {
     );
   }
 
-  int _contarAccion(String accion) {
-    return auditoriasFiltradas.where((a) => a.accion == accion).length;
-  }
+  /// Conteo por acción de TODO lo que cumple el filtro, calculado con un
+  /// `GROUP BY` al cargar. Contarlo sobre la lista en memoria daría el conteo
+  /// de la página, no del total.
+  int _contarAccion(String accion) => _conteoPorAccion[accion] ?? 0;
 
   Widget _summaryCard({
     required IconData icon,
@@ -350,12 +483,37 @@ class _AuditoriasViewState extends State<AuditoriasView> {
     );
   }
 
+  /// Tope de filas del PDF de auditoría.
+  ///
+  /// La exportación necesita TODO lo que cumple el filtro, no solo la página
+  /// visible, así que aquí sí se hace una consulta grande. Pero sin tope, en
+  /// una instalación con años de historial se intentaría construir un PDF de
+  /// cientos de miles de filas: la app se quedaría sin memoria y el archivo
+  /// resultante sería inservible. Si se alcanza el tope se avisa, en vez de
+  /// entregar en silencio un documento incompleto.
+  static const int _maxFilasPdf = 5000;
+
   Future<void> _exportAuditoriasPDF() async {
-    final datos = auditoriasFiltradas;
+    final pagina = await controller.obtenerPagina(
+      busqueda: busqueda,
+      accion: accionFiltro,
+      limite: _maxFilasPdf,
+    );
+    final datos = pagina.registros;
+
     if (datos.isEmpty) {
       if (!mounted) return;
       Toast.info(context, 'No hay auditorías para exportar.');
       return;
+    }
+
+    if (pagina.total > _maxFilasPdf) {
+      if (!mounted) return;
+      Toast.info(
+        context,
+        'Se exportan los $_maxFilasPdf más recientes de ${pagina.total}. '
+        'Acota el filtro para incluir el resto.',
+      );
     }
 
     final pdf = pw.Document();

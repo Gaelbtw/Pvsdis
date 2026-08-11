@@ -3,7 +3,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:sqflite/sqflite.dart';
+// `sqflite_common_ffi/sqflite_ffi.dart` reexporta todo `sqflite`, así que
+// importar los dos era redundante.
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../security/password_hasher.dart';
@@ -51,6 +52,13 @@ class DatabaseHelper {
     return join(await _getBaseDirectoryPath(), 'backups');
   }
 
+  /// Carpeta donde se dejan los reportes exportados a CSV. Mismo criterio que
+  /// [getBackupDirectoryPath]: dentro del directorio de datos de la app, para
+  /// que no dependa de permisos de escritura en otras rutas.
+  Future<String> getExportDirectoryPath() async {
+    return join(await _getBaseDirectoryPath(), 'exportaciones');
+  }
+
   Future<void> closeDatabase() async {
     if (_database != null) {
       await _database!.close();
@@ -60,7 +68,16 @@ class DatabaseHelper {
 
   // Inicializar la base de datos
 
-  static const _databaseVersion = 20;
+  /// v21: se movió a `_onUpgrade` todo el trabajo de esquema que antes corría
+  /// en cada apertura desde `_onOpen` (ver [_onOpen]). Cualquier instalación
+  /// existente pasa una única vez por el bloque `oldVersion < 21`, que aplica
+  /// exactamente los mismos `_ensure*` de siempre; a partir de ahí abrir la
+  /// app deja de escanear las tablas grandes.
+  ///
+  /// v22: (1) `costo_unitario` en `Detalle_Venta` y `Detalle_Apartado`, para
+  /// congelar el costo del producto en el momento de la venta; (2)
+  /// `Clientes.telefono` pasa de INTEGER a TEXT.
+  static const _databaseVersion = 22;
 
   Future<Database> _initDB() async {
     final path = await getDatabasePath();
@@ -163,12 +180,31 @@ class DatabaseHelper {
 
     int versionActual;
     try {
-      final dbSoloLectura = await databaseFactory.openDatabase(
-        path,
-        options: OpenDatabaseOptions(readOnly: true),
-      );
-      versionActual = await dbSoloLectura.getVersion();
-      await dbSoloLectura.close();
+      // Se abre en modo lectura/escritura (sin `version:` ni callbacks, así
+      // que NO dispara ninguna migración) por dos motivos:
+      //
+      //   1. Leer la versión actual del esquema, como siempre.
+      //   2. Consolidar el WAL en el archivo principal antes de copiarlo.
+      //
+      // El punto 2 es obligatorio desde que `_onOpen` activa
+      // `journal_mode = WAL`: si la app se cerró de forma anormal (apagón,
+      // matar el proceso), quedan transacciones YA CONFIRMADAS viviendo en
+      // el archivo `pos.db-wal` y todavía no en `pos.db`. Como el respaldo
+      // copia únicamente `pos.db`, sin este checkpoint el backup saldría sin
+      // las últimas ventas -- justo las que más importa no perder. Una
+      // apertura de solo lectura no puede hacer checkpoint, por eso ya no
+      // se usa `readOnly: true`.
+      final db = await databaseFactory.openDatabase(path);
+      versionActual = await db.getVersion();
+      try {
+        // `rawQuery`: wal_checkpoint devuelve una fila (busy, log, checkpointed).
+        await db.rawQuery('PRAGMA wal_checkpoint(TRUNCATE)');
+      } catch (_) {
+        // La base todavía puede estar en journal DELETE (instalación que
+        // aún no abrió con la versión nueva): ahí el checkpoint no aplica y
+        // no hay nada que consolidar.
+      }
+      await db.close();
     } catch (_) {
       return;
     }
@@ -263,7 +299,7 @@ class DatabaseHelper {
         id_cliente INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre TEXT NOT NULL,
         direccion TEXT,
-        telefono INTEGER,
+        telefono TEXT,
         correo TEXT,
         fecha_registro DATE
       );
@@ -350,6 +386,7 @@ class DatabaseHelper {
         id_producto INTEGER,
         cantidad INTEGER,
         precio REAL,
+        costo_unitario REAL,
         descuento_tipo TEXT,
         descuento_valor REAL DEFAULT 0,
         descuento_monto REAL DEFAULT 0,
@@ -457,6 +494,7 @@ class DatabaseHelper {
         auto_imprimir_ticket INTEGER DEFAULT 0,
         impresora_url TEXT,
         impresora_nombre TEXT,
+        abrir_cajon_efectivo INTEGER DEFAULT 0,
         descuento_maximo_porcentaje REAL DEFAULT 20,
         descuento_cajero_puede_aplicar INTEGER DEFAULT 1,
         descuento_cajero_requiere_autorizacion INTEGER DEFAULT 1
@@ -466,6 +504,7 @@ class DatabaseHelper {
 
 
     await _ensureAuditoriasTable(db);
+    await _ensureDevolucionesMetodoOriginalColumn(db);
     await _ensurePromocionesTables(db);
     await _ensureInventarioCantidadReservadaColumn(db);
     await _ensureApartadosTables(db);
@@ -484,78 +523,169 @@ class DatabaseHelper {
 
     // No se siembra ningún usuario por defecto: la primera cuenta de
     // administrador se crea desde SetupAdminView en el primer arranque.
-
-    await _insertarAuditoriasDemo(db);
+    // Tampoco se siembra ninguna auditoría: la bitácora es un registro
+    // legal/contable y debe nacer vacía (antes se insertaban 3 eventos
+    // ficticios de demo, con usuarios y ventas que nunca existieron).
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 5) {
       await _ensureAuditoriasTable(db);
-      await _insertarAuditoriasDemo(db);
     }
     if (oldVersion < 6) {
       await _hashearContrasenasExistentes(db);
     }
 
-    // Estas columnas/tablas se fueron agregando de forma incremental en
-    // versiones anteriores (fuera del ciclo formal de versión, o antes de
-    // llegar al _crearIndices de más abajo). Deben existir antes de
-    // reconstruir las tablas de abajo (que copian todas sus columnas) y
-    // antes de que _crearIndices intente indexar columnas/tablas que en
-    // ese punto todavía no existirían.
-    await _ensureVentasMetodoPagoColumn(db);
-    await _ensureDetalleCompraCantidadColumn(db);
-    await _ensurePedidosDireccionColumn(db);
-    await _ensureVentasEstadoColumn(db);
-    await _ensureDevolucionesTables(db);
-    await _ensureVentasDescuentoColumns(db);
-    await _ensureDetalleVentaDescuentoColumns(db);
-    await _ensureConfiguracionDescuentoColumns(db);
-    await _ensureConfiguracionTicketColumns(db);
-    await _ensureVentaPagosTable(db);
-    await _ensureVentasCambioColumn(db);
-    await _backfillVentaPagos(db);
-    await _ensureCajasTable(db);
-    await _ensureVentasIdCajaColumn(db);
-    await _ensureDevolucionesIdCajaColumn(db);
-    await _ensurePromocionesTables(db);
-    await _ensureInventarioCantidadReservadaColumn(db);
-    await _ensureApartadosTables(db);
-    await _ensureVentasIdApartadoColumn(db);
-    await _ensureCajasAnticiposColumns(db);
-    await _ensureAuditoriasContextColumns(db);
-    await _ensureComprasCreditoColumns(db);
-    await _ensureAbonosTables(db);
-    await _ensureCajasPagosProveedoresColumn(db);
-    await _backfillAbonosComprasExistentes(db);
-    await _ensureBitacoraSyncTables(db);
-    await _ensureSyncConfigYPullEstadoTables(db);
-    await _ensureGuidSyncColumns(db);
-    await _ensureSyncOutboxTable(db);
-    await _ensureRolPermisosTable(db);
-    await _ensureUsuariosRolYPin(db);
-
+    // ORDEN CRÍTICO: la reconstrucción de tablas va ANTES de agregar las
+    // columnas nuevas, no después.
+    //
+    // Hasta la v20 este bloque corría al final, después de que los
+    // `_ensure*` de abajo ya hubieran agregado `id_caja`, `cambio`,
+    // `id_apartado`, `guid_sync`, `cantidad_reservada`, etc. Como
+    // [_reconstruirTabla] recrea la tabla desde una definición fija, esas
+    // columnas recién agregadas desaparecían junto con sus datos, y acto
+    // seguido `_crearIndices` reventaba con "no such column: id_caja",
+    // dejando la base imposible de abrir. Reconstruyendo primero, las
+    // tablas viejas solo tienen columnas viejas y los `_ensure*`
+    // posteriores reponen todo lo demás sobre la tabla ya corregida.
+    //
+    // SQLite no permite modificar una FOREIGN KEY existente con ALTER
+    // TABLE; hay que seguir el procedimiento oficial (rename -> create ->
+    // copiar datos -> drop). foreign_keys ya está OFF desde _onConfigure y
+    // se reactiva en _onOpen, una vez confirmada la migración.
     if (oldVersion < 7) {
-      // SQLite no permite modificar una FOREIGN KEY ya existente con
-      // ALTER TABLE; hay que reconstruir cada tabla siguiendo el
-      // procedimiento oficial de SQLite (rename -> create -> copiar datos ->
-      // drop). foreign_keys ya está OFF desde _onConfigure y se reactiva en
-      // _onOpen, una vez que esta migración terminó de confirmarse.
       await _reconstruirTablasConIntegridadReferencial(db);
-      await _crearIndices(db);
     }
-    if (oldVersion < 8) {
+
+    // Todo el esquema incremental posterior a la v7. Antes vivía suelto en
+    // `_onUpgrade` *y* se repetía en cada `_onOpen`; ahora corre una sola
+    // vez por instalación, al pasar a la v21. Cada `_ensure*` sigue siendo
+    // idempotente (chequea `PRAGMA table_info` o usa `IF NOT EXISTS`), así
+    // que aplicarlo sobre una base que ya tenía parte del esquema es un
+    // no-op barato.
+    if (oldVersion < 21) {
+      await _ensureVentasMetodoPagoColumn(db);
+      await _ensureDetalleCompraCantidadColumn(db);
+      await _ensurePedidosDireccionColumn(db);
+      await _ensureVentasEstadoColumn(db);
+      await _ensureDevolucionesTables(db);
+      await _ensureVentasDescuentoColumns(db);
+      await _ensureDetalleVentaDescuentoColumns(db);
+      await _ensureConfiguracionDescuentoColumns(db);
       await _ensureConfiguracionNegocioColumns(db);
-    }
-    if (oldVersion < 9) {
+      await _ensureConfiguracionTicketColumns(db);
+      await _ensureVentaPagosTable(db);
+      await _ensureVentasCambioColumn(db);
+      await _backfillVentaPagos(db);
+      await _ensureCajasTable(db);
+      await _ensureVentasIdCajaColumn(db);
+      await _ensureDevolucionesIdCajaColumn(db);
+      await _ensureDevolucionesMetodoOriginalColumn(db);
+      await _ensurePromocionesTables(db);
+      await _ensureInventarioCantidadReservadaColumn(db);
+      await _ensureApartadosTables(db);
+      await _ensureVentasIdApartadoColumn(db);
+      await _ensureCajasAnticiposColumns(db);
+      await _ensureAuditoriasContextColumns(db);
+      await _ensureComprasCreditoColumns(db);
+      await _ensureAbonosTables(db);
+      await _ensureCajasPagosProveedoresColumn(db);
+      await _backfillAbonosComprasExistentes(db);
+      await _ensureBitacoraSyncTables(db);
+      await _ensureSyncConfigYPullEstadoTables(db);
       await _ensureProductoCodigoBarrasColumn(db);
+      await _ensureGuidSyncColumns(db);
+      await _ensureSyncOutboxTable(db);
+      await _ensureRolPermisosTable(db);
+      await _ensureUsuariosRolYPin(db);
+      await _desduplicarNombresDeUsuario(db);
+    }
+
+    if (oldVersion < 22) {
+      await _ensureCostoUnitarioColumns(db);
+      await _migrarClientesTelefonoATexto(db);
     }
 
     // Idempotente (CREATE INDEX IF NOT EXISTS): se repite en cada upgrade
-    // para que índices agregados en versiones nuevas (como el de
-    // codigo_barras) también lleguen a instalaciones que ya estaban al
-    // día en versiones anteriores del esquema.
+    // para que índices agregados en versiones nuevas también lleguen a
+    // instalaciones que ya estaban al día en versiones anteriores.
     await _crearIndices(db);
+  }
+
+  /// Congela el costo del producto en cada línea de venta y de apartado.
+  ///
+  /// Hasta la v21 el costo solo existía en `Producto.precio_compra`, que se
+  /// SOBRESCRIBE con cada compra nueva. Cualquier reporte de utilidad
+  /// calculado a partir de ahí usaría el costo de hoy para una venta de hace
+  /// seis meses: los márgenes históricos salían mal y no había forma de
+  /// reconstruirlos, porque el dato del momento de la venta nunca se guardó.
+  ///
+  /// A partir de aquí cada línea guarda el costo vigente al cobrar (ver
+  /// `VentasController.insertarVentaCompleta`). Queda NULL en las filas
+  /// anteriores a esta migración: eso es honesto —no se puede inventar un
+  /// costo pasado— y permite que un reporte distinga "sin dato" de "costo
+  /// cero" en vez de mostrar una utilidad falsa.
+  Future<void> _ensureCostoUnitarioColumns(Database db) async {
+    const tablas = ['Detalle_Venta', 'Detalle_Apartado'];
+
+    for (final tabla in tablas) {
+      final info = await db.rawQuery('PRAGMA table_info($tabla)');
+      if (info.isEmpty) continue; // la tabla aún no existe en esta instalación
+
+      final columnNames = info.map((row) => row['name']?.toString()).toSet();
+      if (!columnNames.contains('costo_unitario')) {
+        await db.execute('ALTER TABLE $tabla ADD COLUMN costo_unitario REAL;');
+      }
+    }
+  }
+
+  /// `Clientes.telefono` de INTEGER a TEXT.
+  ///
+  /// Con afinidad INTEGER, SQLite convierte a número cualquier valor que
+  /// parezca uno: un teléfono guardado como '0551234567' se almacenaba como
+  /// 551234567 y perdía el cero inicial. Los formatos que la gente teclea de
+  /// verdad ('+52 55 1234 5678', '55-1234-5678', extensiones) tampoco caben.
+  /// El backend ya define `Cliente.Telefono` como string, así que esto además
+  /// alinea el esquema local con el remoto y deja de necesitar conversión en
+  /// `clienteMapper`.
+  ///
+  /// La definición nueva incluye `guid_sync` a propósito: [_reconstruirTabla]
+  /// solo copia las columnas presentes en AMBAS definiciones, así que omitirla
+  /// borraría los guid de sincronización de todos los clientes. El índice
+  /// único sobre `guid_sync` se pierde con la tabla vieja, pero [_crearIndices]
+  /// corre al final de cada `_onUpgrade` y lo repone.
+  ///
+  /// Los valores existentes se convierten solos: al copiarlos a una columna
+  /// TEXT, SQLite los pasa a su representación decimal. Los ceros iniciales
+  /// perdidos en el pasado no se pueden recuperar; lo que se arregla es que
+  /// de aquí en adelante ya no se pierdan.
+  Future<void> _migrarClientesTelefonoATexto(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(Clientes)');
+    if (info.isEmpty) return;
+
+    final telefono = info.where((row) => row['name']?.toString() == 'telefono');
+    if (telefono.isEmpty) return;
+
+    // Idempotente: si ya es TEXT (instalación nueva, o esta migración ya
+    // corrió), no se reconstruye nada.
+    final tipoActual = telefono.first['type']?.toString().toUpperCase() ?? '';
+    if (tipoActual == 'TEXT') return;
+
+    await _reconstruirTabla(
+      db,
+      nombre: 'Clientes',
+      definicionNueva: '''
+        CREATE TABLE Clientes (
+          id_cliente INTEGER PRIMARY KEY AUTOINCREMENT,
+          nombre TEXT NOT NULL,
+          direccion TEXT,
+          telefono TEXT,
+          correo TEXT,
+          fecha_registro DATE,
+          guid_sync TEXT
+        );
+      ''',
+    );
   }
 
   /// Agrega la columna opcional de código de barras a `Producto`. Puede ser
@@ -1353,6 +1483,7 @@ class DatabaseHelper {
         id_producto INTEGER NOT NULL,
         cantidad INTEGER NOT NULL,
         precio REAL NOT NULL,
+        costo_unitario REAL,
         descuento_tipo TEXT,
         descuento_valor REAL DEFAULT 0,
         descuento_monto REAL DEFAULT 0,
@@ -1475,6 +1606,7 @@ class DatabaseHelper {
       'auto_imprimir_ticket': 'INTEGER DEFAULT 0',
       'impresora_url': 'TEXT',
       'impresora_nombre': 'TEXT',
+      'abrir_cajon_efectivo': 'INTEGER DEFAULT 0',
     };
 
     for (final entry in columnasNuevas.entries) {
@@ -1518,183 +1650,210 @@ class DatabaseHelper {
   }
 
   /// Reconstruye las tablas que necesitaban corregir su FOREIGN KEY. No se
-  /// pierde ninguna fila: cada tabla se copia por completo antes de borrar
-  /// la versión vieja, y todo corre dentro de una transacción (si algo
-  /// falla a la mitad, SQLite revierte los cambios de esquema también).
+  /// pierde ninguna fila: [_reconstruirTabla] copia todas las columnas que
+  /// existan en ambas versiones de la tabla.
+  ///
+  /// Se llama únicamente desde `_onUpgrade`, que ya corre dentro de la
+  /// transacción implícita que abre sqflite para la migración: si algo falla
+  /// a la mitad, SQLite revierte también los cambios de esquema. Antes había
+  /// aquí un `db.transaction(...)` anidado sobre esa misma conexión, que es
+  /// justamente el caso que sqflite advierte no hacer.
   Future<void> _reconstruirTablasConIntegridadReferencial(Database db) async {
-    await db.transaction((txn) async {
-      await _reconstruirTabla(
-        txn,
-        nombre: 'Producto',
-        columnas:
-            'id_producto, nombre, descripcion, precio, precio_compra, categoria, stock_minimo, estado, id_categoria',
-        definicionNueva: '''
-          CREATE TABLE Producto (
-            id_producto INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT NOT NULL,
-            descripcion TEXT,
-            precio REAL NOT NULL,
-            precio_compra REAL,
-            categoria TEXT,
-            stock_minimo INTEGER DEFAULT 0,
-            estado TEXT CHECK(estado IN ('Activo','Inactivo')) DEFAULT 'Activo',
-            id_categoria INTEGER,
-            codigo_barras TEXT,
-            FOREIGN KEY (id_categoria) REFERENCES Categorias(id_categoria) ON DELETE SET NULL
-          );
-        ''',
-      );
+    await _reconstruirTabla(
+      db,
+      nombre: 'Producto',
+      definicionNueva: '''
+        CREATE TABLE Producto (
+          id_producto INTEGER PRIMARY KEY AUTOINCREMENT,
+          nombre TEXT NOT NULL,
+          descripcion TEXT,
+          precio REAL NOT NULL,
+          precio_compra REAL,
+          categoria TEXT,
+          stock_minimo INTEGER DEFAULT 0,
+          estado TEXT CHECK(estado IN ('Activo','Inactivo')) DEFAULT 'Activo',
+          id_categoria INTEGER,
+          codigo_barras TEXT,
+          FOREIGN KEY (id_categoria) REFERENCES Categorias(id_categoria) ON DELETE SET NULL
+        );
+      ''',
+    );
 
-      await _reconstruirTabla(
-        txn,
-        nombre: 'Inventario',
-        columnas: 'id_inventario, id_producto, cantidad',
-        definicionNueva: '''
-          CREATE TABLE Inventario (
-            id_inventario INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_producto INTEGER UNIQUE,
-            cantidad INTEGER,
-            FOREIGN KEY (id_producto) REFERENCES Producto(id_producto) ON DELETE CASCADE
-          );
-        ''',
-      );
+    await _reconstruirTabla(
+      db,
+      nombre: 'Inventario',
+      definicionNueva: '''
+        CREATE TABLE Inventario (
+          id_inventario INTEGER PRIMARY KEY AUTOINCREMENT,
+          id_producto INTEGER UNIQUE,
+          cantidad INTEGER,
+          FOREIGN KEY (id_producto) REFERENCES Producto(id_producto) ON DELETE CASCADE
+        );
+      ''',
+    );
 
-      await _reconstruirTabla(
-        txn,
-        nombre: 'Compras',
-        columnas: 'id_compra, fecha, total, id_proveedor, id_usuario',
-        definicionNueva: '''
-          CREATE TABLE Compras (
-            id_compra INTEGER PRIMARY KEY AUTOINCREMENT,
-            fecha DATE,
-            total REAL,
-            id_proveedor INTEGER,
-            id_usuario INTEGER,
-            FOREIGN KEY (id_proveedor) REFERENCES Proveedores(id_proveedor) ON DELETE RESTRICT,
-            FOREIGN KEY (id_usuario) REFERENCES Usuarios(id_usuario) ON DELETE RESTRICT
-          );
-        ''',
-      );
+    await _reconstruirTabla(
+      db,
+      nombre: 'Compras',
+      definicionNueva: '''
+        CREATE TABLE Compras (
+          id_compra INTEGER PRIMARY KEY AUTOINCREMENT,
+          fecha DATE,
+          total REAL,
+          id_proveedor INTEGER,
+          id_usuario INTEGER,
+          FOREIGN KEY (id_proveedor) REFERENCES Proveedores(id_proveedor) ON DELETE RESTRICT,
+          FOREIGN KEY (id_usuario) REFERENCES Usuarios(id_usuario) ON DELETE RESTRICT
+        );
+      ''',
+    );
 
-      await _reconstruirTabla(
-        txn,
-        nombre: 'Detalle_Compra',
-        columnas: 'id_detalle, id_compra, id_producto, cantidad, precio',
-        definicionNueva: '''
-          CREATE TABLE Detalle_Compra (
-            id_detalle INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_compra INTEGER,
-            id_producto INTEGER,
-            cantidad INTEGER DEFAULT 1,
-            precio REAL,
-            FOREIGN KEY (id_compra) REFERENCES Compras(id_compra) ON DELETE CASCADE,
-            FOREIGN KEY (id_producto) REFERENCES Producto(id_producto) ON DELETE RESTRICT
-          );
-        ''',
-      );
+    await _reconstruirTabla(
+      db,
+      nombre: 'Detalle_Compra',
+      definicionNueva: '''
+        CREATE TABLE Detalle_Compra (
+          id_detalle INTEGER PRIMARY KEY AUTOINCREMENT,
+          id_compra INTEGER,
+          id_producto INTEGER,
+          cantidad INTEGER DEFAULT 1,
+          precio REAL,
+          FOREIGN KEY (id_compra) REFERENCES Compras(id_compra) ON DELETE CASCADE,
+          FOREIGN KEY (id_producto) REFERENCES Producto(id_producto) ON DELETE RESTRICT
+        );
+      ''',
+    );
 
-      await _reconstruirTabla(
-        txn,
-        nombre: 'Pedidos',
-        columnas:
-            'id_pedido, id_cliente, fecha, estado, total, fecha_entrega, tipo_entrega, direccion',
-        definicionNueva: '''
-          CREATE TABLE Pedidos (
-            id_pedido INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_cliente INTEGER,
-            fecha DATE,
-            estado TEXT,
-            total REAL DEFAULT 0,
-            fecha_entrega TEXT,
-            tipo_entrega TEXT,
-            direccion TEXT,
-            FOREIGN KEY (id_cliente) REFERENCES Clientes(id_cliente) ON DELETE RESTRICT
-          );
-        ''',
-      );
+    await _reconstruirTabla(
+      db,
+      nombre: 'Pedidos',
+      definicionNueva: '''
+        CREATE TABLE Pedidos (
+          id_pedido INTEGER PRIMARY KEY AUTOINCREMENT,
+          id_cliente INTEGER,
+          fecha DATE,
+          estado TEXT,
+          total REAL DEFAULT 0,
+          fecha_entrega TEXT,
+          tipo_entrega TEXT,
+          direccion TEXT,
+          FOREIGN KEY (id_cliente) REFERENCES Clientes(id_cliente) ON DELETE RESTRICT
+        );
+      ''',
+    );
 
-      await _reconstruirTabla(
-        txn,
-        nombre: 'Detalle_Pedido',
-        columnas: 'id_detalle, id_pedido, id_producto, cantidad, precio',
-        definicionNueva: '''
-          CREATE TABLE Detalle_Pedido (
-            id_detalle INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_pedido INTEGER,
-            id_producto INTEGER,
-            cantidad INTEGER,
-            precio REAL,
-            FOREIGN KEY (id_pedido) REFERENCES Pedidos(id_pedido) ON DELETE CASCADE,
-            FOREIGN KEY (id_producto) REFERENCES Producto(id_producto) ON DELETE RESTRICT
-          );
-        ''',
-      );
+    await _reconstruirTabla(
+      db,
+      nombre: 'Detalle_Pedido',
+      definicionNueva: '''
+        CREATE TABLE Detalle_Pedido (
+          id_detalle INTEGER PRIMARY KEY AUTOINCREMENT,
+          id_pedido INTEGER,
+          id_producto INTEGER,
+          cantidad INTEGER,
+          precio REAL,
+          FOREIGN KEY (id_pedido) REFERENCES Pedidos(id_pedido) ON DELETE CASCADE,
+          FOREIGN KEY (id_producto) REFERENCES Producto(id_producto) ON DELETE RESTRICT
+        );
+      ''',
+    );
 
-      await _reconstruirTabla(
-        txn,
-        nombre: 'Ventas',
-        columnas: 'id_venta, id_cliente, id_usuario, id_pedido, fecha, total, metodo_pago',
-        definicionNueva: '''
-          CREATE TABLE Ventas (
-            id_venta INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_cliente INTEGER,
-            id_usuario INTEGER,
-            id_pedido INTEGER,
-            fecha DATE,
-            total REAL,
-            metodo_pago TEXT DEFAULT 'efectivo',
-            estado TEXT DEFAULT 'Activa',
-            subtotal REAL DEFAULT 0,
-            descuento_total REAL DEFAULT 0,
-            descuento_global_tipo TEXT,
-            descuento_global_valor REAL DEFAULT 0,
-            descuento_motivo TEXT,
-            descuento_autorizado_por INTEGER,
-            FOREIGN KEY (id_cliente) REFERENCES Clientes(id_cliente) ON DELETE RESTRICT,
-            FOREIGN KEY (id_usuario) REFERENCES Usuarios(id_usuario) ON DELETE RESTRICT,
-            FOREIGN KEY (id_pedido) REFERENCES Pedidos(id_pedido) ON DELETE SET NULL
-          );
-        ''',
-      );
+    await _reconstruirTabla(
+      db,
+      nombre: 'Ventas',
+      definicionNueva: '''
+        CREATE TABLE Ventas (
+          id_venta INTEGER PRIMARY KEY AUTOINCREMENT,
+          id_cliente INTEGER,
+          id_usuario INTEGER,
+          id_pedido INTEGER,
+          fecha DATE,
+          total REAL,
+          metodo_pago TEXT DEFAULT 'efectivo',
+          estado TEXT DEFAULT 'Activa',
+          subtotal REAL DEFAULT 0,
+          descuento_total REAL DEFAULT 0,
+          descuento_global_tipo TEXT,
+          descuento_global_valor REAL DEFAULT 0,
+          descuento_motivo TEXT,
+          descuento_autorizado_por INTEGER,
+          FOREIGN KEY (id_cliente) REFERENCES Clientes(id_cliente) ON DELETE RESTRICT,
+          FOREIGN KEY (id_usuario) REFERENCES Usuarios(id_usuario) ON DELETE RESTRICT,
+          FOREIGN KEY (id_pedido) REFERENCES Pedidos(id_pedido) ON DELETE SET NULL
+        );
+      ''',
+    );
 
-      await _reconstruirTabla(
-        txn,
-        nombre: 'Detalle_Venta',
-        columnas: 'id_detalleV, id_venta, id_producto, cantidad, precio',
-        definicionNueva: '''
-          CREATE TABLE Detalle_Venta (
-            id_detalleV INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_venta INTEGER,
-            id_producto INTEGER,
-            cantidad INTEGER,
-            precio REAL,
-            descuento_tipo TEXT,
-            descuento_valor REAL DEFAULT 0,
-            descuento_monto REAL DEFAULT 0,
-            precio_neto REAL,
-            FOREIGN KEY (id_venta) REFERENCES Ventas(id_venta) ON DELETE CASCADE,
-            FOREIGN KEY (id_producto) REFERENCES Producto(id_producto) ON DELETE RESTRICT
-          );
-        ''',
-      );
-    });
+    await _reconstruirTabla(
+      db,
+      nombre: 'Detalle_Venta',
+      definicionNueva: '''
+        CREATE TABLE Detalle_Venta (
+          id_detalleV INTEGER PRIMARY KEY AUTOINCREMENT,
+          id_venta INTEGER,
+          id_producto INTEGER,
+          cantidad INTEGER,
+          precio REAL,
+          descuento_tipo TEXT,
+          descuento_valor REAL DEFAULT 0,
+          descuento_monto REAL DEFAULT 0,
+          precio_neto REAL,
+          FOREIGN KEY (id_venta) REFERENCES Ventas(id_venta) ON DELETE CASCADE,
+          FOREIGN KEY (id_producto) REFERENCES Producto(id_producto) ON DELETE RESTRICT
+        );
+      ''',
+    );
   }
 
   /// Procedimiento oficial de SQLite para cambiar la definición de una
   /// tabla existente sin perder datos: renombrar, crear la nueva, copiar
-  /// filas por columnas explícitas, borrar la vieja.
+  /// filas, borrar la vieja.
+  ///
+  /// Las columnas a copiar se calculan en tiempo de ejecución como la
+  /// intersección entre las que tenía la tabla vieja y las que declara
+  /// [definicionNueva], en vez de venir hardcodeadas. Con una lista fija,
+  /// cualquier columna que una versión anterior de la app hubiera agregado
+  /// por `ALTER TABLE` (y que no estuviera en esa lista) se perdía en
+  /// silencio junto con sus datos. Así el copiado se adapta solo a lo que
+  /// realmente hay en disco.
+  ///
+  /// `legacy_alter_table = ON` durante el RENAME es imprescindible: desde
+  /// SQLite 3.25 un `ALTER TABLE ... RENAME TO` reescribe las FOREIGN KEY
+  /// de las tablas hijas para que apunten al nombre nuevo. Sin esto,
+  /// tablas como `Venta_Pagos`, `Devoluciones` o `Apartados` quedarían
+  /// apuntando a `Ventas_old` justo antes de que esa tabla se borre. Mismo
+  /// patrón que ya usa [_ensureUsuariosRolYPin].
   Future<void> _reconstruirTabla(
     DatabaseExecutor db, {
     required String nombre,
-    required String columnas,
     required String definicionNueva,
   }) async {
-    await db.execute('ALTER TABLE $nombre RENAME TO ${nombre}_old;');
-    await db.execute(definicionNueva);
-    await db.execute(
-      'INSERT INTO $nombre ($columnas) SELECT $columnas FROM ${nombre}_old;',
-    );
-    await db.execute('DROP TABLE ${nombre}_old;');
+    final infoVieja = await db.rawQuery('PRAGMA table_info($nombre)');
+    final columnasViejas = infoVieja.map((row) => row['name']?.toString()).toSet();
+
+    await db.execute('PRAGMA legacy_alter_table = ON;');
+    try {
+      await db.execute('ALTER TABLE $nombre RENAME TO ${nombre}_old;');
+      await db.execute(definicionNueva);
+
+      final infoNueva = await db.rawQuery('PRAGMA table_info($nombre)');
+      final comunes = infoNueva
+          .map((row) => row['name']?.toString())
+          .where((c) => c != null && columnasViejas.contains(c))
+          .cast<String>()
+          .toList();
+
+      if (comunes.isNotEmpty) {
+        final lista = comunes.join(', ');
+        await db.execute(
+          'INSERT INTO $nombre ($lista) SELECT $lista FROM ${nombre}_old;',
+        );
+      }
+
+      await db.execute('DROP TABLE ${nombre}_old;');
+    } finally {
+      await db.execute('PRAGMA legacy_alter_table = OFF;');
+    }
   }
 
   /// Índices sobre columnas usadas en WHERE/JOIN/ORDER BY frecuentes
@@ -1775,6 +1934,17 @@ class DatabaseHelper {
     }
     await db.execute('CREATE INDEX IF NOT EXISTS idx_sync_outbox_entidad ON Sync_Outbox(entidad);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_sync_outbox_fecha_creacion ON Sync_Outbox(fecha_creacion);');
+
+    // Unicidad real del nombre de usuario. `Authcontroller.login` busca con
+    // `WHERE LOWER(nombre) = ? LIMIT 1`, así que dos cuentas homónimas hacían
+    // que una de ellas no pudiera entrar nunca (siempre ganaba la de menor
+    // id). Se indexa sobre `LOWER(nombre)` para que la unicidad sea
+    // insensible a mayúsculas, igual que el login.
+    // [_desduplicarNombresDeUsuario] ya corrió antes en la migración, así que
+    // no puede haber colisiones al crear el índice.
+    await db.execute(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_usuarios_nombre ON Usuarios(LOWER(nombre));',
+    );
   }
 
   /// Migra a hash bcrypt cualquier contraseña que todavía esté en texto
@@ -1798,42 +1968,65 @@ class DatabaseHelper {
     }
   }
 
+  /// Se ejecuta en cada apertura de la conexión, después de que
+  /// `_onCreate`/`_onUpgrade` ya confirmaron su transacción.
+  ///
+  /// Debe permanecer BARATO: es código que corre en cada arranque de la app.
+  /// Hasta la v20 aquí se repetían ~30 `_ensure*` y 4 backfills, incluyendo
+  /// dos `UPDATE ... WHERE ... IS NULL` sobre `Ventas` y `Detalle_Venta`, un
+  /// anti-join `NOT IN` sobre `Venta_Pagos`, un `LEFT JOIN` completo de
+  /// `Compras`×`Abonos` y 14 `PRAGMA table_info` + `SELECT WHERE guid_sync IS
+  /// NULL`. Eso significaba escanear las tablas más grandes del negocio en
+  /// cada arranque, con un costo que crecía indefinidamente con el historial
+  /// de ventas. Además nada de eso corría en transacción (a diferencia de
+  /// `_onUpgrade`), así que un fallo a mitad de camino dejaba el esquema
+  /// inconsistente.
+  ///
+  /// Todo ese trabajo se movió al bloque `oldVersion < 21` de [_onUpgrade],
+  /// donde ocurre una sola vez por instalación y de forma atómica.
   Future<void> _onOpen(Database db) async {
     // Se reactiva aquí (fuera de cualquier transacción) tras confirmarse la
-    // creación/migración del esquema en _onCreate/_onUpgrade.
+    // creación/migración del esquema en _onCreate/_onUpgrade. SQLite no
+    // permite cambiar este PRAGMA con una transacción activa.
     await db.execute('PRAGMA foreign_keys = ON');
-    await _ensureAuditoriasTable(db);
-    await _ensureVentasMetodoPagoColumn(db);
-    await _ensureDetalleCompraCantidadColumn(db);
-    await _ensurePedidosDireccionColumn(db);
-    await _ensureProductoCodigoBarrasColumn(db);
-    await _ensureVentasEstadoColumn(db);
-    await _ensureDevolucionesTables(db);
-    await _ensureVentasDescuentoColumns(db);
-    await _ensureDetalleVentaDescuentoColumns(db);
-    await _ensureConfiguracionDescuentoColumns(db);
-    await _ensureConfiguracionTicketColumns(db);
-    await _ensureVentaPagosTable(db);
-    await _ensureVentasCambioColumn(db);
-    await _backfillVentaPagos(db);
-    await _ensureCajasTable(db);
-    await _ensureVentasIdCajaColumn(db);
-    await _ensureDevolucionesIdCajaColumn(db);
-    await _ensurePromocionesTables(db);
-    await _ensureInventarioCantidadReservadaColumn(db);
-    await _ensureApartadosTables(db);
-    await _ensureVentasIdApartadoColumn(db);
-    await _ensureCajasAnticiposColumns(db);
-    await _ensureAuditoriasContextColumns(db);
-    await _ensureComprasCreditoColumns(db);
-    await _ensureAbonosTables(db);
-    await _ensureCajasPagosProveedoresColumn(db);
-    await _backfillAbonosComprasExistentes(db);
-    await _ensureBitacoraSyncTables(db);
-    await _ensureSyncConfigYPullEstadoTables(db);
-    await _ensureGuidSyncColumns(db);
-    await _ensureSyncOutboxTable(db);
-    await _ensureRolPermisosTable(db);
+
+    // Ajustes de rendimiento. El equipo objetivo es una PC de punto de venta
+    // de gama baja (disco mecánico o eMMC lenta), donde los valores por
+    // defecto de SQLite se notan en cada cobro.
+    //
+    // WAL: el journal por defecto (DELETE) reescribe y borra un archivo
+    // aparte en cada transacción. Con WAL las escrituras van a un log
+    // secuencial y las lecturas no bloquean al escritor -- además es lo que
+    // evita el "database is locked" si dos procesos llegaran a abrir el
+    // mismo archivo.
+    //
+    // `rawQuery` y no `execute`: estos dos PRAGMA DEVUELVEN una fila con el
+    // valor resultante, y algunos backends de sqflite fallan al ejecutarlos
+    // como sentencia sin resultado.
+    await db.rawQuery('PRAGMA journal_mode = WAL');
+
+    // Si otra conexión tiene el archivo tomado, esperar hasta 5 s en vez de
+    // fallar de inmediato. Sin esto, cualquier contención se convierte en
+    // una excepción en plena venta.
+    await db.rawQuery('PRAGMA busy_timeout = 5000');
+
+    // 20 MB de caché de páginas (el valor negativo son KiB, no páginas).
+    // El default son ~2 MB, que en un catálogo grande obliga a releer del
+    // disco constantemente. Si alguna vez hay que soportar equipos de 2 GB
+    // de RAM, bajarlo a -8000.
+    await db.execute('PRAGMA cache_size = -20000');
+
+    // Tablas temporales de ORDER BY / GROUP BY en RAM en vez de disco:
+    // afecta sobre todo a los reportes con agregaciones.
+    await db.execute('PRAGMA temp_store = MEMORY');
+
+    // NOTA deliberada: NO se toca `synchronous`, que queda en FULL. Bajarlo
+    // a NORMAL ahorra fsyncs y es lo que recomienda SQLite junto con WAL,
+    // pero ante un apagón puede perderse la última transacción confirmada
+    // (la base NO se corrompe -- esa garantía la da WAL). En una terminal
+    // que cobra dinero y que puede no tener no-break, esa es una decisión
+    // del negocio, no del código. Si las terminales tienen UPS, agregar
+    // aquí `PRAGMA synchronous = NORMAL`.
   }
 
   Future<void> _ensureVentasMetodoPagoColumn(Database db) async {
@@ -1898,43 +2091,55 @@ class DatabaseHelper {
     }
   }
 
-  Future<void> _insertarAuditoriasDemo(Database db) async {
-    final conteo = Sqflite.firstIntValue(
-      await db.rawQuery('SELECT COUNT(*) FROM Auditorias'),
-    ) ??
-        0;
+  /// Guarda con qué método se pagó originalmente la venta que se está
+  /// devolviendo. El reembolso siempre sale en efectivo (ver
+  /// `DevolucionesController`), así que devolver una venta cobrada con
+  /// tarjeta saca dinero real de la caja sin revertir el cargo: dejar el
+  /// método original registrado permite exigir autorización en ese caso y
+  /// auditarlo después.
+  Future<void> _ensureDevolucionesMetodoOriginalColumn(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(Devoluciones)');
+    final columnNames = info.map((row) => row['name']?.toString()).toSet();
 
-    if (conteo > 0) return;
+    if (!columnNames.contains('metodo_pago_original')) {
+      await db.execute('ALTER TABLE Devoluciones ADD COLUMN metodo_pago_original TEXT;');
+    }
+  }
 
-    final auditoriasDemo = [
-      {
-        "fecha_hora": "2026-03-05T14:22:00",
-        "usuario": "Gael",
-        "tabla": "Productos",
-        "accion": "EDIT",
-        "id_registro": 1023,
-        "descripcion": "Precio actualizado",
-      },
-      {
-        "fecha_hora": "2026-03-05T13:10:00",
-        "usuario": "Jesus",
-        "tabla": "Ventas",
-        "accion": "CREATE",
-        "id_registro": 5562,
-        "descripcion": "Nueva venta",
-      },
-      {
-        "fecha_hora": "2026-03-05T12:45:00",
-        "usuario": "Gael",
-        "tabla": "Clientes",
-        "accion": "DELETE",
-        "id_registro": 221,
-        "descripcion": "Cliente eliminado",
-      },
-    ];
+  /// Renombra usuarios con nombres duplicados (comparando sin distinguir
+  /// mayúsculas) antes de que [_crearIndices] intente crear el índice único
+  /// sobre `LOWER(nombre)`.
+  ///
+  /// Sin este paso, una instalación que ya tuviera dos usuarios llamados
+  /// "admin" haría fallar el `CREATE UNIQUE INDEX` y la base no abriría. Se
+  /// conserva el de menor `id_usuario` (el más antiguo) con su nombre
+  /// intacto y a los demás se les agrega un sufijo, para que el
+  /// administrador pueda identificarlos y corregirlos desde la pantalla de
+  /// Usuarios. No se borra ninguna cuenta.
+  Future<void> _desduplicarNombresDeUsuario(Database db) async {
+    final duplicados = await db.rawQuery('''
+      SELECT id_usuario, nombre FROM Usuarios
+      WHERE LOWER(nombre) IN (
+        SELECT LOWER(nombre) FROM Usuarios GROUP BY LOWER(nombre) HAVING COUNT(*) > 1
+      )
+      ORDER BY LOWER(nombre), id_usuario
+    ''');
+    if (duplicados.isEmpty) return;
 
-    for (final auditoria in auditoriasDemo) {
-      await db.insert('Auditorias', auditoria);
+    final vistos = <String>{};
+    for (final fila in duplicados) {
+      final nombre = fila['nombre']?.toString() ?? '';
+      final clave = nombre.toLowerCase();
+
+      // El primero de cada grupo (el más antiguo) conserva su nombre.
+      if (vistos.add(clave)) continue;
+
+      await db.update(
+        'Usuarios',
+        {'nombre': '$nombre (duplicado ${fila['id_usuario']})'},
+        where: 'id_usuario = ?',
+        whereArgs: [fila['id_usuario']],
+      );
     }
   }
 }

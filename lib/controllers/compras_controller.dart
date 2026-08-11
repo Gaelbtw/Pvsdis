@@ -34,15 +34,13 @@ class ComprasController {
         "fecha": DateTime.now().toIso8601String(),
         "total": total,
         "id_proveedor": idProveedor,
-        "id_usuario": SessionManager.currentUserId ?? 1,
+        "id_usuario": SessionManager.requiredUserId,
         "forma_pago": formaPago,
         "fecha_vencimiento": fechaVencimiento?.toIso8601String(),
         "folio_factura": (folioFactura == null || folioFactura.trim().isEmpty) ? null : folioFactura.trim(),
       });
 
-      final rol = SessionManager.currentUserRole == 'Administrador'
-          ? 'Admin'
-          : SessionManager.currentUserRole;
+      final rol = SessionManager.currentUserRoleCanonico;
       await txn.insert('Auditorias', {
         "fecha_hora": DateTime.now().toIso8601String(),
         "usuario": '$rol: ${SessionManager.currentUserName}',
@@ -195,9 +193,7 @@ class ComprasController {
           whereArgs: [idCompra],
         );
 
-        final rol = SessionManager.currentUserRole == 'Administrador'
-            ? 'Admin'
-            : SessionManager.currentUserRole;
+        final rol = SessionManager.currentUserRoleCanonico;
         await txn.insert('Auditorias', {
           "fecha_hora": DateTime.now().toIso8601String(),
           "usuario": '$rol: ${SessionManager.currentUserName}',

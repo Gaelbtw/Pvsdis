@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_colors.dart';
+import '../core/utils/mensaje_error.dart';
 import '../controllers/categoria_controller.dart';
 import '../models/categoria_model.dart';
 import '../widgets/nav_bar.dart';
@@ -30,14 +31,23 @@ class _CategoriasViewState extends State<CategoriasView> {
   void cargar() async {
     final data = await controller.obtenerTodos();
 
+    if (!mounted) return;
+
     setState(() {
       categorias = data;
     });
   }
 
   void eliminar(int id) async {
-    await controller.eliminar(id);
-    cargar();
+    // El controlador ya traduce el fallo de llave foránea a un mensaje
+    // legible; sin este try ese mensaje nunca llegaba a la pantalla.
+    try {
+      await controller.eliminar(id);
+      cargar();
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, mensajeDeError(e));
+    }
   }
 
   void mostrarFormulario({Categoria? categoria}) {
@@ -74,10 +84,16 @@ class _CategoriasViewState extends State<CategoriasView> {
             nombre: ctrl.text.trim(),
           );
 
-          if (categoria == null) {
-            await controller.insertar(nueva);
-          } else {
-            await controller.actualizar(nueva);
+          try {
+            if (categoria == null) {
+              await controller.insertar(nueva);
+            } else {
+              await controller.actualizar(nueva);
+            }
+          } catch (e) {
+            if (!mounted) return;
+            Toast.error(context, mensajeDeError(e));
+            return; // el diálogo sigue abierto para corregir el nombre
           }
 
           if (!mounted) return;
@@ -90,7 +106,11 @@ class _CategoriasViewState extends State<CategoriasView> {
           );
         },
       ),
-    );
+    ).whenComplete(() {
+      // Creados por esta función, no por un State: sin esto no se
+      // liberan nunca (tampoco si el diálogo se descarta sin guardar).
+      ctrl.dispose();
+    });
   }
 
   @override

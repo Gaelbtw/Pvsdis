@@ -10,7 +10,11 @@ import '../../core/utils/stock_status.dart';
 class InventarioTabla extends StatelessWidget {
   final List<Map<String, dynamic>> productos;
   final int stockMinimo;
-  final bool esCajero;
+  /// Habilita el campo de entrada rápida de stock.
+  final bool puedeAjustarInventario;
+
+  /// Habilita el botón de eliminar producto.
+  final bool puedeEliminar;
   final void Function(Map<String, dynamic> producto, int cantidad) onAgregarStock;
   final void Function(Map<String, dynamic> producto) onEditar;
   final void Function(Map<String, dynamic> producto) onEliminar;
@@ -19,7 +23,8 @@ class InventarioTabla extends StatelessWidget {
     super.key,
     required this.productos,
     required this.stockMinimo,
-    required this.esCajero,
+    required this.puedeAjustarInventario,
+    required this.puedeEliminar,
     required this.onAgregarStock,
     required this.onEditar,
     required this.onEliminar,
@@ -128,33 +133,34 @@ class InventarioTabla extends StatelessWidget {
             flex: 20,
             child: Row(
               children: [
-                SizedBox(
-                  width: 75,
-                  child: TextField(
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      hintText: "Cant",
-                      filled: true,
-                      fillColor: AppColors.surface,
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppRadius.sm),
-                        borderSide: BorderSide.none,
+                if (puedeAjustarInventario)
+                  SizedBox(
+                    width: 75,
+                    child: TextField(
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        hintText: "Cant",
+                        filled: true,
+                        fillColor: AppColors.surface,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                          borderSide: BorderSide.none,
+                        ),
                       ),
+                      onSubmitted: (value) {
+                        final cantidad = int.tryParse(value) ?? 0;
+                        if (cantidad <= 0) return;
+                        onAgregarStock(p, cantidad);
+                      },
                     ),
-                    onSubmitted: (value) {
-                      final cantidad = int.tryParse(value) ?? 0;
-                      if (cantidad <= 0) return;
-                      onAgregarStock(p, cantidad);
-                    },
                   ),
-                ),
                 IconButton(
                   tooltip: "Editar",
                   icon: Icon(Icons.edit_outlined, color: AppColors.primaryDark),
                   onPressed: () => onEditar(p),
                 ),
-                if (!esCajero)
+                if (puedeEliminar)
                   IconButton(
                     tooltip: "Eliminar",
                     icon: const Icon(Icons.delete_outline, color: AppColors.error),

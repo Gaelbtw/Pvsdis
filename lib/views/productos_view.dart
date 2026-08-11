@@ -5,13 +5,14 @@ import '../controllers/categoria_controller.dart';
 import '../models/producto_model.dart';
 import '../models/categoria_model.dart';
 import '../widgets/nav_bar.dart';
-import '../core/session/session_manager.dart';
 import '../widgets/app_text_field.dart';
 import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
 import '../widgets/toast.dart';
 import '../widgets/form_dialog.dart';
 import 'categoria_view.dart';
+import '../core/security/permisos.dart';
+import '../core/security/permisos_service.dart';
 
 class ProductosView extends StatefulWidget {
   const ProductosView({super.key});
@@ -21,6 +22,12 @@ class ProductosView extends StatefulWidget {
 }
 
 class _ProductosViewState extends State<ProductosView> {
+  /// Falso hasta que la primera carga termina. Sin esto la vista
+  /// pintaba una lista vacía mientras consultaba, y en un equipo lento
+  /// con catálogo grande eso se lee como "no hay nada" en vez de
+  /// "todavía estoy cargando".
+  bool _cargandoVista = true;
+
   final controller = ProductoController();
   final categoriaController = CategoriaController();
 
@@ -36,7 +43,11 @@ class _ProductosViewState extends State<ProductosView> {
 
   int? categoriaSeleccionada;
 
-  bool get esCajero => SessionManager.currentUserRole == "Cajero";
+  /// Alta/edición/baja del catálogo. Antes era `rol == "Cajero"`, que
+  /// ignoraba por completo la matriz de permisos y además le daba a un
+  /// Supervisor los mismos accesos que a un Admin.
+  bool get puedeGestionarProductos =>
+      PermisosService.instancia.puedeActual(Permiso.gestionarProductos);
 
   @override
   void initState() {
@@ -48,10 +59,13 @@ class _ProductosViewState extends State<ProductosView> {
     final data = await controller.obtenerTodos();
     final cat = await categoriaController.obtenerTodos();
 
+    if (!mounted) return;
+
     setState(() {
       productos = data;
       filtrados = data;
       categorias = cat;
+      _cargandoVista = false;
     });
   }
 
@@ -264,7 +278,9 @@ class _ProductosViewState extends State<ProductosView> {
 
       appBar: CustomHeader(titulo: "Productos", mostrarVolver: true),
 
-      body: Padding(
+      body: _cargandoVista
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
 
         child: Container(
@@ -312,7 +328,7 @@ class _ProductosViewState extends State<ProductosView> {
                     ),
                   ),
 
-                  if (!esCajero)
+                  if (puedeGestionarProductos)
                     ElevatedButton.icon(
                       onPressed: () => mostrarFormulario(),
 
@@ -338,7 +354,7 @@ class _ProductosViewState extends State<ProductosView> {
                       ),
                     ),
 
-                  if (!esCajero)
+                  if (puedeGestionarProductos)
                     OutlinedButton.icon(
                       onPressed: () {
                         Navigator.push(
@@ -423,7 +439,7 @@ class _ProductosViewState extends State<ProductosView> {
                                 ),
                               ),
 
-                              if (!esCajero)
+                              if (puedeGestionarProductos)
                                 PopupMenuButton(
                                   color: Colors.white,
 

@@ -20,6 +20,63 @@ class ReporteVentasResumen {
   });
 }
 
+/// Utilidad (ingreso menos costo) de un rango de fechas.
+///
+/// El costo sale de `Detalle_Venta.costo_unitario`, que se congela al cobrar
+/// (migración v22). Las líneas vendidas ANTES de esa migración lo tienen en
+/// NULL y quedan fuera de todos los montos: no se puede reconstruir el costo
+/// que tenía un producto hace meses, y rellenarlo con el precio de compra
+/// actual daría un margen inventado.
+///
+/// Por eso el resumen incluye [lineasSinCosto] y [lineasConCosto]: la vista
+/// tiene la obligación de avisar cuando la cobertura es parcial. Un
+/// "utilidad: $12,400" calculado sobre el 30% de las ventas es peor que no
+/// mostrar nada, porque parece un dato completo.
+class ReporteUtilidadResumen {
+  /// Ingreso neto (ya con descuentos y sin lo devuelto) de las líneas que SÍ
+  /// tienen costo registrado.
+  final double ingresos;
+
+  /// Costo de esas mismas líneas.
+  final double costos;
+
+  /// Cuánto de [ingresos] corresponde a mercancía devuelta y por tanto ya se
+  /// descontó. Se expone aparte para poder mostrarlo en la UI.
+  final double devoluciones;
+
+  final int lineasConCosto;
+  final int lineasSinCosto;
+
+  /// Utilidad por producto, de mayor a menor. Cada mapa trae `nombre`,
+  /// `ingresos`, `costos`, `utilidad` y `unidades`.
+  final List<Map<String, dynamic>> porProducto;
+
+  const ReporteUtilidadResumen({
+    required this.ingresos,
+    required this.costos,
+    required this.devoluciones,
+    required this.lineasConCosto,
+    required this.lineasSinCosto,
+    required this.porProducto,
+  });
+
+  double get utilidad => ingresos - costos;
+
+  /// Margen sobre el ingreso, en porcentaje. `0` si no hubo ingresos (evita
+  /// una división por cero que se mostraría como NaN).
+  double get margenPorcentaje => ingresos <= 0 ? 0 : (utilidad / ingresos) * 100;
+
+  /// `true` si hay líneas vendidas sin costo registrado, es decir, si los
+  /// montos de arriba NO cubren todas las ventas del rango.
+  bool get coberturaParcial => lineasSinCosto > 0;
+
+  /// Porcentaje de líneas del rango que sí entraron en el cálculo.
+  double get coberturaPorcentaje {
+    final total = lineasConCosto + lineasSinCosto;
+    return total == 0 ? 0 : (lineasConCosto / total) * 100;
+  }
+}
+
 /// Resumen de compras para un rango de fechas, análogo a
 /// [ReporteVentasResumen].
 class ReporteComprasResumen {
@@ -118,7 +175,11 @@ class ReporteController {
     final fechaInicio = desde.toIso8601String().substring(0, 10);
     final fechaFin = hasta.toIso8601String().substring(0, 10);
 
-    final filtroUsuario = filtrarPorUsuario ? 'AND id_usuario = ?' : '';
+    // Cualificado con `Ventas.`: desde que las consultas de abajo unen
+    // `Clientes` y la subconsulta de devoluciones, una columna suelta se
+    // vuelve ambigua en cuanto alguna de esas tablas gane una columna con el
+    // mismo nombre. Mismo criterio que el resto de consultas del archivo.
+    final filtroUsuario = filtrarPorUsuario ? 'AND Ventas.id_usuario = ?' : '';
     final params = filtrarPorUsuario
         ? [fechaInicio, fechaFin, usuarioId]
         : [fechaInicio, fechaFin];
@@ -126,21 +187,29 @@ class ReporteController {
     // El ingreso de cada venta descuenta lo que ya se le haya devuelto
     // (Detalle_Devolucion); las canceladas se excluyen por completo del
     // total y del conteo, pero no se borran ni dejan de listarse abajo.
+    // Lo devuelto por venta se preagrega UNA vez y se une con LEFT JOIN.
+    //
+    // Antes esto era una subconsulta correlacionada dentro del SUM: SQLite la
+    // ejecutaba una vez por cada venta del rango. En un reporte anual de un
+    // negocio con 150 ventas diarias son ~55.000 ejecuciones de un JOIN, y en
+    // un equipo de punto de venta el reporte pasaba de instantáneo a decenas
+    // de segundos. Preagregado se recorre `Detalle_Devolucion` una sola vez.
+    const devolucionesPorVenta = '''
+      SELECT d.id_venta AS id_venta, SUM(dd.cantidad * dd.precio) AS devuelto
+      FROM Detalle_Devolucion dd
+      INNER JOIN Devoluciones d ON d.id_devolucion = dd.id_devolucion
+      GROUP BY d.id_venta
+    ''';
+
     final summary = await db.rawQuery(
       '''
       SELECT
         COUNT(*) as ventas,
-        IFNULL(SUM(
-          Ventas.total - IFNULL((
-            SELECT SUM(dd.cantidad * dd.precio)
-            FROM Detalle_Devolucion dd
-            INNER JOIN Devoluciones d ON d.id_devolucion = dd.id_devolucion
-            WHERE d.id_venta = Ventas.id_venta
-          ), 0)
-        ), 0) as ingresos
+        IFNULL(SUM(Ventas.total - IFNULL(dev.devuelto, 0)), 0) as ingresos
       FROM Ventas
-      WHERE date(fecha) BETWEEN date(?) AND date(?)
-        AND IFNULL(estado, 'Activa') != 'Cancelada'
+      LEFT JOIN ($devolucionesPorVenta) dev ON dev.id_venta = Ventas.id_venta
+      WHERE date(Ventas.fecha) BETWEEN date(?) AND date(?)
+        AND IFNULL(Ventas.estado, 'Activa') != 'Cancelada'
       $filtroUsuario
       ''',
       params,
@@ -184,24 +253,24 @@ class ReporteController {
         Ventas.metodo_pago,
         IFNULL(Ventas.estado, 'Activa') as estado,
         Clientes.nombre as cliente,
-        (Ventas.total - IFNULL((
-          SELECT SUM(dd.cantidad * dd.precio)
-          FROM Detalle_Devolucion dd
-          INNER JOIN Devoluciones d ON d.id_devolucion = dd.id_devolucion
-          WHERE d.id_venta = Ventas.id_venta
-        ), 0)) as total_neto
+        (Ventas.total - IFNULL(dev.devuelto, 0)) as total_neto
 
       FROM Ventas
 
       LEFT JOIN Clientes
         ON Clientes.id_cliente = Ventas.id_cliente
 
-      WHERE date(fecha)
+      -- Misma preagregación que en el resumen: aquí el LIMIT 20 acota el daño,
+      -- pero la subconsulta correlacionada se evaluaba antes de aplicarlo.
+      LEFT JOIN ($devolucionesPorVenta) dev
+        ON dev.id_venta = Ventas.id_venta
+
+      WHERE date(Ventas.fecha)
         BETWEEN date(?) AND date(?)
 
       $filtroUsuario
 
-      ORDER BY fecha DESC
+      ORDER BY Ventas.fecha DESC
       LIMIT 20
       ''',
       params,
@@ -212,6 +281,128 @@ class ReporteController {
       ingresosTotales: (summary.first['ingresos'] as num?)?.toDouble() ?? 0,
       productosVendidos: productos,
       ventasRecientes: ventas,
+    );
+  }
+
+  /// Utilidad del rango: ingreso neto menos costo congelado, por producto.
+  ///
+  /// Reglas del cálculo, todas deliberadas:
+  ///
+  /// - **Solo líneas con `costo_unitario`.** Las anteriores a la migración v22
+  ///   no lo tienen y se excluyen de los montos; su conteo vuelve en
+  ///   [ReporteUtilidadResumen.lineasSinCosto] para que la vista avise.
+  /// - **Ventas canceladas fuera**, igual que en [obtenerReporteVentas].
+  /// - **Las devoluciones restan unidades**, no solo dinero: una pieza
+  ///   devuelta no generó ingreso NI consumió costo, así que se descuenta de
+  ///   ambos lados. Restar solo el ingreso inflaría el costo y hundiría el
+  ///   margen artificialmente.
+  /// - **El ingreso usa `precio_neto`** (unitario ya con descuentos de
+  ///   promoción, línea y la parte proporcional del global), no `precio`. Con
+  ///   `precio` el margen saldría siempre mejor de lo real.
+  ///
+  /// Las devoluciones se preagregan en una subconsulta y se unen con LEFT
+  /// JOIN en vez de resolverse con una subconsulta correlacionada por fila:
+  /// sobre un rango anual con decenas de miles de ventas, la versión
+  /// correlacionada se ejecuta una vez por venta y el reporte se vuelve
+  /// inusable en un equipo de gama baja.
+  Future<ReporteUtilidadResumen> obtenerReporteUtilidad({
+    required DateTime desde,
+    required DateTime hasta,
+    required bool filtrarPorUsuario,
+    int? usuarioId,
+  }) async {
+    final db = await DatabaseHelper().database;
+
+    final fechaInicio = desde.toIso8601String().substring(0, 10);
+    final fechaFin = hasta.toIso8601String().substring(0, 10);
+
+    final filtroUsuario = filtrarPorUsuario ? 'AND Ventas.id_usuario = ?' : '';
+    final params = filtrarPorUsuario
+        ? <Object?>[fechaInicio, fechaFin, usuarioId]
+        : <Object?>[fechaInicio, fechaFin];
+
+    // Cobertura: cuántas líneas del rango tienen costo y cuántas no. Va
+    // aparte del cálculo de dinero porque incluye justamente las que ese
+    // cálculo excluye.
+    final cobertura = await db.rawQuery(
+      '''
+      SELECT
+        SUM(CASE WHEN Detalle_Venta.costo_unitario IS NOT NULL THEN 1 ELSE 0 END) AS con_costo,
+        SUM(CASE WHEN Detalle_Venta.costo_unitario IS NULL THEN 1 ELSE 0 END) AS sin_costo
+      FROM Detalle_Venta
+      INNER JOIN Ventas ON Ventas.id_venta = Detalle_Venta.id_venta
+      WHERE date(Ventas.fecha) BETWEEN date(?) AND date(?)
+        AND IFNULL(Ventas.estado, 'Activa') != 'Cancelada'
+      $filtroUsuario
+      ''',
+      params,
+    );
+
+    final porProducto = await db.rawQuery(
+      '''
+      SELECT
+        Producto.nombre AS nombre,
+        SUM(neta.cantidad_neta) AS unidades,
+        SUM(neta.cantidad_neta * neta.precio_unitario) AS ingresos,
+        SUM(neta.cantidad_neta * neta.costo_unitario) AS costos,
+        SUM(neta.cantidad_neta * neta.precio_unitario)
+          - SUM(neta.cantidad_neta * neta.costo_unitario) AS utilidad,
+        SUM(neta.cantidad_devuelta * neta.precio_unitario) AS devoluciones
+      FROM (
+        SELECT
+          Detalle_Venta.id_producto AS id_producto,
+          IFNULL(Detalle_Venta.precio_neto, Detalle_Venta.precio) AS precio_unitario,
+          Detalle_Venta.costo_unitario AS costo_unitario,
+          -- Una devolución nunca puede superar lo vendido, pero si los datos
+          -- vinieran inconsistentes MIN/MAX evitan cantidades negativas que
+          -- convertirían el ingreso en un número sin sentido.
+          MIN(IFNULL(dev.devuelto, 0), Detalle_Venta.cantidad) AS cantidad_devuelta,
+          MAX(Detalle_Venta.cantidad - IFNULL(dev.devuelto, 0), 0) AS cantidad_neta
+        FROM Detalle_Venta
+        INNER JOIN Ventas ON Ventas.id_venta = Detalle_Venta.id_venta
+        LEFT JOIN (
+          SELECT d.id_venta AS id_venta, dd.id_producto AS id_producto, SUM(dd.cantidad) AS devuelto
+          FROM Detalle_Devolucion dd
+          INNER JOIN Devoluciones d ON d.id_devolucion = dd.id_devolucion
+          GROUP BY d.id_venta, dd.id_producto
+        ) dev
+          ON dev.id_venta = Detalle_Venta.id_venta
+         AND dev.id_producto = Detalle_Venta.id_producto
+        WHERE date(Ventas.fecha) BETWEEN date(?) AND date(?)
+          AND IFNULL(Ventas.estado, 'Activa') != 'Cancelada'
+          AND Detalle_Venta.costo_unitario IS NOT NULL
+        $filtroUsuario
+      ) neta
+      INNER JOIN Producto ON Producto.id_producto = neta.id_producto
+      GROUP BY neta.id_producto, Producto.nombre
+      ORDER BY (
+        SUM(neta.cantidad_neta * neta.precio_unitario)
+        - SUM(neta.cantidad_neta * neta.costo_unitario)
+      ) DESC
+      ''',
+      params,
+    );
+
+    // Los totales se suman sobre el desglose ya calculado en vez de con una
+    // tercera consulta: así el encabezado NUNCA puede contradecir a la tabla
+    // que tiene debajo (un riesgo real si dos consultas divergen al editar
+    // una y olvidar la otra).
+    var ingresos = 0.0;
+    var costos = 0.0;
+    var devoluciones = 0.0;
+    for (final fila in porProducto) {
+      ingresos += (fila['ingresos'] as num?)?.toDouble() ?? 0;
+      costos += (fila['costos'] as num?)?.toDouble() ?? 0;
+      devoluciones += (fila['devoluciones'] as num?)?.toDouble() ?? 0;
+    }
+
+    return ReporteUtilidadResumen(
+      ingresos: ingresos,
+      costos: costos,
+      devoluciones: devoluciones,
+      lineasConCosto: (cobertura.first['con_costo'] as int?) ?? 0,
+      lineasSinCosto: (cobertura.first['sin_costo'] as int?) ?? 0,
+      porProducto: porProducto,
     );
   }
 

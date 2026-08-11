@@ -130,7 +130,7 @@ Future<void> mostrarDescuentoDialog(
         );
       },
     ),
-  );
+  ).whenComplete(valorCtrl.dispose);
 }
 
 String _formatearValor(double valor) {

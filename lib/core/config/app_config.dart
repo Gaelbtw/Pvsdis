@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 
@@ -18,9 +20,23 @@ class AppConfig {
 
   static Configuracion get actual => _actual ?? Configuracion.porDefecto();
 
+  /// Ruta del logo solo si el archivo existe de verdad, resuelta una vez al
+  /// cargar/actualizar la configuración. `null` si no hay logo o si el
+  /// archivo ya no está.
+  ///
+  /// Existe para que los widgets no tengan que llamar a `File.existsSync()`
+  /// dentro de `build()`: eso es una lectura de disco SÍNCRONA en el hilo de
+  /// UI, y como el encabezado se dibuja en todas las pantallas, se pagaba en
+  /// cada frame. Un `stat()` con antivirus de por medio puede costar varios
+  /// milisegundos, sobre el presupuesto total de 16 ms que tiene un frame.
+  static String? _logoPathValido;
+
+  static String? get logoPathValido => _logoPathValido;
+
   static Future<void> cargar() async {
     _actual = await ConfiguracionService().obtener();
     AppColors.actualizar(Color(_actual!.colorPrimario));
+    _resolverLogo();
   }
 
   /// Se llama después de guardar cambios en la pantalla de Configuración,
@@ -30,6 +46,18 @@ class AppConfig {
   static void actualizar(Configuracion nueva) {
     _actual = nueva;
     AppColors.actualizar(Color(nueva.colorPrimario));
+    _resolverLogo();
+  }
+
+  static void _resolverLogo() {
+    final ruta = _actual?.logoPath;
+    if (ruta == null || ruta.isEmpty) {
+      _logoPathValido = null;
+      return;
+    }
+    // Este `existsSync` sí es aceptable: corre una vez al arrancar y una vez
+    // al guardar Configuración, nunca dentro de un `build()`.
+    _logoPathValido = File(ruta).existsSync() ? ruta : null;
   }
 
   /// Formatea un monto con el símbolo de moneda configurado, ej. "$125.00".

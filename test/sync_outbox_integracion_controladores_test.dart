@@ -68,6 +68,11 @@ void main() {
 
     AppConfig.actualizar(Configuracion.porDefecto());
     SessionManager.clear();
+    // Antes los controladores caían a `currentUserId ?? 1` cuando no había
+    // sesión; ahora exigen una (SessionManager.requiredUserId). Se fija la
+    // misma identidad que ese fallback usaba, para no alterar lo que estas
+    // pruebas verifican. Los tests que necesitan otro usuario lo sobrescriben.
+    SessionManager.setUser(id: 1, nombre: 'Sistema', rol: 'Admin');
     AuthService.setSesionDePrueba(_sesionDePrueba());
 
     await db.insert('Usuarios', {
@@ -114,7 +119,7 @@ void main() {
       idCliente: null,
       nombre: 'Cliente Uno',
       direccion: 'Calle 1',
-      telefono: 5551234567,
+      telefono: '5551234567',
       correo: 'uno@test.com',
       fechaRegistro: DateTime.now().toIso8601String(),
     ));

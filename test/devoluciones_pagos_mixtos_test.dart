@@ -42,6 +42,11 @@ void main() {
 
     AppConfig.actualizar(Configuracion.porDefecto());
     SessionManager.clear();
+    // Antes los controladores caían a `currentUserId ?? 1` cuando no había
+    // sesión; ahora exigen una (SessionManager.requiredUserId). Se fija la
+    // misma identidad que ese fallback usaba, para no alterar lo que estas
+    // pruebas verifican. Los tests que necesitan otro usuario lo sobrescriben.
+    SessionManager.setUser(id: 1, nombre: 'Sistema', rol: 'Admin');
     await db.insert('Usuarios', {
       'nombre': 'Sistema',
       'contra': PasswordHasher.hash('x'),
@@ -87,6 +92,9 @@ void main() {
       items: [
         {'id_producto': idProducto, 'cantidad': 1},
       ],
+      // Pago mixto (no solo efectivo): el reembolso en efectivo exige
+      // autorización de un administrador.
+      autorizadoPor: 1,
     );
 
     // El importe se calcula sobre precio_neto (100.0, sin descuentos),
@@ -134,7 +142,11 @@ void main() {
       ],
     );
 
-    final idDevolucion = await devoluciones.cancelarVenta(idVenta: idVenta, motivo: 'Cliente canceló');
+    final idDevolucion = await devoluciones.cancelarVenta(
+      idVenta: idVenta,
+      motivo: 'Cliente canceló',
+      autorizadoPor: 1, // venta con 3 métodos: reembolso en efectivo autorizado
+    );
 
     final comprobante = await devoluciones.obtenerComprobante(idDevolucion);
     expect(comprobante.importe, 300.0);

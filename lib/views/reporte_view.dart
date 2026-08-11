@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import '../core/utils/csv.dart';
+import '../services/exportacion_service.dart';
 import '../widgets/custom_alert.dart';
 import '../widgets/toast.dart';
 import '../controllers/auditoria_controller.dart';
@@ -17,6 +20,8 @@ import '../services/ticket_compras_service.dart';
 import '../services/ticket_service.dart';
 import '../widgets/nav_bar.dart';
 import 'detalle_venta_view.dart';
+import '../core/security/permisos.dart';
+import '../core/security/permisos_service.dart';
 
 class ReporteView extends StatefulWidget {
   const ReporteView({super.key});
@@ -61,8 +66,23 @@ class _ReporteViewState extends State<ReporteView> {
   // pantallas.
   ReporteCuentasPorPagarResumen? cuentasPorPagar;
 
-  bool get esCajero =>
-      SessionManager.currentUserRole == "Cajero";
+  /// Utilidad del rango (solo con permiso `verGanancias`). `null` mientras no
+  /// se haya cargado.
+  ReporteUtilidadResumen? utilidad;
+
+  final _exportacionService = ExportacionService();
+
+  /// Evita que un doble clic lance dos exportaciones a la vez (dos archivos
+  /// casi idénticos y dos ventanas del Explorador).
+  bool _exportando = false;
+
+  /// Vista recortada del reporte: solo las ventas propias, sin filtros de
+  /// fecha y sin las pestañas globales. Se decide por el permiso
+  /// `verGanancias` (márgenes, costos y utilidad), no por el rol: antes era
+  /// `rol == "Cajero"`, así que desmarcar "Ver ganancias" a un Supervisor en
+  /// la matriz de permisos no tenía ningún efecto.
+  bool get vistaRestringida =>
+      !PermisosService.instancia.puedeActual(Permiso.verGanancias);
   int? get usuarioId =>
       SessionManager.currentUserId;
 
@@ -72,7 +92,8 @@ class _ReporteViewState extends State<ReporteView> {
         0 => 'Reporte de Ventas',
         1 => 'Reporte de Compras',
         2 => 'Movimientos por usuario',
-        _ => 'Cuentas por pagar',
+        3 => 'Cuentas por pagar',
+        _ => 'Utilidad',
       };
 
   String _formatDate(DateTime date) {
@@ -83,7 +104,7 @@ class _ReporteViewState extends State<ReporteView> {
   void initState() {
     super.initState();
     _cargarReportes();
-    if (!esCajero) {
+    if (!vistaRestringida) {
       _cargarUsuarios();
       _cargarMovimientos();
     }
@@ -119,14 +140,145 @@ class _ReporteViewState extends State<ReporteView> {
     try {
       await _cargarReportesVentas();
       await _cargarReportesCompras();
-      if (!esCajero) {
+      if (!vistaRestringida) {
         await _cargarCuentasPorPagar();
+        await _cargarUtilidad();
       }
     } finally {
       if (mounted) {
         setState(() => cargando = false);
       }
     }
+  }
+
+  /// Exporta a CSV lo que está viendo la pestaña activa.
+  ///
+  /// Exporta EL DETALLE, no las tarjetas de resumen: quien pide el archivo
+  /// (normalmente el contador) quiere las filas para hacer sus propias sumas.
+  /// Los totales los recalcula Excel.
+  Future<void> _exportarReporte() async {
+    setState(() => _exportando = true);
+
+    try {
+      final (nombre, encabezados, filas) = _datosParaExportar();
+
+      if (filas.isEmpty) {
+        if (!mounted) return;
+        Toast.info(context, 'No hay datos que exportar en este rango.');
+        return;
+      }
+
+      final ruta = await _exportacionService.exportarTabla(
+        nombreBase: nombre,
+        encabezados: encabezados,
+        filas: filas,
+      );
+
+      await _exportacionService.abrirCarpeta(ruta);
+
+      if (!mounted) return;
+      Toast.exito(context, 'Exportado a ${p.basename(ruta)}');
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo exportar: $e');
+    } finally {
+      if (mounted) setState(() => _exportando = false);
+    }
+  }
+
+  /// Nombre de archivo, encabezados y filas según la pestaña activa.
+  (String, List<String>, List<List<Object?>>) _datosParaExportar() {
+    switch (paginaSeleccionada) {
+      case 0:
+        return (
+          'ventas',
+          ['Venta', 'Fecha', 'Cliente', 'Metodo de pago', 'Estado', 'Total', 'Total neto'],
+          ventasRecientes
+              .map((v) => <Object?>[
+                    v['id_venta'],
+                    v['fecha'],
+                    v['cliente'] ?? '',
+                    v['metodo_pago'] ?? '',
+                    v['estado'] ?? '',
+                    montoCsv(v['total'] as num?),
+                    montoCsv(v['total_neto'] as num?),
+                  ])
+              .toList(),
+        );
+
+      case 1:
+        return (
+          'compras',
+          ['Compra', 'Fecha', 'Proveedor', 'Total'],
+          comprasRecientes
+              .map((c) => <Object?>[
+                    c['id_compra'],
+                    c['fecha'],
+                    c['proveedor'] ?? '',
+                    montoCsv(c['total'] as num?),
+                  ])
+              .toList(),
+        );
+
+      case 2:
+        return (
+          'movimientos_por_usuario',
+          ['Fecha', 'Usuario', 'Accion', 'Modulo', 'Descripcion'],
+          movimientos
+              .map((m) => <Object?>[
+                    m.fechaHora,
+                    m.usuario,
+                    m.accion,
+                    m.tabla,
+                    m.descripcion,
+                  ])
+              .toList(),
+        );
+
+      case 3:
+        final resumen = cuentasPorPagar;
+        return (
+          'cuentas_por_pagar',
+          ['Proveedor', 'Compras', 'Saldo'],
+          (resumen?.deudaPorProveedor ?? const [])
+              .map((r) => <Object?>[
+                    r['proveedor'] ?? 'Sin proveedor',
+                    r['compras'],
+                    montoCsv(r['saldo'] as num?),
+                  ])
+              .toList(),
+        );
+
+      default:
+        final resumen = utilidad;
+        return (
+          'utilidad',
+          ['Producto', 'Unidades', 'Ingresos', 'Costos', 'Utilidad', 'Devoluciones'],
+          (resumen?.porProducto ?? const [])
+              .map((r) => <Object?>[
+                    r['nombre'],
+                    (r['unidades'] as num?)?.toStringAsFixed(0) ?? '0',
+                    montoCsv(r['ingresos'] as num?),
+                    montoCsv(r['costos'] as num?),
+                    montoCsv(r['utilidad'] as num?),
+                    montoCsv(r['devoluciones'] as num?),
+                  ])
+              .toList(),
+        );
+    }
+  }
+
+  /// Solo se llama con permiso `verGanancias`: es justo el dato que ese
+  /// permiso protege (márgenes y costos).
+  Future<void> _cargarUtilidad() async {
+    final resumen = await _reporteController.obtenerReporteUtilidad(
+      desde: desde,
+      hasta: hasta,
+      filtrarPorUsuario: false,
+    );
+
+    if (!mounted) return;
+    setState(() => utilidad = resumen);
   }
 
   Future<void> _cargarCuentasPorPagar() async {
@@ -143,7 +295,7 @@ Future<void> _cargarReportesVentas() async {
   final resumen = await _reporteController.obtenerReporteVentas(
     desde: desde,
     hasta: hasta,
-    filtrarPorUsuario: esCajero,
+    filtrarPorUsuario: vistaRestringida,
     usuarioId: usuarioId,
   );
 
@@ -161,7 +313,7 @@ Future<void> _cargarReportesVentas() async {
   final resumen = await _reporteController.obtenerReporteCompras(
     desde: desde,
     hasta: hasta,
-    filtrarPorUsuario: esCajero,
+    filtrarPorUsuario: vistaRestringida,
     usuarioId: SessionManager.currentUserId,
   );
 
@@ -545,6 +697,165 @@ Future<void> _cargarReportesVentas() async {
     );
   }
 
+  Widget _buildUtilidadTab() {
+    final resumen = utilidad;
+    if (resumen == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final colorUtilidad =
+        resumen.utilidad >= 0 ? AppColors.success : AppColors.error;
+
+    // Column y no ListView: el encabezado es de altura fija y la única parte
+    // que puede crecer sin límite es la lista de productos, que abajo va en su
+    // propio ListView.builder dentro de un Expanded.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // El aviso va ARRIBA de las cifras, no al pie: si el cálculo no cubre
+        // todas las ventas del rango, eso hay que saberlo ANTES de leer el
+        // número, no después de haberlo tomado por bueno.
+        if (resumen.coberturaParcial) ...[
+          _avisoCoberturaParcial(resumen),
+          const SizedBox(height: 20),
+        ],
+        Row(
+          children: [
+            _statCard('Ingresos (neto)', resumen.ingresos, AppColors.info),
+            const SizedBox(width: 16),
+            _statCard('Costo de lo vendido', resumen.costos, AppColors.warning),
+            const SizedBox(width: 16),
+            _statCard('Utilidad', resumen.utilidad, colorUtilidad),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorUtilidad.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Margen',
+                        style: TextStyle(
+                            fontSize: AppText.overline,
+                            color: AppColors.textSecondary)),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${resumen.margenPorcentaje.toStringAsFixed(1)}%',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: AppText.subtitle,
+                          color: colorUtilidad),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (resumen.devoluciones > 0) ...[
+          const SizedBox(height: 12),
+          Text(
+            'Ya se descontaron ${AppConfig.formatoMoneda(resumen.devoluciones)} '
+            'en mercancía devuelta (ingreso y costo).',
+            style: const TextStyle(
+                fontSize: AppText.small, color: AppColors.textSecondary),
+          ),
+        ],
+        const SizedBox(height: 24),
+        const Text('Utilidad por producto',
+            style: TextStyle(fontSize: AppText.body, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 10),
+        if (resumen.porProducto.isEmpty)
+          const Text('Sin datos en este rango.',
+              style: TextStyle(color: AppColors.textSecondary))
+        else
+          Expanded(child: _listaUtilidadPorProducto(resumen)),
+      ],
+    );
+  }
+
+  /// Lista de utilidad por producto, virtualizada.
+  ///
+  /// Va en su propio `ListView.builder` y no como `...lista.map()` dentro de
+  /// un Column: el desglose tiene una fila por producto vendido en el rango,
+  /// que no tiene techo. Materializar 3.000 filas de golpe en un equipo de
+  /// gama baja es justo el problema que documenta el informe de rendimiento.
+  Widget _listaUtilidadPorProducto(ReporteUtilidadResumen resumen) {
+    return ListView.builder(
+      itemCount: resumen.porProducto.length,
+      itemBuilder: (_, i) {
+        final r = resumen.porProducto[i];
+        final ingresos = (r['ingresos'] as num?)?.toDouble() ?? 0;
+        final costos = (r['costos'] as num?)?.toDouble() ?? 0;
+        final utilidadProducto = (r['utilidad'] as num?)?.toDouble() ?? 0;
+        final unidades = (r['unidades'] as num?)?.toDouble() ?? 0;
+        final margen = ingresos <= 0 ? 0.0 : (utilidadProducto / ingresos) * 100;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Text(
+            '${r['nombre']} — Utilidad ${AppConfig.formatoMoneda(utilidadProducto)} '
+            '(${margen.toStringAsFixed(1)}%) · '
+            '${unidades.toStringAsFixed(0)} u. · '
+            'Ingreso ${AppConfig.formatoMoneda(ingresos)} · '
+            'Costo ${AppConfig.formatoMoneda(costos)}',
+          ),
+        );
+      },
+    );
+  }
+
+  /// Advertencia de que los montos de utilidad NO cubren todas las ventas del
+  /// rango, porque hay líneas sin costo registrado (ventas anteriores a la
+  /// migración v22, o productos que nunca tuvieron precio de compra).
+  ///
+  /// Presentar una utilidad parcial como si fuera total es peor que no
+  /// mostrarla: el dueño toma decisiones de precio con un número que parece
+  /// completo y no lo es.
+  Widget _avisoCoberturaParcial(ReporteUtilidadResumen resumen) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, size: 20, color: AppColors.warning),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Cálculo parcial: cubre el ${resumen.coberturaPorcentaje.toStringAsFixed(0)}% '
+                  'de las líneas vendidas en el rango.',
+                  style: const TextStyle(
+                      fontSize: AppText.body, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${resumen.lineasSinCosto} línea(s) no tienen costo registrado y quedan '
+                  'fuera de los totales. El costo se guarda en cada venta desde esta '
+                  'versión; las ventas anteriores no lo tienen y no es posible '
+                  'reconstruirlo. Los productos sin precio de compra tampoco cuentan.',
+                  style: const TextStyle(
+                      fontSize: AppText.small, color: AppColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _statCard(String label, double valor, Color color) {
     return Expanded(
       child: Container(
@@ -614,12 +925,23 @@ Future<void> _cargarReportesVentas() async {
               ? const Center(child: CircularProgressIndicator())
               : movimientos.isEmpty
                   ? _emptyState('No hay movimientos con estos filtros.')
-                  : ListView(
-                      children: [
-                        _tablaMovimientosHeader(),
-                        const SizedBox(height: 8),
-                        ...movimientos.map(_filaMovimiento),
-                      ],
+                  // `.builder` con el encabezado como fila 0: el `...map()`
+                  // anterior construía una fila por movimiento de golpe, y
+                  // `movimientos` sale de la bitácora, que no tiene techo.
+                  : ListView.builder(
+                      itemCount: movimientos.length + 1,
+                      itemBuilder: (_, i) {
+                        if (i == 0) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _tablaMovimientosHeader(),
+                              const SizedBox(height: 8),
+                            ],
+                          );
+                        }
+                        return _filaMovimiento(movimientos[i - 1]);
+                      },
                     ),
         ),
       ],
@@ -916,6 +1238,8 @@ Future<void> _cargarReportesVentas() async {
                       Expanded(child: _buildMovimientosPorUsuarioTab())
                     else if (paginaSeleccionada == 3)
                       Expanded(child: _buildCuentasPorPagarTab())
+                    else if (paginaSeleccionada == 4)
+                      Expanded(child: _buildUtilidadTab())
                     else ...[
                       _buildResumen(),
                       const SizedBox(height: 20),
@@ -944,7 +1268,16 @@ Future<void> _cargarReportesVentas() async {
   }
 
   Widget _buildToolbar() {
-    return Row(
+    final mostrarFiltrosFecha = !vistaRestringida && paginaSeleccionada != 2 && paginaSeleccionada != 3;
+
+    // Wrap (no Row): las etiquetas largas ("Movimientos por usuario", "Cuentas
+    // por pagar") más los filtros de fecha no caben en una sola línea en
+    // ventanas angostas. Con Row + Spacer eso desbordaba; el Wrap acomoda los
+    // controles en varias líneas según el ancho, sin desbordar nunca.
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         _buildTabButton(
           label: 'Ventas',
@@ -952,85 +1285,103 @@ Future<void> _cargarReportesVentas() async {
           selected: paginaSeleccionada == 0,
           onTap: () => setState(() => paginaSeleccionada = 0),
         ),
-        const SizedBox(width: 10),
         _buildTabButton(
           label: 'Compras',
           icon: Icons.shopping_bag_outlined,
           selected: paginaSeleccionada == 1,
           onTap: () => setState(() => paginaSeleccionada = 1),
         ),
-        if (!esCajero) ...[
-          const SizedBox(width: 10),
+        if (!vistaRestringida) ...[
           _buildTabButton(
             label: 'Movimientos por usuario',
             icon: Icons.manage_accounts_outlined,
             selected: paginaSeleccionada == 2,
             onTap: () => setState(() => paginaSeleccionada = 2),
           ),
-          const SizedBox(width: 10),
           _buildTabButton(
             label: 'Cuentas por pagar',
             icon: Icons.account_balance_wallet_outlined,
             selected: paginaSeleccionada == 3,
             onTap: () => setState(() => paginaSeleccionada = 3),
           ),
+          _buildTabButton(
+            label: 'Utilidad',
+            icon: Icons.trending_up,
+            selected: paginaSeleccionada == 4,
+            onTap: () => setState(() => paginaSeleccionada = 4),
+          ),
         ],
-        const SizedBox(width: 18),
-        if (!esCajero && paginaSeleccionada != 2 && paginaSeleccionada != 3)
-        _buildRangeButton('7 días', () => _seleccionarRango(7)),
-        const SizedBox(width: 8),
-        if (!esCajero && paginaSeleccionada != 2 && paginaSeleccionada != 3)
-        _buildRangeButton('30 días', () => _seleccionarRango(30)),
-        const SizedBox(width: 8),
-        if (!esCajero && paginaSeleccionada != 2 && paginaSeleccionada != 3)
-        OutlinedButton.icon(
-          onPressed: _seleccionarFechasPersonalizadas,
-          icon: const Icon(Icons.date_range, size: 18),
-          label: const Text('Rango'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.black87,
-            side: BorderSide(color: AppColors.border),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-          ),
-        ),
-        const Spacer(),
-        if (!esCajero && paginaSeleccionada != 2 && paginaSeleccionada != 3)
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(AppRadius.md),
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.calendar_today_outlined, size: 18),
-              const SizedBox(width: 8),
-              Text(
-                rangoTexto,
-                style: const TextStyle(fontWeight: FontWeight.w700),
+        if (mostrarFiltrosFecha) ...[
+          _buildRangeButton('7 días', () => _seleccionarRango(7)),
+          _buildRangeButton('30 días', () => _seleccionarRango(30)),
+          OutlinedButton.icon(
+            onPressed: _seleccionarFechasPersonalizadas,
+            icon: const Icon(Icons.date_range, size: 18),
+            label: const Text('Rango'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.black87,
+              side: BorderSide(color: AppColors.border),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
               ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        if (!esCajero && paginaSeleccionada != 2 && paginaSeleccionada != 3)
-        ElevatedButton.icon(
-          onPressed: _imprimirReporte,
-          icon: const Icon(Icons.print, size: 18),
-          label: const Text('Imprimir reporte'),
-          style: ElevatedButton.styleFrom(
-            elevation: 0,
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.black,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
             ),
           ),
-        ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.calendar_today_outlined, size: 18),
+                const SizedBox(width: 8),
+                Text(
+                  rangoTexto,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+          ),
+          ElevatedButton.icon(
+            onPressed: _imprimirReporte,
+            icon: const Icon(Icons.print, size: 18),
+            label: const Text('Imprimir reporte'),
+            style: ElevatedButton.styleFrom(
+              elevation: 0,
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.black,
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+            ),
+          ),
+        ],
+        // Exportar está fuera de `mostrarFiltrosFecha` porque también aplica a
+        // las pestañas sin rango de fechas (movimientos, cuentas por pagar).
+        if (!vistaRestringida)
+          OutlinedButton.icon(
+            onPressed: _exportando ? null : _exportarReporte,
+            icon: _exportando
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.table_view_outlined, size: 18),
+            label: Text(_exportando ? 'Exportando...' : 'Exportar CSV'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.black87,
+              side: BorderSide(color: AppColors.border),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+            ),
+          ),
       ],
     );
   }

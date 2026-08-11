@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../core/theme/app_colors.dart';
+import '../core/utils/mensaje_error.dart';
 import '../controllers/usuarios_controller.dart';
 import '../core/security/password_hasher.dart';
 import '../core/security/permisos.dart';
@@ -12,6 +13,7 @@ import '../widgets/toast.dart';
 import '../widgets/form_dialog.dart';
 import '../widgets/nav_bar.dart';
 import 'permisos_view.dart';
+import '../core/security/permisos_service.dart';
 
 class UsuariosView extends StatefulWidget {
   const UsuariosView({super.key});
@@ -36,16 +38,37 @@ class _UsuariosViewState extends State<UsuariosView> {
   void cargarTodo() async {
     final usr = await usuariosController.obtenerTodos();
 
+    // Sin esta guarda, salir de Usuarios mientras la consulta está en vuelo
+    // provoca "setState() called after dispose()".
+    if (!mounted) return;
+
     setState(() {
       usuarios = usr;
+      _nombresBusqueda = [for (final u in usr) u.nombre.toLowerCase()];
+      _recalcularFiltro();
     });
   }
 
   // 🔥 FILTRO
-  List<Usuarios> get filtrados {
-    return usuarios.where((u) {
-      return u.nombre.toLowerCase().contains(busqueda.toLowerCase());
-    }).toList();
+  //
+  // Campo, no getter: se consumía en `isEmpty`, `length` y dentro del
+  // `itemBuilder`, así que recorría la lista completa una vez por fila
+  // dibujada.
+  List<Usuarios> _filtrados = const [];
+  List<String> _nombresBusqueda = const [];
+
+  void _recalcularFiltro() {
+    final consulta = busqueda.trim().toLowerCase();
+
+    if (consulta.isEmpty) {
+      _filtrados = usuarios;
+      return;
+    }
+
+    _filtrados = [
+      for (var i = 0; i < usuarios.length; i++)
+        if (_nombresBusqueda[i].contains(consulta)) usuarios[i],
+    ];
   }
 
   // 🔥 FORMULARIO
@@ -121,6 +144,17 @@ class _UsuariosViewState extends State<UsuariosView> {
               return;
             }
 
+            // El login busca por nombre (sin distinguir mayúsculas) y se
+            // queda con la primera coincidencia: dos cuentas homónimas
+            // dejarían a una de ellas sin poder entrar nunca.
+            if (await usuariosController.nombreEnUso(
+              nombreCtrl.text,
+              exceptoId: usuario?.idUsuario,
+            )) {
+              mostrarError("Ya existe un usuario con ese nombre. Elige otro.");
+              return;
+            }
+
             // Al crear, la contraseña es obligatoria. Al
             // editar, puede quedar vacía (no se cambia).
             if (usuario == null && contraCtrl.text.isEmpty) {
@@ -161,15 +195,25 @@ class _UsuariosViewState extends State<UsuariosView> {
               pin: pinIngresado.isEmpty ? null : pinIngresado,
             );
 
-            if (usuario == null) {
-              await usuariosController.insertar(nuevo);
-            } else {
-              await usuariosController.actualizar(
-                nuevo,
-                nuevaContrasena: contraCtrl.text.isEmpty ? null : contraCtrl.text,
-                // En blanco = no tocar el PIN existente.
-                nuevoPin: pinIngresado.isEmpty ? null : pinIngresado,
-              );
+            try {
+              if (usuario == null) {
+                await usuariosController.insertar(nuevo);
+              } else {
+                await usuariosController.actualizar(
+                  nuevo,
+                  nuevaContrasena: contraCtrl.text.isEmpty ? null : contraCtrl.text,
+                  // En blanco = no tocar el PIN existente.
+                  nuevoPin: pinIngresado.isEmpty ? null : pinIngresado,
+                );
+              }
+            } catch (e) {
+              // Red de seguridad ante una carrera: las validaciones de nombre
+              // y PIN de arriba consultan la base ANTES de guardar, así que
+              // dos altas simultáneas podrían pasarlas y chocar aquí contra
+              // el índice único.
+              if (!context.mounted) return;
+              Toast.error(context, mensajeDeError(e));
+              return;
             }
 
             if (!context.mounted) return;
@@ -184,7 +228,15 @@ class _UsuariosViewState extends State<UsuariosView> {
         );
       },
     ),
-  );
+  ).whenComplete(() {
+    // Creados por esta función (no por un State), así que no hay dispose()
+    // automático: hay que liberarlos al cerrar el diálogo, incluso si se
+    // descartó sin guardar. El de la contraseña, además, deja de mantener
+    // el texto en claro en memoria.
+    nombreCtrl.dispose();
+    contraCtrl.dispose();
+    pinCtrl.dispose();
+  });
 }
 
   // 🔥 ELIMINAR
@@ -196,6 +248,8 @@ class _UsuariosViewState extends State<UsuariosView> {
     iconoConfirmar: Icons.delete_outline,
     textoConfirmar: "Eliminar",
     accion: () async {
+      // Un usuario con ventas o cortes de caja a su nombre no se puede
+      // borrar (FK RESTRICT): su rastro contable debe seguir existiendo.
       await usuariosController.eliminar(u.idUsuario!);
       cargarTodo();
     },
@@ -205,6 +259,26 @@ class _UsuariosViewState extends State<UsuariosView> {
 }
   @override
   Widget build(BuildContext context) {
+    // Defensa en profundidad: hoy solo se llega aquí desde Configuración
+    // (que ya exige su propio permiso), pero administrar cuentas es una
+    // acción sensible y no debe depender de por dónde se navegó.
+    if (!PermisosService.instancia.puedeActual(Permiso.gestionarUsuarios)) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: CustomHeader(titulo: "Usuarios", mostrarVolver: true, mostrarInfo: false),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              "No tienes permiso para administrar usuarios.",
+              textAlign: TextAlign.center,
+              style: TextStyle(color: AppColors.textSecondary, fontSize: AppText.body),
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.background,
 
@@ -316,7 +390,10 @@ class _UsuariosViewState extends State<UsuariosView> {
                 width: 320,
 
                 child: TextField(
-                  onChanged: (v) => setState(() => busqueda = v),
+                  onChanged: (v) => setState(() {
+                    busqueda = v;
+                    _recalcularFiltro();
+                  }),
 
                   decoration: InputDecoration(
                     hintText: "Buscar usuario...",
@@ -346,15 +423,15 @@ class _UsuariosViewState extends State<UsuariosView> {
               const Divider(height: 1),
 
               Expanded(
-                child: filtrados.isEmpty
+                child: _filtrados.isEmpty
                     ? const Center(child: Text("No hay usuarios registrados"))
                     : ListView.separated(
-                        itemCount: filtrados.length,
+                        itemCount: _filtrados.length,
 
                         separatorBuilder: (_, _) => const Divider(height: 1),
 
                         itemBuilder: (_, i) {
-                          final u = filtrados[i];
+                          final u = _filtrados[i];
 
                           return _filaUsuario(u);
                         },

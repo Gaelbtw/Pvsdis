@@ -3,7 +3,6 @@ import '../core/theme/app_colors.dart';
 import '../controllers/auditoria_controller.dart';
 import '../controllers/producto_controller.dart';
 import '../controllers/categoria_controller.dart';
-import '../core/session/session_manager.dart';
 import '../core/utils/stock_status.dart';
 import '../models/auditoria_model.dart';
 import '../models/categoria_model.dart';
@@ -15,6 +14,8 @@ import '../widgets/inventario/editar_producto_dialog.dart';
 import '../widgets/inventario/inventario_tabla.dart';
 import '../services/configuracion_service.dart';
 import '../models/configuracion_model.dart';
+import '../core/security/permisos.dart';
+import '../core/security/permisos_service.dart';
 
 class InventarioView extends StatefulWidget {
   const InventarioView({super.key});
@@ -41,7 +42,16 @@ class _InventarioViewState extends State<InventarioView> {
   int? categoriaSeleccionada;
   String busqueda = "";
 
-  bool get esCajero => SessionManager.currentUserRole == "Cajero";
+  /// Editar el producto en sí (nombre, precio) y ver su historial de
+  /// cambios. Antes ambas cosas y el ajuste de stock colgaban de un único
+  /// `rol == "Cajero"`, ignorando la matriz de permisos.
+  bool get puedeGestionarProductos =>
+      PermisosService.instancia.puedeActual(Permiso.gestionarProductos);
+
+  /// Modificar existencias. Es un permiso distinto a propósito: hay negocios
+  /// donde el cajero cuenta inventario pero no toca precios.
+  bool get puedeAjustarInventario =>
+      PermisosService.instancia.puedeActual(Permiso.ajustarInventario);
 
   @override
   void initState() {
@@ -92,6 +102,8 @@ class _InventarioViewState extends State<InventarioView> {
       iconoConfirmar: Icons.warning_amber_rounded,
       textoConfirmar: "Eliminar",
       accion: () async {
+        // Un producto con ventas no se puede borrar (FK RESTRICT); el
+        // controlador ya devuelve el motivo en texto claro.
         await productoController.eliminar(p['id_producto']);
         await inicializar();
       },
@@ -118,7 +130,8 @@ class _InventarioViewState extends State<InventarioView> {
     mostrarEditarProductoDialog(
       context,
       producto: p,
-      esCajero: esCajero,
+      puedeEditarProducto: puedeGestionarProductos,
+      puedeAjustarInventario: puedeAjustarInventario,
       config: config,
       productoController: productoController,
       onGuardado: inicializar,
@@ -140,7 +153,7 @@ class _InventarioViewState extends State<InventarioView> {
         titulo: "Inventario",
         mostrarVolver: true,
         extraActions: [
-          if (!esCajero)
+          if (puedeGestionarProductos)
             IconButton(
               tooltip: "Cambios de inventario",
               icon: const Icon(Icons.history, color: Colors.black87),
@@ -175,7 +188,8 @@ class _InventarioViewState extends State<InventarioView> {
                       child: InventarioTabla(
                         productos: filtrados,
                         stockMinimo: config.stockMinimo,
-                        esCajero: esCajero,
+                        puedeAjustarInventario: puedeAjustarInventario,
+                        puedeEliminar: puedeGestionarProductos,
                         onAgregarStock: _agregarStockRapido,
                         onEditar: mostrarEditarProducto,
                         onEliminar: confirmarEliminar,
@@ -292,7 +306,7 @@ class _InventarioViewState extends State<InventarioView> {
           ),
         ),
         const SizedBox(width: 16),
-        if (!esCajero)
+        if (puedeGestionarProductos)
           ElevatedButton.icon(
             onPressed: mostrarCambiosInventario,
             icon: const Icon(Icons.history, size: 18),

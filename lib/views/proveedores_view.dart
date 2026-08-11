@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../core/theme/app_colors.dart';
+import '../core/utils/mensaje_error.dart';
 import '../controllers/proveedor_controller.dart';
 import '../models/proveedores_model.dart';
 import '../widgets/app_text_field.dart';
@@ -18,6 +19,12 @@ class ProveedorView extends StatefulWidget {
 }
 
 class _ProveedorViewState extends State<ProveedorView> {
+  /// Falso hasta que la primera carga termina. Sin esto la vista
+  /// pintaba una lista vacía mientras consultaba, y en un equipo lento
+  /// con catálogo grande eso se lee como "no hay nada" en vez de
+  /// "todavía estoy cargando".
+  bool _cargandoVista = true;
+
   final controller = ProveedorController();
 
   List<Proveedores> proveedores = [];
@@ -32,9 +39,12 @@ class _ProveedorViewState extends State<ProveedorView> {
   void cargar() async {
     final data = await controller.obtenerTodos();
 
+    if (!mounted) return;
+
     setState(() {
       proveedores = data;
       filtrados = data;
+      _cargandoVista = false;
     });
   }
 
@@ -157,10 +167,16 @@ void abrirFormulario({Proveedores? proveedor}) {
           telefono: telefonoCtrl.text,
         );
 
-        if (proveedor == null) {
-          await controller.insertar(nuevo);
-        } else {
-          await controller.actualizar(nuevo);
+        try {
+          if (proveedor == null) {
+            await controller.insertar(nuevo);
+          } else {
+            await controller.actualizar(nuevo);
+          }
+        } catch (e) {
+          if (!mounted) return;
+          Toast.error(context, mensajeDeError(e));
+          return; // se conserva lo escrito para poder corregirlo
         }
 
         if (!mounted) return;
@@ -173,13 +189,27 @@ void abrirFormulario({Proveedores? proveedor}) {
         );
       },
     ),
-  );
+  ).whenComplete(() {
+      // Creados por esta función, no por un State: sin esto no se
+      // liberan nunca (tampoco si el diálogo se descarta sin guardar).
+      nombreCtrl.dispose();
+      rfcCtrl.dispose();
+      telefonoCtrl.dispose();
+      direccionCtrl.dispose();
+      direccionFiscalCtrl.dispose();
+    });
 }
 
   //  ELIMINAR
   void eliminar(int id) async {
-    await controller.eliminar(id);
-    cargar();
+    // Un proveedor con compras registradas no se puede borrar (FK RESTRICT).
+    try {
+      await controller.eliminar(id);
+      cargar();
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, mensajeDeError(e));
+    }
   }
 
   @override
@@ -189,7 +219,9 @@ void abrirFormulario({Proveedores? proveedor}) {
 
       appBar: CustomHeader(titulo: "Proveedores", mostrarVolver: true),
 
-      body: Padding(
+      body: _cargandoVista
+          ? const Center(child: CircularProgressIndicator())
+          : Padding(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
 
         child: Container(

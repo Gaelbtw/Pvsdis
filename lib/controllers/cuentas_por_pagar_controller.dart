@@ -124,7 +124,7 @@ class CuentasPorPagarController {
         // ComprasController.insertarCompraCompleta), una consulta por
         // fuera de esa transacción se queda esperando a que termine — y la
         // transacción está esperando esta consulta: interbloqueo.
-        final idUsuario = SessionManager.currentUserId ?? 1;
+        final idUsuario = SessionManager.requiredUserId;
         final cajaRows = await executor.query(
           'Cajas',
           where: 'id_usuario = ? AND estado = ?',
@@ -155,9 +155,7 @@ class CuentasPorPagarController {
         });
       }
 
-      final rol = SessionManager.currentUserRole == 'Administrador'
-          ? 'Admin'
-          : SessionManager.currentUserRole;
+      final rol = SessionManager.currentUserRoleCanonico;
       await executor.insert('Auditorias', {
         'fecha_hora': DateTime.now().toIso8601String(),
         'usuario': '$rol: ${SessionManager.currentUserName}',

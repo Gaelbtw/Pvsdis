@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../core/config/app_config.dart';
 import '../core/session/session_manager.dart';
@@ -32,6 +34,7 @@ import 'caja_view.dart';
 import '../services/ticket_service.dart';
 import '../services/impresion_service.dart';
 import '../services/reimpresion_venta_service.dart';
+import '../services/cajon_service.dart';
 
 class VentasView extends StatefulWidget {
   final Cliente? cliente;
@@ -54,6 +57,11 @@ class _VentasViewState extends State<VentasView> {
   Cliente? clienteSeleccionado;
 
   List<Producto> productos = [];
+
+  /// Copia del catálogo con el texto de búsqueda ya en minúsculas, calculado
+  /// una sola vez al cargar (ver [_ProductoBuscable] y [_recalcularFiltro]).
+  List<_ProductoBuscable> _indiceBusqueda = const [];
+
   Map<int, int> stockProductos = {};
   final _carrito = CarritoVenta();
   List<Map<String, dynamic>> get carrito => _carrito.items;
@@ -64,6 +72,9 @@ class _VentasViewState extends State<VentasView> {
   final busquedaFocus = FocusNode();
 
   String busqueda = "";
+
+  /// Temporizador del debounce del buscador (ver [_onBusquedaChanged]).
+  Timer? _debounceBusqueda;
 
   List<Map<String, dynamic>> pagos = [];
   ResultadoValidacionPagos resultadoPagos = validarPagosMixtos(total: 0, pagos: const []);
@@ -85,7 +96,12 @@ class _VentasViewState extends State<VentasView> {
   // ninguna regla de venta.
   int? _lineaSeleccionada;
 
-  bool get esCajero => SessionManager.currentUserRole == "Cajero";
+  /// La política de descuentos del cajero es configurable aparte de la
+  /// matriz de permisos (`descuentoCajeroPuedeAplicar` /
+  /// `descuentoCajeroRequiereAutorizacion` en Configuración), así que aquí
+  /// sí se pregunta por el rol -- pero con [SessionManager.isCajero], no
+  /// comparando el string a mano.
+  bool get esCajero => SessionManager.isCajero;
 
   bool get puedeAplicarDescuentos =>
       !esCajero || AppConfig.actual.descuentoCajeroPuedeAplicar;
@@ -131,8 +147,10 @@ class _VentasViewState extends State<VentasView> {
 
   // 🔐 CAJA
   Future<void> cargarCaja() async {
-    final idUsuario = SessionManager.currentUserId ?? 1;
-    final caja = await cajaController.obtenerCajaAbierta(idUsuario);
+    // Sin sesión no hay caja que buscar (ver el mismo criterio en CajaView).
+    final idUsuario = SessionManager.currentUserId;
+    final caja =
+        idUsuario == null ? null : await cajaController.obtenerCajaAbierta(idUsuario);
 
     if (!mounted) return;
     setState(() => _cajaAbierta = caja);
@@ -154,10 +172,12 @@ class _VentasViewState extends State<VentasView> {
 
     final Map<int, int> stock = {};
     final List<Producto> lista = [];
+    final List<_ProductoBuscable> indice = [];
 
     for (final row in data) {
       final p = Producto.fromMap(row);
       lista.add(p);
+      indice.add(_ProductoBuscable(p));
       if (p.idProducto != null) {
         // "disponible" (física - reservada por Apartados), no la existencia
         // física a secas: una unidad ya apartada no debe ofrecerse aquí.
@@ -167,18 +187,59 @@ class _VentasViewState extends State<VentasView> {
 
     setState(() {
       productos = lista;
+      _indiceBusqueda = indice;
       stockProductos = stock;
       cargando = false;
+      _recalcularFiltro();
     });
   }
 
   // 🔍 FILTRO
-  List<Producto> get productosFiltrados {
-    final consulta = busqueda.toLowerCase();
-    return productos.where((p) {
-      return p.nombre.toLowerCase().contains(consulta) ||
-          (p.codigoBarras?.toLowerCase().contains(consulta) ?? false);
-    }).toList();
+  //
+  // Antes esto era un getter que recorría el catálogo entero (con un
+  // `toLowerCase()` por producto, que asigna un String nuevo cada vez). Se
+  // consumía desde `itemCount` Y desde el `itemBuilder` de la grilla, así que
+  // se ejecutaba completo una vez por CELDA dibujada: ~35 pasadas sobre todo
+  // el catálogo en cada frame. Con 1.000 productos eran ~72.000 asignaciones
+  // de String por rebuild, y como el buscador hace `setState` por tecla, un
+  // código de barras de 13 dígitos disparaba 13 rebuilds seguidos. En una PC
+  // de punto de venta de gama baja eso es GC constante y scroll a tirones.
+  //
+  // Ahora el resultado se calcula UNA vez -- solo cuando cambia el texto o se
+  // recarga el catálogo -- y las celdas leen una lista ya lista.
+  List<Producto> _productosFiltrados = const [];
+
+  /// Amortigua el tecleo en el buscador: sin esto, cada carácter reconstruía
+  /// toda la pantalla de ventas.
+  ///
+  /// Es seguro para el lector de código de barras: el escáner termina con
+  /// Enter, que entra por `onSubmitted: procesarEscaneo` -- un camino
+  /// distinto, que no pasa por aquí y sigue siendo instantáneo. Lo único que
+  /// se amortigua es la búsqueda escrita a mano.
+  void _onBusquedaChanged(String valor) {
+    _debounceBusqueda?.cancel();
+    _debounceBusqueda = Timer(const Duration(milliseconds: 120), () {
+      if (!mounted) return;
+      setState(() {
+        busqueda = valor;
+        _recalcularFiltro();
+      });
+    });
+  }
+
+  void _recalcularFiltro() {
+    final consulta = busqueda.trim().toLowerCase();
+
+    if (consulta.isEmpty) {
+      // Sin filtro no hace falta copiar nada: se reusa la misma lista.
+      _productosFiltrados = productos;
+      return;
+    }
+
+    _productosFiltrados = [
+      for (final entrada in _indiceBusqueda)
+        if (entrada.coincide(consulta)) entrada.producto,
+    ];
   }
 
   // 🛒 AGREGAR PRODUCTO
@@ -226,9 +287,23 @@ class _VentasViewState extends State<VentasView> {
         break;
     }
 
-    busquedaCtrl.clear();
-    setState(() => busqueda = "");
+    _limpiarBusqueda();
     busquedaFocus.requestFocus();
+  }
+
+  /// Vacía el buscador y recalcula el filtro.
+  ///
+  /// Cancela el debounce pendiente antes de nada: si el usuario escribió y el
+  /// temporizador todavía no disparó, sin este `cancel` el callback se
+  /// ejecutaría 120 ms después y volvería a poner el texto viejo en
+  /// [busqueda], deshaciendo el borrado.
+  void _limpiarBusqueda() {
+    _debounceBusqueda?.cancel();
+    busquedaCtrl.clear();
+    setState(() {
+      busqueda = "";
+      _recalcularFiltro();
+    });
   }
 
   // ➕➖ CAMBIAR CANTIDAD
@@ -334,11 +409,8 @@ class _VentasViewState extends State<VentasView> {
 
   void _atajoEscape() {
     FocusScope.of(context).unfocus();
-    setState(() {
-      busquedaCtrl.clear();
-      busqueda = "";
-      _lineaSeleccionada = null;
-    });
+    _limpiarBusqueda();
+    setState(() => _lineaSeleccionada = null);
   }
 
   void _moverSeleccionCarrito(int delta) {
@@ -631,10 +703,41 @@ class _VentasViewState extends State<VentasView> {
         descuentoAutorizadoPor: descuentoAutorizadoPor,
       );
 
+      // Abre el cajón si se cobró algo en efectivo (y la config lo permite).
+      if (pagosVenta.any((p) => esMetodoEfectivo(p['metodo_pago'] as String))) {
+        await CajonService.abrirSiCorresponde();
+      }
+
+      // Guarda tras `await CajonService.abrirSiCorresponde()`: la apertura del
+      // cajón habla con el spooler de Windows y puede tardar, tiempo de sobra
+      // para que el usuario salga de la pantalla.
+      if (!mounted) return;
+
       // La venta ya se cobró: vaciamos el carrito y guardamos el último id
       // para poder reimprimir con F9. El ticket ya NO se imprime solo; el
       // cajero decide en la pantalla de éxito.
       setState(() {
+        // Se descuenta el stock vendido del mapa en memoria.
+        //
+        // Antes esto NO se hacía en el camino de éxito (solo se recargaba
+        // todo el catálogo en el `catch`), así que tras vender las últimas
+        // unidades la pantalla seguía mostrándolas como disponibles y el
+        // escáner las dejaba agregar de nuevo. La venta no llegaba a
+        // duplicarse —la transacción valida el stock real y la rechaza—,
+        // pero el cajero se topaba con "inventario insuficiente" al cobrar
+        // en vez de al escanear, que es cuando aún puede reaccionar.
+        //
+        // Se ajustan solo las líneas vendidas en vez de volver a consultar
+        // el catálogo completo: `obtenerConStock()` escanea tres tablas y
+        // reconstruye N objetos, y aquí es justo cuando el cajero quiere
+        // empezar la siguiente venta.
+        for (final linea in ventaCalculada.lineas) {
+          final actual = stockProductos[linea.idProducto];
+          if (actual != null) {
+            stockProductos[linea.idProducto] = actual - linea.cantidad;
+          }
+        }
+
         _carrito.limpiar();
 
         _ultimaVentaId = idVenta;
@@ -762,11 +865,7 @@ class _VentasViewState extends State<VentasView> {
                             controller: busquedaCtrl,
                             focusNode: busquedaFocus,
                             autofocus: true,
-                            onChanged: (v) {
-                              setState(() {
-                                busqueda = v;
-                              });
-                            },
+                            onChanged: _onBusquedaChanged,
                             onSubmitted: procesarEscaneo,
                             decoration: InputDecoration(
                               hintText: "Buscar o escanear código...",
@@ -794,7 +893,17 @@ class _VentasViewState extends State<VentasView> {
                           Expanded(
                             child: GridView.builder(
                               itemCount:
-                                  productosFiltrados.length,
+                                  _productosFiltrados.length,
+                              // Nota: aquí se probó reducir la caché de scroll
+                              // para que la grilla no construya dos filas de
+                              // más fuera de pantalla. Se quitó porque
+                              // `cacheExtent` quedó obsoleto en Flutter 3.41 y
+                              // su reemplazo (`scrollCacheExtent`) ya no acepta
+                              // un número de píxeles sino un `ScrollCacheExtent`.
+                              // La ganancia era marginal frente al riesgo de
+                              // usar mal una API que no se pudo verificar; el
+                              // cuello de botella real de esta grilla era el
+                              // filtro, que ya está resuelto.
                               // Grilla adaptativa: la cantidad de columnas se
                               // ajusta al ancho de la ventana (≈5 a 1280px, menos
                               // al achicar) y cada tarjeta tiene alto fijo, así no
@@ -808,7 +917,7 @@ class _VentasViewState extends State<VentasView> {
                               ),
                               itemBuilder: (_, i) {
                                 final p =
-                                    productosFiltrados[i];
+                                    _productosFiltrados[i];
 
                                 return InkWell(
                                   borderRadius:
@@ -1457,6 +1566,7 @@ class _VentasViewState extends State<VentasView> {
 
   @override
   void dispose() {
+    _debounceBusqueda?.cancel();
     busquedaCtrl.dispose();
     busquedaFocus.dispose();
 
@@ -1466,4 +1576,28 @@ class _VentasViewState extends State<VentasView> {
 
     super.dispose();
   }
+}
+
+/// Un [Producto] junto con su nombre y código de barras ya pasados a
+/// minúsculas.
+///
+/// Existe para que `toLowerCase()` se pague UNA vez por producto al cargar el
+/// catálogo, y no una vez por producto por cada tecla y por cada celda
+/// dibujada (ver el comentario de `_recalcularFiltro`). No se pusieron estos
+/// campos en el propio [Producto] porque su constructor es `const` y Dart no
+/// admite `late final` con inicializador en una clase con constructor
+/// constante -- hacerlo obligaría a quitar el `const`, que se usa en varios
+/// tests.
+class _ProductoBuscable {
+  _ProductoBuscable(this.producto)
+      : nombre = producto.nombre.toLowerCase(),
+        codigoBarras = producto.codigoBarras?.toLowerCase() ?? '';
+
+  final Producto producto;
+  final String nombre;
+  final String codigoBarras;
+
+  bool coincide(String consultaEnMinusculas) =>
+      nombre.contains(consultaEnMinusculas) ||
+      codigoBarras.contains(consultaEnMinusculas);
 }

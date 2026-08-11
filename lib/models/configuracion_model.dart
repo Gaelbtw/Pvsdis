@@ -102,6 +102,7 @@ class Configuracion {
       autoImprimirTicket: false,
       impresoraUrl: null,
       impresoraNombre: null,
+      abrirCajonEfectivo: false,
       descuentoMaximoPorcentaje: 20,
       descuentoCajeroPuedeAplicar: true,
       descuentoCajeroRequiereAutorizacion: true,
@@ -141,6 +142,9 @@ class Configuracion {
           : (map['auto_imprimir_ticket'] as num) != 0,
       impresoraUrl: map['impresora_url'] as String?,
       impresoraNombre: map['impresora_nombre'] as String?,
+      abrirCajonEfectivo: map['abrir_cajon_efectivo'] == null
+          ? base.abrirCajonEfectivo
+          : (map['abrir_cajon_efectivo'] as num) != 0,
       descuentoMaximoPorcentaje: (map['descuento_maximo_porcentaje'] as num?)?.toDouble() ??
           base.descuentoMaximoPorcentaje,
       descuentoCajeroPuedeAplicar: map['descuento_cajero_puede_aplicar'] == null
@@ -175,6 +179,7 @@ class Configuracion {
       'auto_imprimir_ticket': autoImprimirTicket ? 1 : 0,
       'impresora_url': impresoraUrl,
       'impresora_nombre': impresoraNombre,
+      'abrir_cajon_efectivo': abrirCajonEfectivo ? 1 : 0,
       'descuento_maximo_porcentaje': descuentoMaximoPorcentaje,
       'descuento_cajero_puede_aplicar': descuentoCajeroPuedeAplicar ? 1 : 0,
       'descuento_cajero_requiere_autorizacion': descuentoCajeroRequiereAutorizacion ? 1 : 0,
@@ -203,6 +208,7 @@ class Configuracion {
     bool? autoImprimirTicket,
     String? impresoraUrl,
     String? impresoraNombre,
+    bool? abrirCajonEfectivo,
     double? descuentoMaximoPorcentaje,
     bool? descuentoCajeroPuedeAplicar,
     bool? descuentoCajeroRequiereAutorizacion,
@@ -229,6 +235,7 @@ class Configuracion {
       autoImprimirTicket: autoImprimirTicket ?? this.autoImprimirTicket,
       impresoraUrl: impresoraUrl ?? this.impresoraUrl,
       impresoraNombre: impresoraNombre ?? this.impresoraNombre,
+      abrirCajonEfectivo: abrirCajonEfectivo ?? this.abrirCajonEfectivo,
       descuentoMaximoPorcentaje: descuentoMaximoPorcentaje ?? this.descuentoMaximoPorcentaje,
       descuentoCajeroPuedeAplicar: descuentoCajeroPuedeAplicar ?? this.descuentoCajeroPuedeAplicar,
       descuentoCajeroRequiereAutorizacion:

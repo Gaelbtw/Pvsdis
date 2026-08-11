@@ -61,6 +61,8 @@ class _ComprasViewState extends State<ComprasView> {
     if (!mounted) return;
 
     setState(() {
+      _nombresBusqueda = [for (final p in productos) p.nombre.toLowerCase()];
+      _recalcularFiltro();
       cargando = false;
     });
   }
@@ -74,10 +76,29 @@ class _ComprasViewState extends State<ComprasView> {
   double get total => _carrito.total;
 
   // 🔍 FILTRAR
-  List<Producto> get productosFiltrados {
-    return productos.where((p) {
-      return p.nombre.toLowerCase().contains(busqueda.toLowerCase());
-    }).toList();
+  //
+  // Campo, no getter. Antes esto era `get productosFiltrados` y se consumía
+  // tanto en `itemCount` como dentro del `itemBuilder`, así que recorría el
+  // catálogo entero una vez por celda dibujada — con dos `toLowerCase()` por
+  // producto en cada pasada, y cada uno asigna un String nuevo. Mismo arreglo
+  // que ya se aplicó en `ventas_view`.
+  List<Producto> _productosFiltrados = const [];
+
+  /// Nombres en minúsculas, calculados una sola vez al cargar el catálogo.
+  List<String> _nombresBusqueda = const [];
+
+  void _recalcularFiltro() {
+    final consulta = busqueda.trim().toLowerCase();
+
+    if (consulta.isEmpty) {
+      _productosFiltrados = productos;
+      return;
+    }
+
+    _productosFiltrados = [
+      for (var i = 0; i < productos.length; i++)
+        if (_nombresBusqueda[i].contains(consulta)) productos[i],
+    ];
   }
 
   // ➕➖ CAMBIAR CANTIDAD
@@ -131,6 +152,7 @@ class _ComprasViewState extends State<ComprasView> {
 
       await imprimirTicket();
 
+      if (!mounted) return;
       setState(() {
         carrito.clear();
         formaPago = 'Contado';
@@ -196,6 +218,7 @@ class _ComprasViewState extends State<ComprasView> {
                               onChanged: (v) {
                                 setState(() {
                                   busqueda = v;
+                                  _recalcularFiltro();
                                 });
                               },
                               decoration: const InputDecoration(
@@ -214,7 +237,7 @@ class _ComprasViewState extends State<ComprasView> {
                           // 📦 GRID
                           Expanded(
                             child: GridView.builder(
-                              itemCount: productosFiltrados.length,
+                              itemCount: _productosFiltrados.length,
 
                               gridDelegate:
                                   const SliverGridDelegateWithFixedCrossAxisCount(
@@ -225,7 +248,7 @@ class _ComprasViewState extends State<ComprasView> {
                                   ),
 
                               itemBuilder: (_, i) {
-                                final p = productosFiltrados[i];
+                                final p = _productosFiltrados[i];
 
                                 return InkWell(
                                   borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -726,6 +749,7 @@ class _ComprasViewState extends State<ComprasView> {
                 firstDate: DateTime.now(),
                 lastDate: DateTime.now().add(const Duration(days: 365)),
               );
+              if (!context.mounted) return;
               if (fecha != null) setState(() => fechaVencimiento = fecha);
             },
             child: Container(
