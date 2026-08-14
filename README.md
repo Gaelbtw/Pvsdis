@@ -207,6 +207,9 @@ propio `sqlite3.dll`, y los plugins del proyecto (`win32`, `window_manager`,
   `configuracion.licencia_expira` ya están en el esquema (v24) pero nadie las
   lee: se agregaron ahora para no tener que migrar bases con ventas reales
   cuando se active. Ver `docs/distribucion.md`.
+- **Papeleo del cliente:** contrato de servicio, aviso de privacidad, checklist
+  de instalación y registro de instalaciones están en `docs/` — ver
+  [`docs/README.md`](docs/README.md) para el orden de un cliente nuevo.
 - **Qué falta antes de escalar:** firmar el instalador (Azure Trusted Signing),
   licencia Ed25519 offline con su CLI emisor, y aviso de actualización dentro
   de la app. Solo aplica pasando los ~5 clientes.
