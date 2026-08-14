@@ -49,7 +49,7 @@ class _LicenciaViewState extends State<LicenciaView> {
   }
 
   Future<void> _importar() async {
-    final elegido = await FilePicker.platform.pickFiles(
+    final elegido = await FilePicker.pickFiles(
       dialogTitle: 'Elige tu archivo de licencia',
       // Sin filtro por extensión a propósito: WhatsApp Desktop guarda los
       // adjuntos renombrados y el archivo puede llegar como .lic.txt o sin

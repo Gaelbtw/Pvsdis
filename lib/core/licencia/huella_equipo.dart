@@ -37,7 +37,13 @@ class HuellaEquipo {
   /// Marca de una señal que no se pudo leer. Nunca cuenta como coincidencia:
   /// si dos equipos fallan en leer la misma señal, no por eso son el mismo
   /// equipo.
-  static const grupoDesconocido = '----';
+  ///
+  /// **No puede contener `-`**, que es lo que separa los grupos. Un marcador
+  /// como `----` hacía que `codigoDesde` produjera `-----ABCD-EFGH` y que
+  /// `split('-')` devolviera siete pedazos vacíos en vez de tres grupos: la
+  /// comparación posicional se desalineaba entera y dos equipos distintos
+  /// podían dar por buena la licencia del otro.
+  static const grupoDesconocido = '????';
 
   /// Cuántas de las tres señales deben coincidir para aceptar la licencia.
   static const coincidenciasMinimas = 2;
