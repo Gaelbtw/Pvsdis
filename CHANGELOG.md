@@ -16,6 +16,33 @@ Formato: `MAYOR.MENOR.PARCHE`.
 
 ---
 
+## 1.1.0 — sin publicar
+
+### Licencia (apagada de fábrica)
+
+- Sistema de licencias con verificación **sin internet**: la app comprueba la
+  firma del archivo y no consulta ningún servidor.
+- Pantalla **Configuración → Licencia**: muestra el código de instalación de la
+  computadora, con botón para copiarlo, e importa el archivo de licencia.
+- La licencia tolera cambios de la computadora: cambiar el disco duro o
+  renombrar el equipo **no** obliga a reactivar. Reinstalar Windows o cambiar la
+  tarjeta madre, sí.
+- Al vencer, el sistema avisa 15 días antes y da 30 días de gracia. Después se
+  limitan reportes, exportación, alta de productos y configuración.
+  **Vender, cobrar, imprimir tickets y cerrar caja nunca se bloquean.**
+
+> Mientras no se emita ninguna licencia, el sistema funciona sin restricción
+> alguna. Actualizar a esta versión no cambia nada para quien ya lo usa.
+
+### Instalación
+
+- El instalador puede firmarse digitalmente (opcional). Sin firma, se genera
+  igual que antes.
+- Al generar el instalador se muestra su código SHA256, para entregarlo junto
+  al archivo y que se pueda verificar que llegó completo.
+
+---
+
 ## 1.0.0 — 14 de agosto de 2026
 
 Primera versión de Pv Control lista para instalar en un negocio.

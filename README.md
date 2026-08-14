@@ -203,10 +203,15 @@ propio `sqlite3.dll`, y los plugins del proyecto (`win32`, `window_manager`,
 - **Reporte de soporte:** Configuración → Sistema y soporte genera un `.txt`
   con versiones, conteos y estado del outbox, **sin datos de clientes ni de
   ventas**, para mandarlo por WhatsApp.
-- **Licencia:** todavía no existe. `configuracion.edicion` y
-  `configuracion.licencia_expira` ya están en el esquema (v24) pero nadie las
-  lee: se agregaron ahora para no tener que migrar bases con ventas reales
-  cuando se active. Ver `docs/distribucion.md`.
+- **Licencia:** construida y **apagada**. `lib/core/licencia/` verifica
+  archivos `.lic` firmados con Ed25519, sin internet, y `tool/emitir_licencia.dart`
+  los emite. Mientras `clavePublicaLicencias` esté vacía,
+  `LicenciaService.activo` es `false`, el estado es siempre `sinLicencia` y todo
+  funciona sin restricción. Encenderlo es pegar 32 bytes y recompilar — ver
+  [`docs/licenciamiento.md`](docs/licenciamiento.md).
+- **Firma del instalador:** opcional, vía `build_installer.ps1 -Firmar`. Sin
+  ella el build no falla y el `LEEME.txt` de la USB explica al cliente la
+  pantalla de SmartScreen.
 - **Papeleo del cliente:** contrato de servicio, aviso de privacidad, checklist
   de instalación y registro de instalaciones están en `docs/` — ver
   [`docs/README.md`](docs/README.md) para el orden de un cliente nuevo.

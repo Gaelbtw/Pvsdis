@@ -1,3 +1,11 @@
+# Llaves de firma de licencias. La privada NUNCA entra al repositorio: quien
+# la tenga puede emitir licencias válidas para cualquier cliente. Va en una
+# carpeta fuera del proyecto, con respaldo (ver docs/licenciamiento.md).
+*.privada
+*.publica
+*.lic
+llaves/
+
 # Miscellaneous
 *.class
 *.log

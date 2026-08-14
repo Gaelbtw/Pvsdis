@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 1.1.0+2
 
 environment:
   sdk: ^3.11.3
@@ -58,6 +58,13 @@ dependencies:
   # era: no se le podía preguntar a un cliente por teléfono qué tiene
   # instalado, ni generar un reporte de soporte que sirviera de algo.
   package_info_plus: ^8.0.0
+  # Verificación Ed25519 de los archivos de licencia (lib/core/licencia/).
+  # Solo se usa la parte de verificación: la app trae la clave PÚBLICA
+  # compilada y nunca firma nada. Ver docs/licenciamiento.md.
+  cryptography: ^2.7.0
+  # SHA-256 para el código de instalación y el hash de respaldo de la
+  # licencia. Ya venía de forma transitiva; se declara porque se usa directo.
+  crypto: ^3.0.3
 
 dev_dependencies:
   flutter_test:

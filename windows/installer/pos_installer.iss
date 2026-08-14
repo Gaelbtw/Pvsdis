@@ -70,6 +70,20 @@ CloseApplications=yes
 CloseApplicationsFilter={#MyAppExeName},*.dll
 RestartApplications=no
 
+; Firma digital del instalador y del desinstalador. OPCIONAL: solo se activa
+; cuando build_installer.ps1 se corre con -Firmar, que define FirmarSetup y
+; pasa /Sfirmante=<comando> a ISCC. Sin eso el instalador se genera sin firmar
+; y el build NO falla -- que es lo correcto mientras las instalaciones sean
+; presenciales y el LEEME.txt de la USB ya explique la pantalla de SmartScreen.
+;
+; Cuando toque firmar: Azure Trusted Signing (~10 USD/mes, sin token fisico).
+; NO comprar EV: desde marzo de 2024 Microsoft ya no le da reputacion
+; SmartScreen inmediata, asi que ya no compra lo que costaba.
+#ifdef FirmarSetup
+SignTool=firmante
+SignedUninstaller=yes
+#endif
+
 [Languages]
 Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"

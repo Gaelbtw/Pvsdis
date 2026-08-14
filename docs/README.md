@@ -11,6 +11,7 @@ raíz y en los `README` de `lib/core/sync/`.
 | [`contrato-servicio.md`](contrato-servicio.md) | Contrato de implementación y soporte | Se firma **antes** de instalar. Plantilla: llenar corchetes y Anexo B. |
 | [`aviso-privacidad.md`](aviso-privacidad.md) | Reparto de responsabilidad sobre datos + modelo para el negocio | Se entrega en la implementación. |
 | [`ficha-instalacion.md`](ficha-instalacion.md) | Checklist de instalación, guion de capacitación y control de clientes | El día de la instalación, y cada vez que publiques una versión. |
+| [`licenciamiento.md`](licenciamiento.md) | Cómo se enciende el licenciamiento y cómo se emite una licencia | Cuando pases de ~5 clientes, o el día que alguien te pida el instalador "para su otra tienda". |
 
 ## Orden real de un cliente nuevo
 

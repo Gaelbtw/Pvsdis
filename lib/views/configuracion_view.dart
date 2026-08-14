@@ -12,6 +12,8 @@ import '../controllers/database_backup_controller.dart';
 import '../core/config/app_config.dart';
 import '../core/config/app_info.dart';
 import '../core/database/database_helper.dart';
+import '../core/licencia/guarda_licencia.dart';
+import '../core/licencia/licencia_service.dart';
 import '../services/soporte_service.dart';
 import '../services/cajon_service.dart';
 import '../core/theme/app_colors.dart';
@@ -22,6 +24,7 @@ import '../widgets/nav_bar.dart';
 import '../widgets/toast.dart';
 import 'auditorias_view.dart';
 import 'base_datos_view.dart';
+import 'licencia_view.dart';
 import 'reporte_view.dart';
 import 'sync_config_view.dart';
 import 'usuarios_view.dart';
@@ -363,10 +366,23 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
         subtitle: "Análisis y estadísticas",
         icon: Icons.bar_chart,
         color: AppColors.primaryLighter,
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const ReporteView()),
-        ),
+        // Único candado de licencia puesto hasta ahora, como referencia del
+        // patrón. Hoy no bloquea a nadie: sin licencia registrada
+        // `permite()` devuelve true. Ver docs/licenciamiento.md para los
+        // puntos que faltan.
+        onTap: () async {
+          if (!await GuardaLicencia.permite(
+            context,
+            FuncionLicenciada.reportes,
+          )) {
+            return;
+          }
+          if (!context.mounted) return;
+          await Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ReporteView()),
+          );
+        },
       ),
       MenuCard(
         title: "Actividad",
@@ -386,6 +402,16 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const BaseDatosView()),
+        ),
+      ),
+      MenuCard(
+        title: "Licencia",
+        subtitle: "Activación y vigencia",
+        icon: Icons.workspace_premium_outlined,
+        color: AppColors.primaryLighter,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const LicenciaView()),
         ),
       ),
       MenuCard(

@@ -6,6 +6,7 @@ import 'core/config/app_info.dart';
 import 'core/config/backend_config.dart';
 import 'core/database/database_helper.dart';
 import 'core/database/db_exceptions.dart';
+import 'core/licencia/licencia_service.dart';
 import 'core/security/login_throttle.dart';
 import 'core/security/throttle_archivo_store.dart';
 import 'core/sync/auth_service.dart';
@@ -43,6 +44,12 @@ void main() async {
   }
 
   await AppConfig.cargar();
+
+  // Evalúa la licencia una vez al arrancar. Nunca lanza y nunca bloquea el
+  // arranque: sin licencia --que es el estado de todos los clientes hasta que
+  // se compile una clave pública-- reporta `sinLicencia` y todo funciona igual
+  // que siempre.
+  await LicenciaService.instancia.cargar();
 
   // Restaura el contador de intentos fallidos de login. Sin esto vivía solo
   // en memoria y bastaba cerrar y reabrir el .exe para ponerlo a cero, así

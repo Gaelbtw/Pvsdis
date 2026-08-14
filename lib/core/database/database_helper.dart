@@ -88,7 +88,14 @@ class DatabaseHelper {
   /// licenciamiento no haya que migrar el esquema en instalaciones que ya
   /// llevan meses operando con ventas reales. Agregar columnas que ya existen
   /// es un no-op; hacerlo después sobre una base viva, no.
-  static const _databaseVersion = 24;
+  ///
+  /// v25: `licencia_hash` y `licencia_reloj` en `configuracion`. El hash es la
+  /// contraparte del archivo `licencia.lic`: si el archivo desaparece pero el
+  /// hash sigue aquí, la app sabe que este equipo sí tuvo licencia. Borrar la
+  /// base para evadirlo cuesta todas las ventas y el inventario, que es
+  /// justamente el punto. `licencia_reloj` guarda el día más avanzado visto,
+  /// para notar que el reloj del sistema retrocedió.
+  static const _databaseVersion = 25;
 
   /// Versión del esquema que maneja esta compilación.
   ///
@@ -563,7 +570,9 @@ class DatabaseHelper {
         descuento_cajero_puede_aplicar INTEGER DEFAULT 1,
         descuento_cajero_requiere_autorizacion INTEGER DEFAULT 1,
         edicion TEXT,
-        licencia_expira TEXT
+        licencia_expira TEXT,
+        licencia_hash TEXT,
+        licencia_reloj TEXT
       );
     ''');
 
@@ -683,6 +692,10 @@ class DatabaseHelper {
 
     if (oldVersion < 24) {
       await _ensureConfiguracionLicenciaColumns(db);
+    }
+
+    if (oldVersion < 25) {
+      await _ensureConfiguracionLicenciaEstadoColumns(db);
     }
 
     // Idempotente (CREATE INDEX IF NOT EXISTS): se repite en cada upgrade
@@ -1748,6 +1761,30 @@ class DatabaseHelper {
     const columnasNuevas = {
       'edicion': 'TEXT',
       'licencia_expira': 'TEXT',
+    };
+
+    for (final entry in columnasNuevas.entries) {
+      if (!columnNames.contains(entry.key)) {
+        await db.execute(
+          'ALTER TABLE configuracion ADD COLUMN ${entry.key} ${entry.value};',
+        );
+      }
+    }
+  }
+
+  /// Agrega a `configuracion` el respaldo del estado de la licencia.
+  ///
+  /// Separado de [_ensureConfiguracionLicenciaColumns] a propósito: aquellas
+  /// describen QUÉ se contrató (edición y vencimiento, datos que también
+  /// sirven para reportar); éstas son estado interno de la verificación y no
+  /// se muestran en ninguna pantalla.
+  Future<void> _ensureConfiguracionLicenciaEstadoColumns(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(configuracion)');
+    final columnNames = info.map((row) => row['name']?.toString()).toSet();
+
+    const columnasNuevas = {
+      'licencia_hash': 'TEXT',
+      'licencia_reloj': 'TEXT',
     };
 
     for (final entry in columnasNuevas.entries) {

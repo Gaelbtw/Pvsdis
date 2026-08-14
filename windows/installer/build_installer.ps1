@@ -11,6 +11,16 @@
 # La version del instalador se toma automaticamente de pubspec.yaml: no hace
 # falta (ni conviene) escribirla a mano en el .iss.
 
+param(
+    # Firma el instalador y el desinstalador. Requiere -ComandoFirma o la
+    # variable de entorno PVCONTROL_SIGN_CMD.
+    [switch]$Firmar,
+
+    # Comando de firma, con $f donde va el archivo. Ejemplo:
+    #   'signtool.exe sign /fd SHA256 /tr http://timestamp.acs.microsoft.com /td SHA256 $f'
+    [string]$ComandoFirma = $env:PVCONTROL_SIGN_CMD
+)
+
 $ErrorActionPreference = "Stop"
 
 $installerDir = $PSScriptRoot
@@ -65,12 +75,36 @@ Write-Host "`nUsando Inno Setup: $iscc" -ForegroundColor Cyan
 
 # 4. Compilar el instalador, propagando la version leida del pubspec.
 $issPath = Join-Path $installerDir "pos_installer.iss"
+$argsIscc = @("/DMyAppVersion=$version")
+
+if ($Firmar) {
+    if (-not $ComandoFirma) {
+        throw "Se pidio -Firmar pero no hay comando de firma. Pasa -ComandoFirma '<cmd> `$f' o define PVCONTROL_SIGN_CMD."
+    }
+    if ($ComandoFirma -notmatch '\$f') {
+        throw "El comando de firma debe incluir `$f (donde Inno pone la ruta del archivo). Recibido: $ComandoFirma"
+    }
+    $argsIscc += "/DFirmarSetup"
+    $argsIscc += "/Sfirmante=$ComandoFirma"
+    Write-Host "`nFirma activada." -ForegroundColor Cyan
+} else {
+    Write-Host "`nSin firmar. Windows mostrara 'Windows protegio tu PC' al instalar;" -ForegroundColor DarkYellow
+    Write-Host "el LEEME.txt de la USB explica al cliente como continuar." -ForegroundColor DarkYellow
+}
+
 Write-Host "`n== Generando instalador con Inno Setup ==" -ForegroundColor Cyan
-& $iscc "/DMyAppVersion=$version" $issPath
+& $iscc @argsIscc $issPath
 if ($LASTEXITCODE -ne 0) { throw "ISCC fallo al compilar el instalador (codigo $LASTEXITCODE)" }
 
 $distDir = Join-Path $repoRoot "dist"
 Write-Host "`nListo. Instalador generado en: $distDir" -ForegroundColor Green
 Get-ChildItem $distDir -Filter "PvControl-Setup-*.exe" | Select-Object -Last 1 | ForEach-Object {
     Write-Host " -> $($_.FullName)" -ForegroundColor Green
+
+    # SHA256 del instalador. Se entrega junto al .exe para que el cliente
+    # pueda comprobar que lo que bajo (o lo que le quedo en la USB) es
+    # exactamente lo que salio de aqui, y no una copia corrupta.
+    $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash
+    Write-Host "`nSHA256 (entregalo junto al instalador):" -ForegroundColor Cyan
+    Write-Host "  $hash" -ForegroundColor Cyan
 }
