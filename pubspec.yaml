@@ -53,6 +53,11 @@ dependencies:
   # ver lib/services/cajon_service.dart). Ambos ya venían de forma transitiva.
   win32: ^5.15.0
   ffi: ^2.1.0
+  # Versión de la app leída de los metadatos del .exe (ver
+  # lib/core/config/app_info.dart). Hasta ahora la app no sabía qué versión
+  # era: no se le podía preguntar a un cliente por teléfono qué tiene
+  # instalado, ni generar un reporte de soporte que sirviera de algo.
+  package_info_plus: ^8.0.0
 
 dev_dependencies:
   flutter_test:

@@ -7,13 +7,21 @@ import 'entity_mapper.dart';
 ///
 /// No es un [SimpleCatalogMapper] porque el shape no es 1:1: el backend
 /// pide IVA por producto (`AplicaIva`, `TasaIva`, `PrecioBase` sin IVA) y el
-/// local solo guarda un `precio` único con IVA incluido, sin concepto de
-/// IVA por producto. Decisión de negocio ya acordada con el usuario (no es
-/// una suposición de esta clase): se usa la tasa GLOBAL de
-/// `Configuracion.tasaImpuestoPorcentaje` para todos los productos por
-/// igual. `AplicaIva = tasa > 0`; si aplica, `PrecioBase = precio /
-/// (1 + tasa)`, si no, `PrecioBase = precio`. `CostoPromedio = precio_compra
-/// ?? 0`. `UnidadMedida` no existe en el modelo local -> fija en `'Pieza'`.
+/// local guarda un `precio` único con IVA incluido. Desde la migración v23 el
+/// local SÍ tiene IVA por producto (`Producto.iva_tasa`), así que se manda esa
+/// tasa cuando el producto la tiene y la GLOBAL de
+/// `Configuracion.tasaImpuestoPorcentaje` cuando no (`iva_tasa` en NULL =
+/// "usa la general", ver `Producto.ivaEfectivo`). `AplicaIva = tasa > 0`; si
+/// aplica, `PrecioBase = precio / (1 + tasa)`, si no, `PrecioBase = precio`.
+/// En sentido inverso (pull), `TasaIva` llega en decimal y se guarda en
+/// porcentaje; un producto con `AplicaIva = false` se guarda como 0% explícito,
+/// no como NULL, porque el backend está afirmando que ese producto es exento y
+/// eso no debe quedar a merced de la tasa general.
+///
+/// `sku` es local: el backend no tiene ese campo (su `Codigo` es el código de
+/// barras), así que ni se manda ni se sobrescribe al recibir.
+/// `CostoPromedio = precio_compra ?? 0`. `UnidadMedida` no existe en el modelo
+/// local -> fija en `'Pieza'`.
 /// `FactorConversion`/`UnidadCompra` se omiten del payload (el backend los
 /// deja en su default -- `1`/`null` -- al insertar; como Producto es
 /// ServidorGana, un push posterior sobre una fila ya existente nunca llega
@@ -67,7 +75,8 @@ class ProductoMapper extends EntityMapper {
       );
     }
 
-    final tasaPorcentaje = AppConfig.actual.tasaImpuestoPorcentaje;
+    final tasaPorcentaje = (filaLocal['iva_tasa'] as num?)?.toDouble() ??
+        AppConfig.actual.tasaImpuestoPorcentaje;
     final tasaDecimal = tasaPorcentaje / 100;
     final aplicaIva = tasaPorcentaje > 0;
     final precio = (filaLocal['precio'] as num).toDouble();
@@ -124,6 +133,9 @@ class ProductoMapper extends EntityMapper {
       'codigo_barras': elementoBackend['codigo'],
       'stock_minimo': elementoBackend['stockMinimo'] ?? 0,
       'estado': (elementoBackend['activo'] as bool? ?? true) ? 'Activo' : 'Inactivo',
+      'iva_tasa': (elementoBackend['aplicaIva'] as bool? ?? false)
+          ? ((elementoBackend['tasaIva'] as num?)?.toDouble() ?? 0) * 100
+          : 0.0,
     };
 
     final idLocalExistente = await resolver.idLocalPorGuid(tablaLocal, columnaIdLocal, guid);

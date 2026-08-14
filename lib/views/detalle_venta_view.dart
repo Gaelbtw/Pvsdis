@@ -102,7 +102,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
   Future<void> _pedirMotivoYEjecutar({
     required String titulo,
     required String subtitulo,
-    required Future<int> Function(String motivo, int? autorizadoPor) accion,
+    required Future<int> Function(String motivo, int? autorizadoPor, bool reintegrar) accion,
   }) async {
     // La autorización se pide ANTES del motivo: si no se concede, no tiene
     // sentido hacerle escribir nada al cajero.
@@ -115,6 +115,12 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
 
     final motivoCtrl = TextEditingController();
 
+    // Destino de la mercancía devuelta. Por defecto regresa al inventario
+    // (un cambio de talla o de color, que es el caso común); apagarlo la da
+    // de baja como merma, para que un producto roto o caducado no quede
+    // contado como existencia vendible.
+    var reintegrar = true;
+
     showDialog(
       context: context,
       builder: (dialogContext) => FormDialog(
@@ -126,6 +132,22 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
             controller: motivoCtrl,
             hint: 'Motivo (obligatorio)',
             maxLines: 3,
+          ),
+          StatefulBuilder(
+            builder: (context, setEstadoCampo) => SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('La mercancía regresa al inventario'),
+              subtitle: Text(
+                reintegrar
+                    ? 'Las piezas vuelven a estar disponibles para vender.'
+                    : 'Se da de baja como merma: se devuelve el dinero, pero las '
+                        'piezas no vuelven al inventario.',
+                style: const TextStyle(fontSize: AppText.caption),
+              ),
+              value: reintegrar,
+              activeThumbColor: AppColors.primary,
+              onChanged: (v) => setEstadoCampo(() => reintegrar = v),
+            ),
           ),
         ],
         onGuardar: () async {
@@ -145,7 +167,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
           }
 
           try {
-            final idDevolucion = await accion(motivo, autorizadoPor);
+            final idDevolucion = await accion(motivo, autorizadoPor, reintegrar);
 
             if (!dialogContext.mounted) return;
             Navigator.pop(dialogContext);
@@ -183,12 +205,13 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
     _pedirMotivoYEjecutar(
       titulo: 'Cancelar venta',
       subtitulo:
-          'Se devolverán todos los productos pendientes de la venta #${d.idVenta} '
-          'y se reintegrarán al inventario. Esta acción no se puede deshacer.',
-      accion: (motivo, autorizadoPor) => _controller.cancelarVenta(
+          'Se devolverán todos los productos pendientes de la venta #${d.idVenta}. '
+          'Esta acción no se puede deshacer.',
+      accion: (motivo, autorizadoPor, reintegrar) => _controller.cancelarVenta(
         idVenta: d.idVenta,
         motivo: motivo,
         autorizadoPor: autorizadoPor,
+        reintegrarInventario: reintegrar,
       ),
     );
   }
@@ -203,14 +226,13 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
 
     _pedirMotivoYEjecutar(
       titulo: 'Devolver productos',
-      subtitulo:
-          'Se devolverán $totalUnidadesSeleccionadas unidad(es) seleccionadas '
-          'y se reintegrarán al inventario.',
-      accion: (motivo, autorizadoPor) => _controller.devolverParcial(
+      subtitulo: 'Se devolverán $totalUnidadesSeleccionadas unidad(es) seleccionadas.',
+      accion: (motivo, autorizadoPor, reintegrar) => _controller.devolverParcial(
         idVenta: d.idVenta,
         motivo: motivo,
         items: items,
         autorizadoPor: autorizadoPor,
+        reintegrarInventario: reintegrar,
       ),
     );
   }
@@ -457,6 +479,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
                       final item = d.devoluciones[i];
                       final tipo = item['tipo']?.toString() ?? 'Parcial';
                       final importe = (item['importe'] as num?)?.toDouble() ?? 0;
+                      final fueMerma = (item['reintegro_inventario'] as int?) == 0;
 
                       return Container(
                         padding: const EdgeInsets.all(12),
@@ -491,6 +514,17 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
                               item['motivo']?.toString() ?? '',
                               style: TextStyle(fontSize: AppText.caption, color: AppColors.textSecondary),
                             ),
+                            if (fueMerma) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Merma: la mercancía no regresó al inventario',
+                                style: TextStyle(
+                                  fontSize: AppText.caption,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.warning,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       );

@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../controllers/database_backup_controller.dart';
@@ -63,6 +64,41 @@ Future<void> hacerBackup() async {
     }
   }
 }
+
+  /// Crea un respaldo nuevo (o usa el seleccionado) y lo copia a la carpeta que
+  /// elija el usuario: normalmente una memoria USB.
+  ///
+  /// Se genera uno nuevo cuando no hay ninguno seleccionado para que el flujo
+  /// completo sea un solo botón: quien conecta el USB quiere llevarse los datos
+  /// de HOY, no el respaldo de la semana pasada que estuviera arriba en la
+  /// lista.
+  Future<void> respaldarEnUsb() async {
+    final carpeta = await FilePicker.getDirectoryPath(
+      dialogTitle: 'Elige la memoria USB o carpeta de destino',
+    );
+    if (carpeta == null) return;
+
+    setState(() => loading = true);
+
+    try {
+      DatabaseBackup? origen;
+      for (final backup in backups) {
+        if (backup.path == selectedBackupPath) origen = backup;
+      }
+      origen ??= await controller.crearBackup();
+
+      final destino = await controller.copiarBackupA(origen, carpeta);
+      await cargarBackups();
+
+      if (!mounted) return;
+      Toast.exito(context, 'Respaldo copiado a $destino');
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo copiar el respaldo. ${e.toString().replaceFirst('Exception: ', '')}');
+    } finally {
+      if (mounted) setState(() => loading = false);
+    }
+  }
 
   Future<void> restaurarSeleccionado() async {
     DatabaseBackup? selected;
@@ -258,6 +294,11 @@ final confirmar = await showDialog<bool>(
                         ),
                         const SizedBox(width: 12),
                         _secondaryButton(
+                          label: 'Copiar a USB',
+                          onPressed: loading ? null : respaldarEnUsb,
+                        ),
+                        const SizedBox(width: 12),
+                        _secondaryButton(
                           label: 'Cancelar',
                           onPressed: loading
                               ? null
@@ -326,6 +367,15 @@ final confirmar = await showDialog<bool>(
                 ),
               ),
             ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            'El respaldo se guarda en este mismo equipo. Con "Copiar a USB" se '
+            'crea uno nuevo y se copia a la memoria que elijas, para tener los '
+            'datos fuera de la computadora.',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: AppText.caption),
           ),
         ),
       ],

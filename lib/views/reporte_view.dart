@@ -70,6 +70,30 @@ class _ReporteViewState extends State<ReporteView> {
   /// se haya cargado.
   ReporteUtilidadResumen? utilidad;
 
+  /// Ordena "productos más vendidos" por utilidad en vez de por unidades (ver
+  /// [_buildProductosPanel]).
+  bool _ordenPorUtilidad = false;
+
+  /// Movimientos de inventario del rango y filtro de tipo activo (`null` =
+  /// todos).
+  ReporteMovimientosInventario movimientosInventario =
+      ReporteMovimientosInventario.vacio;
+  String? filtroTipoMovimiento;
+
+  /// Tipos de movimiento con su etiqueta legible. Los valores son los del
+  /// CHECK de `Movimiento_Inventario` (los mismos nombres que el backend, ver
+  /// `MovimientoInventarioLogger`), así que no se traducen al filtrar.
+  static const _tiposMovimiento = <(String, String)>[
+    ('EntradaCompra', 'Entrada por compra'),
+    ('SalidaVenta', 'Salida por venta'),
+    ('AjustePositivo', 'Ajuste positivo'),
+    ('AjusteNegativo', 'Ajuste negativo'),
+    ('DevolucionVenta', 'Devolución de venta'),
+    ('DevolucionCompra', 'Devolución a proveedor'),
+    ('TransferenciaEntrada', 'Transferencia recibida'),
+    ('TransferenciaSalida', 'Transferencia enviada'),
+  ];
+
   final _exportacionService = ExportacionService();
 
   /// Evita que un doble clic lance dos exportaciones a la vez (dos archivos
@@ -93,7 +117,8 @@ class _ReporteViewState extends State<ReporteView> {
         1 => 'Reporte de Compras',
         2 => 'Movimientos por usuario',
         3 => 'Cuentas por pagar',
-        _ => 'Utilidad',
+        4 => 'Utilidad',
+        _ => 'Movimientos de inventario',
       };
 
   String _formatDate(DateTime date) {
@@ -143,6 +168,7 @@ class _ReporteViewState extends State<ReporteView> {
       if (!vistaRestringida) {
         await _cargarCuentasPorPagar();
         await _cargarUtilidad();
+        await _cargarMovimientosInventario();
       }
     } finally {
       if (mounted) {
@@ -249,6 +275,37 @@ class _ReporteViewState extends State<ReporteView> {
               .toList(),
         );
 
+      case 5:
+        return (
+          'movimientos_inventario',
+          [
+            'Fecha',
+            'Producto',
+            'Clave',
+            'Tipo',
+            'Cantidad',
+            'Existencia anterior',
+            'Existencia nueva',
+            'Motivo',
+            'Referencia',
+          ],
+          movimientosInventario.movimientos
+              .map((m) => <Object?>[
+                    m['fecha'],
+                    m['producto'],
+                    m['sku'] ?? '',
+                    _etiquetaTipoMovimiento(m['tipo_movimiento']?.toString()),
+                    m['cantidad'],
+                    m['cantidad_anterior'],
+                    m['cantidad_nueva'],
+                    m['motivo'] ?? '',
+                    m['referencia_tipo'] == null
+                        ? ''
+                        : '${m['referencia_tipo']} ${m['referencia_id'] ?? ''}'.trim(),
+                  ])
+              .toList(),
+        );
+
       default:
         final resumen = utilidad;
         return (
@@ -279,6 +336,17 @@ class _ReporteViewState extends State<ReporteView> {
 
     if (!mounted) return;
     setState(() => utilidad = resumen);
+  }
+
+  Future<void> _cargarMovimientosInventario() async {
+    final resumen = await _reporteController.obtenerMovimientosInventario(
+      desde: desde,
+      hasta: hasta,
+      tipoMovimiento: filtroTipoMovimiento,
+    );
+
+    if (!mounted) return;
+    setState(() => movimientosInventario = resumen);
   }
 
   Future<void> _cargarCuentasPorPagar() async {
@@ -914,6 +982,259 @@ Future<void> _cargarReportesVentas() async {
     );
   }
 
+  /// Etiqueta legible de un tipo de movimiento de inventario. Si llegara un
+  /// tipo desconocido (una versión más nueva del backend), se muestra tal cual
+  /// en vez de ocultarlo.
+  String _etiquetaTipoMovimiento(String? tipo) {
+    for (final (valor, etiqueta) in _tiposMovimiento) {
+      if (valor == tipo) return etiqueta;
+    }
+    return tipo ?? '-';
+  }
+
+  /// `Movimiento_Inventario.fecha` se guarda en UTC; aquí se muestra en la
+  /// hora del negocio, que es la única que el usuario reconoce.
+  String _fechaMovimiento(Object? valor) {
+    final fecha = DateTime.tryParse(valor?.toString() ?? '');
+    if (fecha == null) return valor?.toString() ?? '-';
+    return formatearFechaHora(fecha.toLocal().toIso8601String());
+  }
+
+  /// Movimientos de inventario del rango: qué entró, qué salió y por qué.
+  ///
+  /// Responde la pregunta que la bitácora de auditoría no responde ("¿dónde
+  /// quedaron las 3 piezas que faltan?"), porque sigue la pieza y no la
+  /// pantalla: cada fila dice cuánto había antes, cuánto quedó y con qué
+  /// motivo se movió.
+  Widget _buildMovimientosInventarioTab() {
+    final resumen = movimientosInventario;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _tarjetaPiezas(
+                'Piezas que entraron',
+                resumen.piezasEntrada,
+                Icons.south_west,
+                AppColors.success,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _tarjetaPiezas(
+                'Piezas que salieron',
+                resumen.piezasSalida,
+                Icons.north_east,
+                AppColors.info,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _tarjetaPiezas(
+                'Piezas de merma',
+                resumen.piezasMerma,
+                Icons.delete_outline,
+                AppColors.warning,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            SizedBox(
+              width: 300,
+              child: DropdownButtonFormField<String?>(
+                initialValue: filtroTipoMovimiento,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: 'Tipo de movimiento',
+                  filled: true,
+                  fillColor: AppColors.surface,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                items: [
+                  const DropdownMenuItem<String?>(value: null, child: Text('Todos')),
+                  for (final (valor, etiqueta) in _tiposMovimiento)
+                    DropdownMenuItem<String?>(value: valor, child: Text(etiqueta)),
+                ],
+                onChanged: (v) {
+                  setState(() => filtroTipoMovimiento = v);
+                  _cargarMovimientosInventario();
+                },
+              ),
+            ),
+            const SizedBox(width: 16),
+            Text(
+              'Del $rangoTexto',
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+        const SizedBox(height: 18),
+        _headerMovimientosInventario(),
+        const SizedBox(height: 8),
+        Expanded(
+          child: resumen.movimientos.isEmpty
+              ? _emptyState('No hay movimientos de inventario en este rango.')
+              : ListView.builder(
+                  itemCount: resumen.movimientos.length,
+                  itemBuilder: (_, i) => _filaMovimientoInventario(resumen.movimientos[i]),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _tarjetaPiezas(String titulo, int piezas, IconData icono, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Row(
+        children: [
+          Icon(icono, color: color),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  titulo,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: AppText.overline,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '$piezas',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: AppText.subtitle,
+                    color: color,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _headerMovimientosInventario() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: const Row(
+        children: [
+          Expanded(flex: 16, child: Text("FECHA", style: auditoriaHeaderStyle)),
+          Expanded(flex: 22, child: Text("PRODUCTO", style: auditoriaHeaderStyle)),
+          Expanded(flex: 18, child: Text("TIPO", style: auditoriaHeaderStyle)),
+          Expanded(flex: 10, child: Text("PIEZAS", style: auditoriaHeaderStyle)),
+          Expanded(flex: 14, child: Text("EXISTENCIA", style: auditoriaHeaderStyle)),
+          Expanded(flex: 20, child: Text("MOTIVO", style: auditoriaHeaderStyle)),
+        ],
+      ),
+    );
+  }
+
+  Widget _filaMovimientoInventario(Map<String, dynamic> m) {
+    const tiposEntrada = {
+      'EntradaCompra',
+      'AjustePositivo',
+      'TransferenciaEntrada',
+      'DevolucionVenta',
+    };
+    final esEntrada = tiposEntrada.contains(m['tipo_movimiento']);
+    final color = esEntrada ? AppColors.success : AppColors.info;
+
+    final referencia = m['referencia_tipo'] == null
+        ? null
+        : '${m['referencia_tipo']} ${m['referencia_id'] ?? ''}'.trim();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 18),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceSubtle,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Row(
+        children: [
+          Expanded(flex: 16, child: Text(_fechaMovimiento(m['fecha']))),
+          Expanded(
+            flex: 22,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  m['producto']?.toString() ?? '-',
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                if (m['sku'] != null)
+                  Text(
+                    m['sku'].toString(),
+                    style: const TextStyle(
+                      fontSize: AppText.overline,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          Expanded(
+            flex: 18,
+            child: Text(
+              _etiquetaTipoMovimiento(m['tipo_movimiento']?.toString()),
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: color, fontWeight: FontWeight.w700),
+            ),
+          ),
+          Expanded(
+            flex: 10,
+            child: Text(
+              '${esEntrada ? '+' : '-'}${m['cantidad']}',
+              style: TextStyle(fontWeight: FontWeight.w800, color: color),
+            ),
+          ),
+          Expanded(
+            flex: 14,
+            child: Text('${m['cantidad_anterior']} → ${m['cantidad_nueva']}'),
+          ),
+          Expanded(
+            flex: 20,
+            child: Text(
+              [
+                if (m['motivo'] != null) m['motivo'].toString(),
+                if (referencia != null && referencia.isNotEmpty) referencia,
+              ].join(' · '),
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMovimientosPorUsuarioTab() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1240,6 +1561,8 @@ Future<void> _cargarReportesVentas() async {
                       Expanded(child: _buildCuentasPorPagarTab())
                     else if (paginaSeleccionada == 4)
                       Expanded(child: _buildUtilidadTab())
+                    else if (paginaSeleccionada == 5)
+                      Expanded(child: _buildMovimientosInventarioTab())
                     else ...[
                       _buildResumen(),
                       const SizedBox(height: 20),
@@ -1269,6 +1592,12 @@ Future<void> _cargarReportesVentas() async {
 
   Widget _buildToolbar() {
     final mostrarFiltrosFecha = !vistaRestringida && paginaSeleccionada != 2 && paginaSeleccionada != 3;
+
+    // El PDF de "Imprimir reporte" está armado para ventas y compras (resumen,
+    // top de productos y listado). En las demás pestañas imprimía ese mismo
+    // formato con datos de compras bajo un título ajeno, así que ahí no se
+    // ofrece: para llevarse esos datos está Exportar CSV.
+    final mostrarImprimir = paginaSeleccionada == 0 || paginaSeleccionada == 1;
 
     // Wrap (no Row): las etiquetas largas ("Movimientos por usuario", "Cuentas
     // por pagar") más los filtros de fecha no caben en una sola línea en
@@ -1310,6 +1639,12 @@ Future<void> _cargarReportesVentas() async {
             selected: paginaSeleccionada == 4,
             onTap: () => setState(() => paginaSeleccionada = 4),
           ),
+          _buildTabButton(
+            label: 'Movimientos de inventario',
+            icon: Icons.swap_vert,
+            selected: paginaSeleccionada == 5,
+            onTap: () => setState(() => paginaSeleccionada = 5),
+          ),
         ],
         if (mostrarFiltrosFecha) ...[
           _buildRangeButton('7 días', () => _seleccionarRango(7)),
@@ -1345,20 +1680,21 @@ Future<void> _cargarReportesVentas() async {
               ],
             ),
           ),
-          ElevatedButton.icon(
-            onPressed: _imprimirReporte,
-            icon: const Icon(Icons.print, size: 18),
-            label: const Text('Imprimir reporte'),
-            style: ElevatedButton.styleFrom(
-              elevation: 0,
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppRadius.md),
+          if (mostrarImprimir)
+            ElevatedButton.icon(
+              onPressed: _imprimirReporte,
+              icon: const Icon(Icons.print, size: 18),
+              label: const Text('Imprimir reporte'),
+              style: ElevatedButton.styleFrom(
+                elevation: 0,
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.black,
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
               ),
             ),
-          ),
         ],
         // Exportar está fuera de `mostrarFiltrosFecha` porque también aplica a
         // las pestañas sin rango de fechas (movimientos, cuentas por pagar).
@@ -1517,13 +1853,42 @@ Future<void> _cargarReportesVentas() async {
     );
   }
 
+  /// Panel de "más vendidos". Con [_ordenPorUtilidad] activo la lista deja de
+  /// ordenarse por unidades y pasa a la utilidad de cada producto: el producto
+  /// que más piezas mueve no es necesariamente el que más deja, y ordenar solo
+  /// por volumen esconde justo eso (el refresco que vuela con 2 pesos de
+  /// margen contra el artículo que se vende poco y deja 200).
   Widget _buildProductosPanel() {
     final esVentas = paginaSeleccionada == 0;
-    final productos = esVentas ? productosVendidos : productosComprados;
+    final resumenUtilidad = utilidad;
+
+    // El orden por utilidad necesita costos, que es justo lo que protege el
+    // permiso `verGanancias`; sin él ni siquiera se ofrece el botón.
+    final puedeOrdenarPorUtilidad =
+        esVentas && !vistaRestringida && resumenUtilidad != null;
+    final porUtilidad = puedeOrdenarPorUtilidad && _ordenPorUtilidad;
+
+    final productos = !esVentas
+        ? productosComprados
+        : (porUtilidad ? resumenUtilidad.porProducto : productosVendidos);
 
     return _sectionPanel(
       title: esVentas ? 'Productos mas vendidos' : 'Productos mas comprados',
       icon: Icons.inventory_2_outlined,
+      trailing: puedeOrdenarPorUtilidad
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _chipOrden('Unidades', !porUtilidad, () {
+                  setState(() => _ordenPorUtilidad = false);
+                }),
+                const SizedBox(width: 6),
+                _chipOrden('Utilidad', porUtilidad, () {
+                  setState(() => _ordenPorUtilidad = true);
+                }),
+              ],
+            )
+          : null,
       child: productos.isEmpty
           ? _emptyState(
               esVentas
@@ -1566,14 +1931,47 @@ Future<void> _cargarReportesVentas() async {
                         ),
                       ),
                       Text(
-                        '${item['total']} uds',
-                        style: const TextStyle(fontWeight: FontWeight.w800),
+                        porUtilidad
+                            ? AppConfig.formatoMoneda(
+                                (item['utilidad'] as num?)?.toDouble() ?? 0)
+                            : '${item['total']} uds',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          color: porUtilidad &&
+                                  ((item['utilidad'] as num?)?.toDouble() ?? 0) < 0
+                              ? AppColors.error
+                              : AppColors.textPrimary,
+                        ),
                       ),
                     ],
                   ),
                 );
               },
             ),
+    );
+  }
+
+  /// Píldora de selección de orden dentro del encabezado de un panel.
+  Widget _chipOrden(String label, bool seleccionado, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppRadius.pill),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: seleccionado ? AppColors.primary : Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          border: Border.all(color: seleccionado ? AppColors.primary : AppColors.border),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: AppText.caption,
+            fontWeight: FontWeight.w700,
+            color: seleccionado ? AppColors.onPrimary : AppColors.textSecondary,
+          ),
+        ),
+      ),
     );
   }
 
@@ -1606,6 +2004,7 @@ Future<void> _cargarReportesVentas() async {
     required String title,
     required IconData icon,
     required Widget child,
+    Widget? trailing,
   }) {
     return Container(
       padding: const EdgeInsets.all(18),
@@ -1635,6 +2034,7 @@ Future<void> _cargarReportesVentas() async {
                   ),
                 ),
               ),
+              ?trailing,
             ],
           ),
           const SizedBox(height: 16),

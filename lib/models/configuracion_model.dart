@@ -42,6 +42,20 @@ class Configuracion {
   /// con el cajón conectado a su puerto RJ11. Solo tiene efecto en Windows.
   final bool abrirCajonEfectivo;
 
+  /// Puerto serie por el que se manda el pulso de apertura del cajón (`'COM1'`,
+  /// `'COM3'`, ...). `null` = mandarlo por el spooler de Windows a la impresora
+  /// de tickets, que es lo que se hacía siempre.
+  ///
+  /// Hace falta porque muchas impresoras térmicas de punto de venta se conectan
+  /// por serie y no tienen driver instalado en Windows: sin driver no hay cola
+  /// de impresión a la que mandar bytes crudos, y el cajón nunca abría.
+  final String? cajonPuerto;
+
+  /// Velocidad del puerto serie del cajón. 9600 es el valor de fábrica de
+  /// prácticamente todas las impresoras térmicas; se deja configurable porque
+  /// algunas vienen a 19200 o 38400 y no hay forma de detectarlo.
+  final int cajonBaudios;
+
   // Descuentos: ver DevolucionesController/VentasController y
   // core/utils/descuento_utils.dart para cómo se usan.
   final double descuentoMaximoPorcentaje;
@@ -71,6 +85,8 @@ class Configuracion {
     this.impresoraUrl,
     this.impresoraNombre,
     this.abrirCajonEfectivo = false,
+    this.cajonPuerto,
+    this.cajonBaudios = 9600,
     this.descuentoMaximoPorcentaje = 20,
     this.descuentoCajeroPuedeAplicar = true,
     this.descuentoCajeroRequiereAutorizacion = true,
@@ -103,6 +119,8 @@ class Configuracion {
       impresoraUrl: null,
       impresoraNombre: null,
       abrirCajonEfectivo: false,
+      cajonPuerto: null,
+      cajonBaudios: 9600,
       descuentoMaximoPorcentaje: 20,
       descuentoCajeroPuedeAplicar: true,
       descuentoCajeroRequiereAutorizacion: true,
@@ -145,6 +163,8 @@ class Configuracion {
       abrirCajonEfectivo: map['abrir_cajon_efectivo'] == null
           ? base.abrirCajonEfectivo
           : (map['abrir_cajon_efectivo'] as num) != 0,
+      cajonPuerto: map['cajon_puerto'] as String?,
+      cajonBaudios: (map['cajon_baudios'] as num?)?.toInt() ?? base.cajonBaudios,
       descuentoMaximoPorcentaje: (map['descuento_maximo_porcentaje'] as num?)?.toDouble() ??
           base.descuentoMaximoPorcentaje,
       descuentoCajeroPuedeAplicar: map['descuento_cajero_puede_aplicar'] == null
@@ -180,6 +200,8 @@ class Configuracion {
       'impresora_url': impresoraUrl,
       'impresora_nombre': impresoraNombre,
       'abrir_cajon_efectivo': abrirCajonEfectivo ? 1 : 0,
+      'cajon_puerto': cajonPuerto,
+      'cajon_baudios': cajonBaudios,
       'descuento_maximo_porcentaje': descuentoMaximoPorcentaje,
       'descuento_cajero_puede_aplicar': descuentoCajeroPuedeAplicar ? 1 : 0,
       'descuento_cajero_requiere_autorizacion': descuentoCajeroRequiereAutorizacion ? 1 : 0,
@@ -209,6 +231,8 @@ class Configuracion {
     String? impresoraUrl,
     String? impresoraNombre,
     bool? abrirCajonEfectivo,
+    String? cajonPuerto,
+    int? cajonBaudios,
     double? descuentoMaximoPorcentaje,
     bool? descuentoCajeroPuedeAplicar,
     bool? descuentoCajeroRequiereAutorizacion,
@@ -236,6 +260,8 @@ class Configuracion {
       impresoraUrl: impresoraUrl ?? this.impresoraUrl,
       impresoraNombre: impresoraNombre ?? this.impresoraNombre,
       abrirCajonEfectivo: abrirCajonEfectivo ?? this.abrirCajonEfectivo,
+      cajonPuerto: cajonPuerto ?? this.cajonPuerto,
+      cajonBaudios: cajonBaudios ?? this.cajonBaudios,
       descuentoMaximoPorcentaje: descuentoMaximoPorcentaje ?? this.descuentoMaximoPorcentaje,
       descuentoCajeroPuedeAplicar: descuentoCajeroPuedeAplicar ?? this.descuentoCajeroPuedeAplicar,
       descuentoCajeroRequiereAutorizacion:

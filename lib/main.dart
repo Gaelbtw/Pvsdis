@@ -2,21 +2,46 @@ import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'controllers/auth_controller.dart';
 import 'core/config/app_config.dart';
+import 'core/config/app_info.dart';
 import 'core/config/backend_config.dart';
 import 'core/database/database_helper.dart';
+import 'core/database/db_exceptions.dart';
 import 'core/security/login_throttle.dart';
 import 'core/security/throttle_archivo_store.dart';
 import 'core/sync/auth_service.dart';
 import 'core/sync/network/sync_prefs_store.dart';
 import 'core/sync/sync_scheduler.dart';
 import 'core/theme/app_theme.dart';
+import 'views/error_arranque_view.dart';
 import 'views/login_view.dart';
 import 'views/setup_admin_view.dart';
 import 'widgets/barra_ventana.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await DatabaseHelper().database;
+
+  // La versión se lee antes que nada para que, si el arranque falla, la
+  // pantalla de error ya pueda decir de qué versión se trata: es el primer
+  // dato que hace falta para diagnosticar por teléfono.
+  await AppInfo.cargar();
+
+  // Abrir la base es el único paso del arranque que puede fallar de forma
+  // irrecuperable. Si el archivo viene de una versión más nueva, se aborta
+  // aquí: seguir adelante corrompería datos del negocio.
+  try {
+    await DatabaseHelper().database;
+  } on BaseDeDatosMasNuevaException catch (e) {
+    await _arrancarPantallaDeError(
+      titulo: 'No se pudo abrir el sistema',
+      mensaje: e.mensajeParaElUsuario,
+      detalle: 'Esquema del archivo : v${e.versionArchivo}\n'
+          'Esquema de esta app : v${e.versionApp}\n'
+          'Versión instalada   : ${AppInfo.versionCompleta}\n'
+          'Archivo             : ${e.rutaArchivo}',
+    );
+    return;
+  }
+
   await AppConfig.cargar();
 
   // Restaura el contador de intentos fallidos de login. Sin esto vivía solo
@@ -50,6 +75,32 @@ void main() async {
   });
 
   runApp(const MyApp());
+}
+
+/// Muestra [ErrorArranqueApp] en una ventana chica y CON barra de título
+/// nativa.
+///
+/// La barra propia ([BarraVentana]) no se usa aquí a propósito: vive dentro de
+/// `MyApp` y depende del color de marca que se guarda en la base de datos —la
+/// misma que acaba de fallar. Con la barra nativa, el usuario siempre puede
+/// mover o cerrar la ventana aunque todo lo demás esté roto.
+Future<void> _arrancarPantallaDeError({
+  required String titulo,
+  required String mensaje,
+  String? detalle,
+}) async {
+  await windowManager.ensureInitialized();
+  const opciones = WindowOptions(
+    size: Size(760, 660),
+    center: true,
+    title: 'Pv Control',
+  );
+  windowManager.waitUntilReadyToShow(opciones, () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
+
+  runApp(ErrorArranqueApp(titulo: titulo, mensaje: mensaje, detalle: detalle));
 }
 
 /// Deja lista la sesión de sincronización antes de arrancar la UI: (1) apunta

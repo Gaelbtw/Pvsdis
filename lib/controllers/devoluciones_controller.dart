@@ -44,6 +44,10 @@ class ComprobanteDevolucion {
   final double importe;
   final List<Map<String, dynamic>> items;
 
+  /// `false` cuando la mercancía NO volvió al inventario (merma): se devolvió
+  /// el dinero pero las piezas quedaron fuera de la existencia vendible.
+  final bool reintegroInventario;
+
   const ComprobanteDevolucion({
     required this.idDevolucion,
     required this.idVenta,
@@ -53,6 +57,7 @@ class ComprobanteDevolucion {
     required this.usuario,
     required this.importe,
     required this.items,
+    this.reintegroInventario = true,
   });
 }
 
@@ -119,7 +124,7 @@ class DevolucionesController {
 
     final devoluciones = await db.rawQuery('''
       SELECT d.id_devolucion, d.fecha_hora, d.tipo, d.motivo, d.importe,
-             u.nombre as usuario_nombre
+             d.reintegro_inventario, u.nombre as usuario_nombre
       FROM Devoluciones d
       LEFT JOIN Usuarios u ON u.id_usuario = d.id_usuario
       WHERE d.id_venta = ?
@@ -170,6 +175,7 @@ class DevolucionesController {
       usuario: devolucion['usuario_nombre']?.toString() ?? 'N/D',
       importe: (devolucion['importe'] as num?)?.toDouble() ?? 0,
       items: items,
+      reintegroInventario: (devolucion['reintegro_inventario'] as int?) != 0,
     );
   }
 
@@ -190,10 +196,14 @@ class DevolucionesController {
   /// Cancela toda la venta: devuelve automáticamente todo lo que quede
   /// pendiente de cada producto (si ya hubo una devolución parcial antes,
   /// solo cubre el resto).
+  /// [reintegrarInventario] en `false` marca la mercancía como merma: se
+  /// devuelve el dinero pero las piezas NO vuelven a la existencia vendible
+  /// (producto roto, caducado o abierto).
   Future<int> cancelarVenta({
     required int idVenta,
     required String motivo,
     int? autorizadoPor,
+    bool reintegrarInventario = true,
   }) {
     return _procesarDevolucion(
       idVenta: idVenta,
@@ -201,15 +211,18 @@ class DevolucionesController {
       motivo: motivo,
       itemsSolicitados: null,
       autorizadoPor: autorizadoPor,
+      reintegrarInventario: reintegrarInventario,
     );
   }
 
-  /// Devuelve cantidades específicas de uno o más productos de la venta.
+  /// Devuelve cantidades específicas de uno o más productos de la venta. Ver
+  /// [cancelarVenta] para [reintegrarInventario].
   Future<int> devolverParcial({
     required int idVenta,
     required String motivo,
     required List<Map<String, dynamic>> items,
     int? autorizadoPor,
+    bool reintegrarInventario = true,
   }) {
     if (items.isEmpty) {
       throw Exception('Selecciona al menos un producto para devolver.');
@@ -221,6 +234,7 @@ class DevolucionesController {
       motivo: motivo,
       itemsSolicitados: items,
       autorizadoPor: autorizadoPor,
+      reintegrarInventario: reintegrarInventario,
     );
   }
 
@@ -238,6 +252,7 @@ class DevolucionesController {
     required String motivo,
     required List<Map<String, dynamic>>? itemsSolicitados,
     int? autorizadoPor,
+    bool reintegrarInventario = true,
   }) async {
     final motivoLimpio = motivo.trim();
     if (motivoLimpio.isEmpty) {
@@ -400,6 +415,7 @@ class DevolucionesController {
         'tipo': tipo,
         'motivo': motivoLimpio,
         'importe': importeTotal,
+        'reintegro_inventario': reintegrarInventario ? 1 : 0,
       });
 
       // El reembolso sale del efectivo de la caja actual (ver el comentario
@@ -427,18 +443,26 @@ class DevolucionesController {
           'precio': precio,
         });
 
-        // Reutiliza el helper de reintegro de stock ya usado al cancelar
-        // pedidos entregados: el mecanismo (sumar cantidad a Inventario
-        // dentro de la misma transacción) es idéntico.
-        await _productoController.restaurarStockPedido(
-          idProducto,
-          cantidad,
-          executor: txn,
-          tipoMovimiento: 'DevolucionVenta',
-          referenciaTipo: 'Venta',
-          referenciaId: idVenta,
-          motivo: 'Devolución de venta #$idVenta',
-        );
+        // Merma: la mercancía regresó inservible, así que se devuelve el
+        // dinero pero NO se suma al inventario. No se registra movimiento de
+        // inventario porque la existencia no cambió: lo que hay que auditar es
+        // la devolución en sí (queda marcada con `reintegro_inventario = 0` y
+        // descrita en la bitácora de abajo). Registrar un movimiento de cero
+        // piezas solo ensuciaría el reporte de movimientos.
+        if (reintegrarInventario) {
+          // Reutiliza el helper de reintegro de stock ya usado al cancelar
+          // pedidos entregados: el mecanismo (sumar cantidad a Inventario
+          // dentro de la misma transacción) es idéntico.
+          await _productoController.restaurarStockPedido(
+            idProducto,
+            cantidad,
+            executor: txn,
+            tipoMovimiento: 'DevolucionVenta',
+            referenciaTipo: 'Venta',
+            referenciaId: idVenta,
+            motivo: 'Devolución de venta #$idVenta',
+          );
+        }
       }
 
       final pendienteTotalRestante = vendidoPorProducto.keys.fold<int>(0, (acc, idProducto) {
@@ -463,10 +487,14 @@ class DevolucionesController {
       // método(s) se pagó la venta original: así lo decidió el negocio para
       // no depender de terminales de tarjeta al momento de la devolución.
       // El corte de caja lo resta directamente del bucket de efectivo.
+      final destinoMercancia = reintegrarInventario
+          ? ''
+          : ' La mercancía NO regresó al inventario (merma).';
+
       final descripcion = tipo == 'Cancelacion'
-          ? 'Venta #$idVenta cancelada. Motivo: $motivoLimpio. Importe devuelto: \$${importeTotal.toStringAsFixed(2)} (reembolsado en efectivo).'
+          ? 'Venta #$idVenta cancelada. Motivo: $motivoLimpio. Importe devuelto: \$${importeTotal.toStringAsFixed(2)} (reembolsado en efectivo).$destinoMercancia'
           : 'Devolución parcial en venta #$idVenta (${itemsAProcesar.length} producto(s)). '
-              'Motivo: $motivoLimpio. Importe devuelto: \$${importeTotal.toStringAsFixed(2)} (reembolsado en efectivo).';
+              'Motivo: $motivoLimpio. Importe devuelto: \$${importeTotal.toStringAsFixed(2)} (reembolsado en efectivo).$destinoMercancia';
 
       await txn.insert('Auditorias', {
         'fecha_hora': DateTime.now().toIso8601String(),

@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 import '../security/password_hasher.dart';
+import 'db_exceptions.dart';
 import '../utils/guid_generator.dart';
 import '../utils/pagos_mixtos.dart';
 
@@ -77,7 +78,24 @@ class DatabaseHelper {
   /// v22: (1) `costo_unitario` en `Detalle_Venta` y `Detalle_Apartado`, para
   /// congelar el costo del producto en el momento de la venta; (2)
   /// `Clientes.telefono` pasa de INTEGER a TEXT.
-  static const _databaseVersion = 22;
+  ///
+  /// v23: (1) `sku` e `iva_tasa` en `Producto` (clave interna distinta del
+  /// código de barras, e IVA por producto que sustituye a la tasa global solo
+  /// cuando está definido); (2) `reintegro_inventario` en `Devoluciones`, para
+  /// poder devolver mercancía dañada sin regresarla al inventario (merma).
+  /// v24: `edicion` y `licencia_expira` en `configuracion`. Nacen vacías y
+  /// hoy nadie las lee: están de una vez para que el día que se active el
+  /// licenciamiento no haya que migrar el esquema en instalaciones que ya
+  /// llevan meses operando con ventas reales. Agregar columnas que ya existen
+  /// es un no-op; hacerlo después sobre una base viva, no.
+  static const _databaseVersion = 24;
+
+  /// Versión del esquema que maneja esta compilación.
+  ///
+  /// Pública porque el pie de versión, el reporte de soporte y la pantalla de
+  /// error de arranque tienen que poder decir con qué esquema trabaja la app
+  /// sin abrir la base de datos.
+  static int get versionEsquema => _databaseVersion;
 
   Future<Database> _initDB() async {
     final path = await getDatabasePath();
@@ -107,6 +125,7 @@ class DatabaseHelper {
   @visibleForTesting
   Future<Database> abrirEnRuta(String path) async {
     _ensureDesktopFactory();
+    await _verificarEsquemaNoEsMasNuevo(path);
     return openDatabase(
       path,
       version: _databaseVersion,
@@ -115,6 +134,46 @@ class DatabaseHelper {
       onUpgrade: _onUpgrade,
       onOpen: _onOpen,
     );
+  }
+
+  /// Aborta la apertura si el archivo fue creado por una versión MÁS RECIENTE
+  /// de la app (`PRAGMA user_version` mayor que [_databaseVersion]).
+  ///
+  /// Pasa cuando se instala una versión anterior encima de una al día: el
+  /// cliente corre el instalador que guardó en la USB, o se le manda por
+  /// WhatsApp el archivo equivocado. Como los instaladores se reparten a mano,
+  /// la copia vieja se queda para siempre en el escritorio del cliente.
+  ///
+  /// `sqflite` solo sabe subir de versión: si el archivo viene de una más
+  /// nueva, `openDatabase` ni siquiera se queja —no hay `onDowngrade` que
+  /// dispare— y la app opera contra columnas que su esquema no conoce. El
+  /// daño es silencioso y no se deshace.
+  ///
+  /// Se abre sin `version` a propósito: eso lee el archivo sin disparar
+  /// `_onCreate` ni `_onUpgrade`, así que comprobar no modifica nada. Y si el
+  /// archivo no existe (instalación nueva) no hay nada que comparar: abrirlo
+  /// aquí lo crearía vacío y se perdería el `_onCreate` real.
+  Future<void> _verificarEsquemaNoEsMasNuevo(String path) async {
+    if (!await File(path).exists()) return;
+
+    int versionArchivo;
+    try {
+      final db = await databaseFactory.openDatabase(path);
+      versionArchivo = await db.getVersion();
+      await db.close();
+    } catch (_) {
+      // Archivo ilegible o bloqueado: no es el caso que esto cubre. Que falle
+      // el camino normal de apertura, que da un error más preciso.
+      return;
+    }
+
+    if (versionArchivo > _databaseVersion) {
+      throw BaseDeDatosMasNuevaException(
+        versionArchivo: versionArchivo,
+        versionApp: _databaseVersion,
+        rutaArchivo: path,
+      );
+    }
   }
 
   /// Permite a las pruebas automatizadas redirigir el singleton hacia una
@@ -416,6 +475,7 @@ class DatabaseHelper {
         tipo TEXT CHECK(tipo IN ('Cancelacion','Parcial')) NOT NULL,
         motivo TEXT NOT NULL,
         importe REAL NOT NULL DEFAULT 0,
+        reintegro_inventario INTEGER NOT NULL DEFAULT 1,
         FOREIGN KEY (id_venta) REFERENCES Ventas(id_venta) ON DELETE RESTRICT,
         FOREIGN KEY (id_usuario) REFERENCES Usuarios(id_usuario) ON DELETE RESTRICT,
         FOREIGN KEY (id_caja) REFERENCES Cajas(id_caja) ON DELETE SET NULL
@@ -446,6 +506,8 @@ class DatabaseHelper {
         estado TEXT CHECK(estado IN ('Activo','Inactivo')) DEFAULT 'Activo',
         id_categoria INTEGER,
         codigo_barras TEXT,
+        sku TEXT,
+        iva_tasa REAL,
         FOREIGN KEY (id_categoria) REFERENCES Categorias(id_categoria) ON DELETE SET NULL
       );
     ''');
@@ -495,9 +557,13 @@ class DatabaseHelper {
         impresora_url TEXT,
         impresora_nombre TEXT,
         abrir_cajon_efectivo INTEGER DEFAULT 0,
+        cajon_puerto TEXT,
+        cajon_baudios INTEGER DEFAULT 9600,
         descuento_maximo_porcentaje REAL DEFAULT 20,
         descuento_cajero_puede_aplicar INTEGER DEFAULT 1,
-        descuento_cajero_requiere_autorizacion INTEGER DEFAULT 1
+        descuento_cajero_requiere_autorizacion INTEGER DEFAULT 1,
+        edicion TEXT,
+        licencia_expira TEXT
       );
     ''');
 
@@ -606,6 +672,19 @@ class DatabaseHelper {
       await _migrarClientesTelefonoATexto(db);
     }
 
+    if (oldVersion < 23) {
+      await _ensureProductoSkuEIvaColumns(db);
+      await _ensureDevolucionesReintegroColumn(db);
+      // Idempotente, y aquí trae las columnas del puerto del cajón: desde la
+      // v21 este `_ensure*` ya no corre en cada apertura, así que una
+      // instalación que ya estaba al día no las recibiría de otro modo.
+      await _ensureConfiguracionTicketColumns(db);
+    }
+
+    if (oldVersion < 24) {
+      await _ensureConfiguracionLicenciaColumns(db);
+    }
+
     // Idempotente (CREATE INDEX IF NOT EXISTS): se repite en cada upgrade
     // para que índices agregados en versiones nuevas también lleguen a
     // instalaciones que ya estaban al día en versiones anteriores.
@@ -686,6 +765,61 @@ class DatabaseHelper {
         );
       ''',
     );
+  }
+
+  /// Agrega a `Producto` la clave interna (`sku`) y el IVA por producto
+  /// (`iva_tasa`).
+  ///
+  /// Son dos datos distintos del código de barras, que hasta ahora hacía las
+  /// veces de ambos:
+  ///
+  /// - **`sku`**: la clave con la que el negocio identifica el producto en su
+  ///   catálogo (etiqueta impresa, lista de precios, conteo físico). Un
+  ///   producto a granel o sin empaque de fábrica no tiene código de barras
+  ///   pero sí necesita clave. Opcional y único cuando existe: la unicidad la
+  ///   impone `idx_producto_sku` en [_crearIndices], y SQLite no considera
+  ///   colisión entre múltiples `NULL`, así que los productos sin SKU conviven
+  ///   sin problema.
+  /// - **`iva_tasa`**: porcentaje de IVA de ESE producto. `NULL` —el valor de
+  ///   todas las filas existentes— significa "usa la tasa general de
+  ///   Configuración", que es exactamente el comportamiento anterior, así que
+  ///   la migración no cambia ningún cálculo hasta que alguien capture una
+  ///   tasa distinta. Es lo que permite vender productos exentos (0%) junto a
+  ///   gravados en el mismo ticket.
+  Future<void> _ensureProductoSkuEIvaColumns(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(Producto)');
+    final columnNames = info.map((row) => row['name']?.toString()).toSet();
+
+    const columnasNuevas = {
+      'sku': 'TEXT',
+      'iva_tasa': 'REAL',
+    };
+
+    for (final entry in columnasNuevas.entries) {
+      if (!columnNames.contains(entry.key)) {
+        await db.execute('ALTER TABLE Producto ADD COLUMN ${entry.key} ${entry.value};');
+      }
+    }
+  }
+
+  /// Agrega a `Devoluciones` la marca de si la mercancía volvió al inventario.
+  ///
+  /// Hasta ahora TODA devolución sumaba las piezas de vuelta al inventario, lo
+  /// que es correcto para un cambio de talla y falso para un producto que
+  /// regresó roto o caducado: esas piezas quedaban como existencia vendible y
+  /// el conteo físico nunca cuadraba. `1` (el valor por defecto, y el de todas
+  /// las filas anteriores) conserva el comportamiento de siempre; `0` marca la
+  /// devolución como merma.
+  Future<void> _ensureDevolucionesReintegroColumn(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(Devoluciones)');
+    if (info.isEmpty) return; // la tabla se crea más adelante ya con la columna
+
+    final columnNames = info.map((row) => row['name']?.toString()).toSet();
+    if (!columnNames.contains('reintegro_inventario')) {
+      await db.execute(
+        'ALTER TABLE Devoluciones ADD COLUMN reintegro_inventario INTEGER NOT NULL DEFAULT 1;',
+      );
+    }
   }
 
   /// Agrega la columna opcional de código de barras a `Producto`. Puede ser
@@ -1593,6 +1727,38 @@ class DatabaseHelper {
     }
   }
 
+  /// Agrega a `configuracion` las columnas donde vivirá la licencia:
+  /// `edicion` ('basica' | 'pro' | 'multisucursal') y `licencia_expira`
+  /// (fecha ISO).
+  ///
+  /// Hoy NADA las lee, y es intencional. Se agregan ahora, mientras las
+  /// instalaciones son pocas y jóvenes, para que activar el licenciamiento más
+  /// adelante no obligue a migrar el esquema de bases que ya llevan meses con
+  /// ventas reales dentro.
+  ///
+  /// Nacen en NULL, no con un DEFAULT 'basica': una edición implícita
+  /// bloquearía en el momento de actualizar módulos que el cliente ya está
+  /// usando. Sin licencia declarada, el comportamiento es el de siempre —todo
+  /// habilitado—, y así seguirá hasta que exista un archivo de licencia
+  /// firmado que diga otra cosa.
+  Future<void> _ensureConfiguracionLicenciaColumns(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(configuracion)');
+    final columnNames = info.map((row) => row['name']?.toString()).toSet();
+
+    const columnasNuevas = {
+      'edicion': 'TEXT',
+      'licencia_expira': 'TEXT',
+    };
+
+    for (final entry in columnasNuevas.entries) {
+      if (!columnNames.contains(entry.key)) {
+        await db.execute(
+          'ALTER TABLE configuracion ADD COLUMN ${entry.key} ${entry.value};',
+        );
+      }
+    }
+  }
+
   /// Agrega a `configuracion` las columnas de opciones de ticket agregadas
   /// después de la identidad del negocio (hoy solo el toggle de IVA
   /// desglosado). Idempotente: se llama en cada apertura.
@@ -1607,6 +1773,8 @@ class DatabaseHelper {
       'impresora_url': 'TEXT',
       'impresora_nombre': 'TEXT',
       'abrir_cajon_efectivo': 'INTEGER DEFAULT 0',
+      'cajon_puerto': 'TEXT',
+      'cajon_baudios': 'INTEGER DEFAULT 9600',
     };
 
     for (final entry in columnasNuevas.entries) {
@@ -1878,6 +2046,7 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX IF NOT EXISTS idx_detalle_pedido_id_producto ON Detalle_Pedido(id_producto);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_producto_id_categoria ON Producto(id_categoria);');
     await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_producto_codigo_barras ON Producto(codigo_barras);');
+    await db.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_producto_sku ON Producto(sku);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_auditorias_fecha_hora ON Auditorias(fecha_hora);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_auditorias_tabla ON Auditorias(tabla);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_auditorias_id_usuario ON Auditorias(id_usuario);');

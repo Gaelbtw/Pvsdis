@@ -84,8 +84,12 @@ class _InventarioViewState extends State<InventarioView> {
 
   List<Map<String, dynamic>> get filtrados {
     return productos.where((p) {
-      final matchBusqueda =
-          p['nombre'].toLowerCase().contains(busqueda.toLowerCase());
+      final consulta = busqueda.toLowerCase();
+      // Se busca también por clave y código de barras: en un conteo físico se
+      // tiene la etiqueta del producto en la mano, no su nombre exacto.
+      final matchBusqueda = p['nombre'].toLowerCase().contains(consulta) ||
+          (p['sku']?.toString().toLowerCase().contains(consulta) ?? false) ||
+          (p['codigo_barras']?.toString().toLowerCase().contains(consulta) ?? false);
 
       final matchCategoria = categoriaSeleccionada == null ||
           p['id_categoria'] == categoriaSeleccionada;
@@ -252,7 +256,7 @@ class _InventarioViewState extends State<InventarioView> {
           child: TextField(
             onChanged: (v) => setState(() => busqueda = v),
             decoration: InputDecoration(
-              hintText: "Buscar producto...",
+              hintText: "Buscar por nombre, clave o código...",
               prefixIcon: const Icon(Icons.search),
               filled: true,
               fillColor: AppColors.surface,

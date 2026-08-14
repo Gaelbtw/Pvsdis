@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -7,7 +8,12 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../controllers/auditoria_controller.dart';
+import '../controllers/database_backup_controller.dart';
 import '../core/config/app_config.dart';
+import '../core/config/app_info.dart';
+import '../core/database/database_helper.dart';
+import '../services/soporte_service.dart';
+import '../services/cajon_service.dart';
 import '../core/theme/app_colors.dart';
 import '../models/configuracion_model.dart';
 import '../services/configuracion_service.dart';
@@ -62,6 +68,17 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
   String? impresoraUrl;
   String? impresoraNombre;
 
+  /// Puerto serie del cajón (`null` = mandarlo por la impresora del sistema).
+  String? cajonPuerto;
+  final cajonBaudiosCtrl = TextEditingController();
+
+  /// Puertos ofrecidos en el desplegable. No se detectan los realmente
+  /// existentes a propósito: enumerar puertos en Windows requiere leer el
+  /// registro o usar SetupAPI, y una impresora apagada no aparecería aunque su
+  /// puerto sea el correcto. Ocho cubren cualquier equipo de punto de venta, y
+  /// el botón de prueba dice de inmediato si el elegido sirve.
+  static const _puertosSerie = ['COM1', 'COM2', 'COM3', 'COM4', 'COM5', 'COM6', 'COM7', 'COM8'];
+
   /// Sección activa del panel de configuración (índice en [_secciones]).
   int _seccion = 0;
 
@@ -77,7 +94,18 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
     (Icons.schedule_outlined, 'Turnos', 'Horario matutino y vespertino', 'OPERACIÓN'),
     (Icons.inventory_2_outlined, 'Inventario y caja', 'Inventario mínimo y fondo de caja', 'OPERACIÓN'),
     (Icons.grid_view_rounded, 'Accesos', '', 'ADMINISTRACIÓN'),
+    (Icons.info_outline_rounded, 'Sistema y soporte', 'Versión, respaldo externo y reporte de soporte', 'ADMINISTRACIÓN'),
   ];
+
+  /// Secciones que no guardan nada: solo navegan (Accesos) o informan
+  /// (Sistema y soporte). Mostrarles un botón de "Guardar cambios" que no
+  /// guarda nada entrena al usuario a ignorarlo en las que sí importan.
+  static const _seccionesSinGuardar = {7, 8};
+
+  /// Evita disparar dos veces la generación del reporte con doble clic: el
+  /// archivo lleva la hora en el nombre, así que dos corridas dejan dos
+  /// archivos y el cliente no sabe cuál mandar.
+  bool _generandoSoporte = false;
 
   String? logoPath;
   late Color colorSeleccionado;
@@ -127,6 +155,10 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
       tamanoPapel = config.tamanoPapel;
       autoImprimirTicket = config.autoImprimirTicket;
       abrirCajonEfectivo = config.abrirCajonEfectivo;
+      // Un puerto guardado que ya no esté en la lista (por ejemplo COM12, si se
+      // configuró a mano) se agrega para no perderlo al abrir esta pantalla.
+      cajonPuerto = config.cajonPuerto;
+      cajonBaudiosCtrl.text = config.cajonBaudios.toString();
       impresoraUrl = config.impresoraUrl;
       impresoraNombre = config.impresoraNombre;
       mensajeTicketCtrl.text = config.mensajeTicket;
@@ -202,6 +234,24 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
     });
   }
 
+  /// Manda el pulso de apertura con la configuración YA GUARDADA (CajonService
+  /// lee de `AppConfig`, no de estos campos): así lo que se prueba es
+  /// exactamente lo que hará la app al cobrar, no un ajuste a medio capturar.
+  Future<void> _probarCajon() async {
+    final abrio = await CajonService.abrir();
+
+    if (!mounted) return;
+    if (abrio) {
+      Toast.exito(context, "Pulso enviado. Si el cajón no abrió, revisa el cable y el puerto.");
+    } else {
+      Toast.error(
+        context,
+        "No se pudo enviar el pulso. Revisa que la impresora esté encendida "
+        "y que la conexión configurada sea la correcta.",
+      );
+    }
+  }
+
   Future<void> guardar() async {
     if (stockCtrl.text.trim().isEmpty ||
         fondoCtrl.text.trim().isEmpty ||
@@ -229,6 +279,10 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
       tamanoPapel: tamanoPapel,
       autoImprimirTicket: autoImprimirTicket,
       abrirCajonEfectivo: abrirCajonEfectivo,
+      cajonPuerto: cajonPuerto,
+      // Una velocidad vacía o absurda vuelve al valor de fábrica en vez de
+      // guardar un 0 que dejaría el puerto inutilizable.
+      cajonBaudios: int.tryParse(cajonBaudiosCtrl.text.trim()) ?? 9600,
       impresoraUrl: impresoraUrl,
       impresoraNombre: impresoraNombre,
       mensajeTicket: mensajeTicketCtrl.text.trim().isEmpty
@@ -587,6 +641,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
     ivaCtrl.dispose();
     mensajeTicketCtrl.dispose();
     descuentoMaximoCtrl.dispose();
+    cajonBaudiosCtrl.dispose();
     super.dispose();
   }
 
@@ -720,6 +775,8 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
         return _seccionInventarioCaja();
       case 7:
         return _accesosAdministracion(context);
+      case 8:
+        return _seccionSistema();
       default:
         return const SizedBox.shrink();
     }
@@ -727,7 +784,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
 
   Widget _panelSeccion() {
     final (icon, titulo, subtitulo, _) = _secciones[_seccion];
-    final esAccesos = _seccion == _secciones.length - 1;
+    final sinGuardar = _seccionesSinGuardar.contains(_seccion);
 
     return Container(
       decoration: BoxDecoration(
@@ -770,7 +827,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
             padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
             child: _contenidoSeccion(_seccion),
           ),
-          if (!esAccesos) ...[
+          if (!sinGuardar) ...[
             const Divider(height: 1, color: AppColors.border),
             Padding(
               padding: const EdgeInsets.all(18),
@@ -798,6 +855,226 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
         ],
       ),
     );
+  }
+
+  // ------------------------------------------------- sistema y soporte
+
+  /// Versión instalada, estado del respaldo externo y generación del reporte
+  /// de soporte.
+  ///
+  /// Los tres datos que hacen falta cuando algo falla y hay que resolverlo por
+  /// WhatsApp con alguien que no es técnico.
+  Widget _seccionSistema() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _bloque(
+            "VERSIÓN INSTALADA",
+            Column(
+              children: [
+                _filaDato("Pv Control", AppInfo.versionCompleta),
+                _filaDato("Estructura de datos", "v${AppInfo.versionEsquema}"),
+                FutureBuilder<String>(
+                  future: DatabaseHelper().getDatabasePath(),
+                  builder: (context, snap) => _filaDato(
+                    "Carpeta de datos",
+                    snap.data == null ? "..." : p.dirname(snap.data!),
+                    monoespaciado: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 22),
+          _bloque("RESPALDO FUERA DE ESTE EQUIPO", _estadoRespaldoExterno()),
+          const SizedBox(height: 22),
+          _bloque(
+            "REPORTE DE SOPORTE",
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _nota(
+                  "Genera un archivo de texto con el estado del sistema para "
+                  "mandarlo por WhatsApp cuando algo falle. NO incluye datos de "
+                  "clientes, productos ni ventas: solo versiones, conteos y "
+                  "estado del respaldo.",
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    onPressed: _generandoSoporte ? null : _generarReporteSoporte,
+                    icon: _generandoSoporte
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.description_outlined, size: 18),
+                    label: Text(_generandoSoporte
+                        ? "Generando..."
+                        : "Generar reporte de soporte"),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primaryDark,
+                      side: const BorderSide(color: AppColors.border),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+
+  /// Estado del respaldo automático a unidad externa.
+  ///
+  /// La app no lo ejecuta ni puede comprobarlo directamente: solo lee el
+  /// marcador que deja el script programado de Windows. Que aparezca aquí en
+  /// rojo es todo el propósito -- sin un aviso visible, una USB desconectada
+  /// hace semanas se descubre el día que muere el disco.
+  Widget _estadoRespaldoExterno() {
+    return FutureBuilder<RespaldoExterno?>(
+      future: DatabaseBackupController().ultimoRespaldoExterno(),
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return const SizedBox(
+            height: 44,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          );
+        }
+
+        final r = snap.data;
+        final bool alarma = r == null || r.estaAtrasado;
+        final color = alarma ? AppColors.error : AppColors.success;
+
+        final String titulo;
+        final String detalle;
+        if (r == null) {
+          titulo = "Nunca se ha respaldado fuera de este equipo";
+          detalle =
+              "Toda la información del negocio vive en un solo archivo dentro "
+              "de esta computadora. Si el disco falla, no se recupera nada. "
+              "Corre 'instalar-respaldo-automatico.ps1' de la USB de "
+              "instalación para programarlo.";
+        } else if (r.estaAtrasado) {
+          titulo = "Último respaldo hace ${r.diasDesde} días";
+          detalle =
+              "Lo más probable es que la unidad de respaldo esté desconectada. "
+              "Conéctala y revisa que aparezca una carpeta nueva en "
+              "${r.destino}";
+        } else {
+          titulo = r.diasDesde == 0
+              ? "Respaldado hoy"
+              : "Último respaldo hace ${r.diasDesde} día(s)";
+          detalle = r.destino;
+        }
+
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(color: color.withValues(alpha: 0.28)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                alarma ? Icons.error_outline_rounded : Icons.verified_outlined,
+                color: color,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titulo,
+                      style: TextStyle(
+                        fontSize: AppText.body,
+                        fontWeight: FontWeight.w800,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      detalle,
+                      style: const TextStyle(
+                        fontSize: AppText.small,
+                        height: 1.4,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _filaDato(String etiqueta, String valor, {bool monoespaciado = false}) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 7),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 170,
+              child: Text(
+                etiqueta,
+                style: const TextStyle(
+                  fontSize: AppText.small,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            Expanded(
+              child: SelectableText(
+                valor,
+                style: TextStyle(
+                  fontSize: AppText.small,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                  fontFamily: monoespaciado ? 'monospace' : null,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  Future<void> _generarReporteSoporte() async {
+    setState(() => _generandoSoporte = true);
+    try {
+      final ruta = await SoporteService().generar();
+      if (!mounted) return;
+      Toast.exito(context, "Reporte generado: ${p.basename(ruta)}");
+      // Abrir la carpeta y dejar el archivo seleccionado: pedirle a alguien
+      // que navegue a mano hasta AppData es donde se pierde la mitad de los
+      // reportes. explorer.exe devuelve 1 aunque funcione, así que no se
+      // revisa el código de salida.
+      unawaited(Process.run('explorer', ['/select,', ruta]));
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, "No se pudo generar el reporte: $e");
+    } finally {
+      if (mounted) setState(() => _generandoSoporte = false);
+    }
   }
 
   Widget _bloque(String titulo, Widget contenido) => Column(
@@ -885,6 +1162,67 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
             value: abrirCajonEfectivo,
             activeThumbColor: AppColors.primary,
             onChanged: (v) => setState(() => abrirCajonEfectivo = v),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 3,
+                child: DropdownButtonFormField<String?>(
+                  initialValue: cajonPuerto,
+                  decoration: const InputDecoration(
+                    labelText: "Conexión del cajón",
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text("Por la impresora (recomendado)"),
+                    ),
+                    for (final puerto in _puertosSerie)
+                      DropdownMenuItem<String?>(value: puerto, child: Text("Puerto $puerto")),
+                    // Conserva un puerto configurado fuera de la lista.
+                    if (cajonPuerto != null && !_puertosSerie.contains(cajonPuerto))
+                      DropdownMenuItem<String?>(
+                        value: cajonPuerto,
+                        child: Text("Puerto $cajonPuerto"),
+                      ),
+                  ],
+                  onChanged: (v) => setState(() => cajonPuerto = v),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 2,
+                child: customInput(
+                  controller: cajonBaudiosCtrl,
+                  hint: "Velocidad (ej. 9600)",
+                  keyboard: TextInputType.number,
+                ),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                onPressed: _probarCajon,
+                icon: const Icon(Icons.point_of_sale, size: 18),
+                label: const Text("Probar cajón"),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.black87,
+                  side: BorderSide(color: AppColors.border),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _nota(
+            "Deja \"Por la impresora\" si la impresora de tickets está instalada en Windows. "
+            "Elige un puerto COM solo si la impresora está conectada por cable serie y no "
+            "aparece como impresora del sistema. El botón de prueba usa lo que está guardado: "
+            "guarda los cambios antes de probar.",
           ),
         ],
       );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../controllers/producto_controller.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/motivo_ajuste_inventario.dart';
 import '../../models/configuracion_model.dart';
 import '../../models/producto_model.dart';
 import '../app_text_field.dart';
@@ -29,6 +30,9 @@ void mostrarEditarProductoDialog(
   final nombreCtrl = TextEditingController(text: producto['nombre']);
   final precioCtrl = TextEditingController(text: producto['precio'].toString());
   final stockCtrl = TextEditingController(text: producto['cantidad'].toString());
+
+  final stockOriginal = producto['cantidad'] as int;
+  var motivo = MotivoAjusteInventario.porDefectoAjuste;
 
   showDialog(
     context: context,
@@ -61,6 +65,30 @@ void mostrarEditarProductoDialog(
             iconColor: AppColors.primaryDark,
             keyboardType: TextInputType.number,
           ),
+        // El motivo solo tiene sentido junto al campo de existencias, y solo
+        // se guarda si la cantidad realmente cambió (ver onGuardar). Va en un
+        // StatefulBuilder porque `campos` es una lista fija de widgets: sin
+        // él, el desplegable no repintaría la opción elegida.
+        if (puedeAjustarInventario)
+          StatefulBuilder(
+            builder: (context, setEstadoCampo) => DropdownButtonFormField<MotivoAjusteInventario>(
+              initialValue: motivo,
+              decoration: InputDecoration(
+                labelText: "Motivo del ajuste",
+                filled: true,
+                fillColor: Colors.white,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              items: MotivoAjusteInventario.values
+                  .map((m) => DropdownMenuItem(value: m, child: Text(m.etiqueta)))
+                  .toList(),
+              onChanged: (v) => setEstadoCampo(() => motivo = v ?? motivo),
+            ),
+          ),
       ],
       onGuardar: () async {
         if (puedeEditarProducto) {
@@ -73,18 +101,28 @@ void mostrarEditarProductoDialog(
               categoriaId: producto['id_categoria'],
               estado: producto['estado'] ?? "Activo",
               stockMinimo: config.stockMinimo,
-              // Preserva el código existente: este diálogo no lo edita, y
-              // toMap() sobrescribe la fila completa al guardar.
+              // Preserva los datos que este diálogo no edita: `toMap()`
+              // sobrescribe la fila COMPLETA al guardar, así que omitirlos
+              // aquí los borraría de la base de datos.
               codigoBarras: producto['codigo_barras'],
+              sku: producto['sku'],
+              ivaTasa: (producto['iva_tasa'] as num?)?.toDouble(),
             ),
           );
         }
 
         if (puedeAjustarInventario) {
-          await productoController.actualizarStock(
-            producto['id_producto'],
-            int.tryParse(stockCtrl.text) ?? producto['cantidad'],
-          );
+          final nuevoStock = int.tryParse(stockCtrl.text) ?? stockOriginal;
+          // Sin cambio no se llama al controlador: registraría una entrada de
+          // auditoría ("modificado de 8 a 8") por el solo hecho de abrir el
+          // diálogo y guardar, ensuciando el historial.
+          if (nuevoStock != stockOriginal) {
+            await productoController.actualizarStock(
+              producto['id_producto'],
+              nuevoStock,
+              motivo: motivo,
+            );
+          }
         }
 
         if (!context.mounted) return;

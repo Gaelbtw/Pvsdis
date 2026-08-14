@@ -40,11 +40,26 @@ se sube a git (está en `.gitignore`); es la carpeta de salida de cada build.
 ## Publicar una nueva versión para clientes existentes
 
 1. Sube el número de versión en `pubspec.yaml` (ej. `1.0.0+1` → `1.1.0+2`).
-2. Corre `build_installer.ps1` como arriba.
-3. Entrega el `.exe` generado en `dist\` al cliente. Al ejecutarlo sobre una
+   **Si `_databaseVersion` subió, el bump es mínimo de MINOR**, nunca de
+   PATCH: el número tiene que delatar que la base va a cambiar al actualizar.
+2. Anota el cambio en `CHANGELOG.md`, en español de negocio. "Ahora el corte X
+   muestra las devoluciones del turno", no "fix: cast en corte_x_service".
+3. `flutter analyze` y `flutter test` en limpio. Las migraciones se prueban
+   sobre una **copia de una base real**, no solo sobre una vacía.
+4. Corre `build_installer.ps1` como arriba.
+5. Anota el `SHA256` del `.exe` y entrégalo junto al instalador, para que el
+   cliente pueda verificar que bajó lo tuyo:
+   `Get-FileHash dist\PvControl-Setup-X.Y.Z.exe -Algorithm SHA256`
+6. Entrega el `.exe` generado en `dist\` al cliente. Al ejecutarlo sobre una
    instalación existente, Inno Setup la detecta automáticamente (mismo
    `AppId`, ver más abajo), la actualiza en el mismo lugar y **conserva la
    base de datos del cliente sin ningún paso manual**.
+
+**Nunca le mandes a un cliente un instalador con versión anterior a la que ya
+tiene.** Desde la v24 la app se defiende sola (`abrirEnRuta` compara
+`PRAGMA user_version` y aborta con un mensaje claro en vez de dañar la base),
+pero eso deja al negocio sin poder cobrar hasta que llegue el instalador
+correcto.
 
 Si la app está abierta en ese momento, el instalador pide cerrarla antes de
 continuar (no la mata a la fuerza) — configurado con `CloseApplications` en
@@ -63,7 +78,23 @@ el `.iss`.
   Flutter, `sqlite3.dll`, `pdfium.dll`, `printing_plugin.dll` y la carpeta
   `data\` con los assets) usando un wildcard, así que no hay una lista de
   archivos que se pueda desincronizar del build real.
+- Muestra el contrato de licencia (`docs\EULA.txt`, vía `LicenseFile`) y exige
+  aceptarlo antes de instalar. Ese archivo está en **ASCII puro a propósito**:
+  Inno interpreta los `.txt` de `LicenseFile` como ANSI salvo que traigan BOM
+  UTF-8, y un acento mal codificado en la pantalla legal se ve pésimo. Si lo
+  editas, no metas acentos (mismo criterio que `usb\LEEME.txt`).
 - Idioma del asistente: español (con inglés como alternativa).
+
+## Lo que todavía le falta al instalador
+
+- **No está firmado.** Windows muestra "Windows protegió tu PC" y el botón para
+  continuar queda escondido tras "Más información" (el `LEEME.txt` de la USB ya
+  lo explica paso a paso). Instalando tú, presencial, no estorba. Cuando
+  empieces a mandar el instalador por WhatsApp sin estar presente, contrata
+  **Azure Trusted Signing** (~10 USD/mes, sin token físico) y agrega
+  `SignTool=firmar $f` al `[Setup]`. No compres EV: desde marzo de 2024
+  Microsoft ya no le da reputación SmartScreen inmediata, así que ya no compra
+  lo que costaba.
 
 ## Dónde vive la base de datos del cliente (y por qué se conserva sola)
 

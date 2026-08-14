@@ -2,6 +2,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../core/config/app_config.dart';
+import '../core/utils/iva_utils.dart';
 
 class TicketService {
   static Future<pw.Document> generarTicket({
@@ -16,6 +17,16 @@ class TicketService {
   }) async {
     final pdf = pw.Document();
     final config = AppConfig.actual;
+
+    // El IVA se calcula línea por línea (cada producto puede tener su propia
+    // tasa, ver `Producto.iva_tasa`) y no aplicando la tasa general al total:
+    // con un ticket que mezcla productos gravados y exentos, lo segundo cobra
+    // impuesto de más sobre lo exento.
+    final desglose = desglosarIva(
+      lineas: carrito,
+      tasaGeneral: config.tasaImpuestoPorcentaje,
+      total: total,
+    );
 
     pdf.addPage(
       pw.Page(
@@ -86,11 +97,9 @@ class TicketService {
                     ],
                   )),
 
-              if (config.tasaImpuestoPorcentaje > 0 && !config.mostrarIvaDesglosado) ...[
+              if (desglose.hayIva && !config.mostrarIvaDesglosado) ...[
                 pw.SizedBox(height: 3),
-                pw.Text(
-                  "IVA (${config.tasaImpuestoPorcentaje.toStringAsFixed(2)}%) incluido",
-                ),
+                pw.Text("${desglose.etiqueta} incluido"),
               ],
 
               pw.SizedBox(height: 5),
@@ -142,20 +151,19 @@ class TicketService {
                 pw.SizedBox(height: 3),
               ],
 
-              if (config.mostrarIvaDesglosado && config.tasaImpuestoPorcentaje > 0) ...[
+              if (config.mostrarIvaDesglosado && desglose.hayIva) ...[
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
                     pw.Text("Subtotal (sin IVA)"),
-                    pw.Text(AppConfig.formatoMoneda(total / (1 + config.tasaImpuestoPorcentaje / 100))),
+                    pw.Text(AppConfig.formatoMoneda(desglose.base)),
                   ],
                 ),
                 pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
-                    pw.Text("IVA (${config.tasaImpuestoPorcentaje.toStringAsFixed(2)}%)"),
-                    pw.Text(AppConfig.formatoMoneda(
-                        total - total / (1 + config.tasaImpuestoPorcentaje / 100))),
+                    pw.Text(desglose.etiqueta),
+                    pw.Text(AppConfig.formatoMoneda(desglose.iva)),
                   ],
                 ),
                 pw.SizedBox(height: 3),

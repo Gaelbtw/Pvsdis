@@ -1,0 +1,132 @@
+===========================================================================
+  Pv Control - Instalacion en la PC del negocio
+  Version del instalador: {VERSION}
+===========================================================================
+
+Esta carpeta trae todo lo necesario. NO hace falta internet en la PC
+del negocio en ningun momento.
+
+
+CONTENIDO
+---------------------------------------------------------------------------
+  1-VC_redist.x64.exe                 Componente de Windows (instalar 1o)
+  2-PvControl-Setup-{VERSION}.exe     El punto de venta
+  3-instalar-respaldo-automatico.ps1  Configura el respaldo diario
+  respaldo.ps1                        Lo usa el script anterior
+  LEEME.txt                           Este archivo
+
+
+PASO 1 - Instalar el componente de Windows
+---------------------------------------------------------------------------
+Doble clic en:  1-VC_redist.x64.exe
+
+Si Windows dice que "ya esta instalado" o que no es necesario, perfecto:
+cierra y sigue al paso 2. Este paso existe porque en una PC recien
+formateada Pv Control no abre sin este componente, y el error que da no
+explica nada.
+
+
+PASO 2 - Instalar Pv Control
+---------------------------------------------------------------------------
+Clic DERECHO en:  2-PvControl-Setup-{VERSION}.exe
+Elegir:           "Ejecutar como administrador"
+
+Windows va a mostrar una pantalla azul que dice
+"Windows protegio tu PC". Es normal: el instalador todavia no esta
+firmado digitalmente. Para continuar:
+
+    Clic en "Mas informacion"  ->  Clic en "Ejecutar de todas formas"
+
+Luego seguir el asistente (Siguiente > Siguiente > Instalar).
+Se instala en:  C:\Program Files\Pv Control\
+
+
+PASO 3 - Primer arranque
+---------------------------------------------------------------------------
+Abrir Pv Control desde el escritorio o el menu inicio.
+
+La primera vez pide CREAR LA CUENTA DE ADMINISTRADOR. No hay usuario ni
+contrasena por defecto: lo que se escriba ahi es la unica llave del
+sistema.
+
+  >>> ANOTAR ESA CONTRASENA EN UN LUGAR SEGURO. <<<
+  Si se pierde, no hay forma de entrar.
+
+No configurar nada de "sincronizacion" ni de servidor: el sistema
+funciona completo y sin internet tal como queda instalado.
+
+
+PASO 4 - Respaldo automatico (NO SALTARSE ESTE PASO)
+---------------------------------------------------------------------------
+Conectar una segunda memoria USB o disco externo (uno que se quede
+conectado, NO esta misma USB de instalacion).
+
+Clic DERECHO en:  3-instalar-respaldo-automatico.ps1
+Elegir:           "Ejecutar con PowerShell"
+
+El script pregunta:
+  - A que carpeta respaldar  -> elegir la unidad externa (ej. E:\)
+  - Queda programado todos los dias a las 23:00
+
+Al terminar hace un respaldo de prueba. Si dice "LISTO", ya esta.
+
+Que hace: cada noche copia la base de datos a
+    <unidad>\PvControl-Respaldos\<fecha_hora>\
+conservando las ultimas 30 copias y borrando solas las mas viejas.
+
+Por que importa: Pv Control guarda todo (ventas, inventario, clientes,
+cortes de caja) en un solo archivo dentro de esta PC. Si se muere el
+disco duro sin respaldo, no se recupera nada.
+
+
+DONDE VIVEN LOS DATOS
+---------------------------------------------------------------------------
+  C:\Users\<usuario>\AppData\Roaming\2A2G Company\Pv Control\pos.db
+
+Esa carpeta esta FUERA de la carpeta del programa. Por eso reinstalar o
+actualizar Pv Control nunca borra la informacion del negocio.
+
+
+ACTUALIZAR MAS ADELANTE
+---------------------------------------------------------------------------
+Copiar el instalador nuevo a la USB y ejecutarlo encima. Detecta la
+instalacion existente, la actualiza en el mismo lugar y conserva todos
+los datos. Si el programa esta abierto, pide cerrarlo primero.
+
+REGLA: actualizar SIEMPRE con la caja cerrada y sin ventas en curso.
+Nunca a media venta.
+
+
+VERIFICAR QUE EL ARCHIVO NO SE DANO EN LA COPIA
+---------------------------------------------------------------------------
+SHA256 de 2-PvControl-Setup-{VERSION}.exe:
+
+  {SHA256}
+
+Para comprobarlo en la PC del negocio, abrir PowerShell en esta carpeta
+y correr:
+
+  Get-FileHash "2-PvControl-Setup-{VERSION}.exe" -Algorithm SHA256
+
+Debe coincidir con el valor de arriba. Si no coincide, la copia se
+corrompio: volver a copiar el archivo a la USB.
+
+
+PROBLEMAS COMUNES
+---------------------------------------------------------------------------
+"No se puede ejecutar scripts en este sistema"
+    Abrir PowerShell y correr el script asi:
+    powershell -ExecutionPolicy Bypass -File 3-instalar-respaldo-automatico.ps1
+
+El programa no abre / se cierra solo al iniciar
+    Falta el paso 1. Instalar 1-VC_redist.x64.exe y reintentar.
+
+"Windows protegio tu PC" y no aparece como continuar
+    Clic en "Mas informacion" (texto pequeno) y luego en
+    "Ejecutar de todas formas".
+
+Se pidio contrasena de administrador y no se sabe cual es
+    Es la de Windows, no la de Pv Control. La instalacion necesita
+    permisos de administrador del equipo.
+
+===========================================================================

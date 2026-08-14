@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../controllers/auditoria_controller.dart';
+import '../core/config/app_info.dart';
 import '../controllers/auth_controller.dart';
 import '../core/security/permisos_service.dart';
 import '../core/session/session_manager.dart';
@@ -351,6 +352,19 @@ class _LoginViewState extends State<LoginView> {
                     icon: Icon(modoPin ? Icons.password_outlined : Icons.pin_outlined, size: 18),
                     label: Text(modoPin ? "Entrar con usuario y contraseña" : "Entrar con PIN"),
                     style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
+                  ),
+
+                  // Versión visible desde la primera pantalla, sin iniciar
+                  // sesión. Es el dato que se pide en cada llamada de soporte,
+                  // y aquí lo puede leer cualquiera que esté frente al equipo
+                  // -- incluido el cajero que no tiene acceso a Configuración.
+                  const SizedBox(height: 8),
+                  Text(
+                    'Versión ${AppInfo.version}',
+                    style: const TextStyle(
+                      fontSize: AppText.caption,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
 
                 ],

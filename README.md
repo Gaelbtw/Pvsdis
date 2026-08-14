@@ -16,7 +16,7 @@ se activa por dispositivo.
 ```bash
 flutter pub get
 flutter run -d windows          # desarrollo
-flutter test                    # 70 archivos de prueba
+flutter test                    # 80 archivos de prueba
 flutter analyze                 # sin advertencias antes de subir
 ```
 
@@ -119,12 +119,30 @@ Si añades una vista de listado, pagina desde el principio.
 Un solo archivo SQLite en el directorio de datos de la app, junto a
 `backups/` y `exportaciones/`.
 
-- **Versión actual del esquema:** 22 (ver `_databaseVersion` en
-  `core/database/database_helper.dart`)
+- **Versión actual del esquema:** 24 (ver `_databaseVersion` en
+  `core/database/database_helper.dart`, expuesta como
+  `DatabaseHelper.versionEsquema`)
 - **Antes de cada migración se respalda el archivo completo**, con
   `wal_checkpoint` previo para no dejar fuera transacciones que aún vivan en
   el `-wal`.
 - Las migraciones son idempotentes (`PRAGMA table_info` o `IF NOT EXISTS`).
+
+### No se puede abrir una base más nueva que la app
+
+`abrirEnRuta` compara `PRAGMA user_version` con `_databaseVersion` **antes**
+de abrir para escritura y lanza `BaseDeDatosMasNuevaException` si el archivo
+viene de una versión más reciente.
+
+Hace falta porque `sqflite` solo sabe subir de versión: si el archivo está
+adelantado, `openDatabase` no se queja —no existe un `onDowngrade` que
+dispare— y la app opera contra columnas que su esquema no conoce. El daño es
+silencioso. Y el escenario es cuestión de tiempo: los instaladores se reparten
+a mano por USB y WhatsApp, así que la copia vieja se queda para siempre en el
+escritorio del cliente.
+
+`main()` la atrapa y muestra `ErrorArranqueApp`, nunca un stack trace: un
+cliente asustado que ve un error rojo borra la carpeta de datos "para que se
+arregle".
 
 ### Al añadir una migración
 
@@ -141,7 +159,7 @@ Un solo archivo SQLite en el directorio de datos de la app, junto a
 
 ## Pruebas
 
-70 archivos en `test/`, ejecutables con `flutter test`. Cubren cálculo de
+80 archivos en `test/`, ejecutables con `flutter test`. Cubren cálculo de
 descuentos y promociones, pagos mixtos, apartados, devoluciones, cortes de
 caja, permisos, el motor de sincronización y cada migración de esquema.
 
@@ -164,3 +182,31 @@ secuencia de creación/migración que producción.
 Las pruebas corren en Windows a propósito: `sqflite_common_ffi` trae ahí su
 propio `sqlite3.dll`, y los plugins del proyecto (`win32`, `window_manager`,
 `printing`) solo existen en esa plataforma.
+
+---
+
+## Distribución
+
+- **Instalador:** `windows/installer/build_installer.ps1` compila y empaqueta
+  en un paso. La versión sale de `pubspec.yaml`; el EULA que muestra el
+  asistente está en `docs/EULA.txt` (ASCII puro: Inno lee los `.txt` de
+  `LicenseFile` como ANSI salvo que traigan BOM UTF-8).
+- **Paquete USB:** `windows/installer/usb/` — VC_redist, instalador, script de
+  respaldo automático y `LEEME.txt` para el cliente. No requiere internet en la
+  PC del negocio.
+- **Respaldo externo:** `respaldo.ps1` deja un marcador
+  (`ultimo_respaldo_externo.txt`) junto a `pos.db` en cada corrida exitosa.
+  Configuración → Sistema y soporte lo lee y avisa en rojo a partir de
+  `DatabaseBackupController.diasParaAvisoRespaldo` días sin respaldar. Sin ese
+  aviso, una USB desconectada hace semanas se descubre el día que muere el
+  disco.
+- **Reporte de soporte:** Configuración → Sistema y soporte genera un `.txt`
+  con versiones, conteos y estado del outbox, **sin datos de clientes ni de
+  ventas**, para mandarlo por WhatsApp.
+- **Licencia:** todavía no existe. `configuracion.edicion` y
+  `configuracion.licencia_expira` ya están en el esquema (v24) pero nadie las
+  lee: se agregaron ahora para no tener que migrar bases con ventas reales
+  cuando se active. Ver `docs/distribucion.md`.
+- **Qué falta antes de escalar:** firmar el instalador (Azure Trusted Signing),
+  licencia Ed25519 offline con su CLI emisor, y aviso de actualización dentro
+  de la app. Solo aplica pasando los ~5 clientes.

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/config/app_config.dart';
 import '../core/theme/app_colors.dart';
 import '../controllers/producto_controller.dart';
 import '../controllers/categoria_controller.dart';
@@ -10,6 +11,7 @@ import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
 import '../widgets/toast.dart';
 import '../widgets/form_dialog.dart';
+import '../widgets/inventario/captura_margen.dart';
 import 'categoria_view.dart';
 import '../core/security/permisos.dart';
 import '../core/security/permisos_service.dart';
@@ -36,6 +38,8 @@ class _ProductosViewState extends State<ProductosView> {
   final precioCtrl = TextEditingController();
   final precioCompraCtrl = TextEditingController();
   final codigoBarrasCtrl = TextEditingController();
+  final skuCtrl = TextEditingController();
+  final ivaCtrl = TextEditingController();
 
   List<Producto> productos = [];
   List<Producto> filtrados = [];
@@ -78,7 +82,9 @@ class _ProductosViewState extends State<ProductosView> {
     final consulta = query.toLowerCase();
     final resultado = productos.where((p) {
       return p.nombre.toLowerCase().contains(consulta) ||
-          (p.codigoBarras?.toLowerCase().contains(consulta) ?? false);
+          (p.codigoBarras?.toLowerCase().contains(consulta) ?? false) ||
+          (p.sku?.toLowerCase().contains(consulta) ?? false) ||
+          (p.categoriaNombre?.toLowerCase().contains(consulta) ?? false);
     }).toList();
 
     setState(() => filtrados = resultado);
@@ -98,6 +104,8 @@ class _ProductosViewState extends State<ProductosView> {
       categoriaSeleccionada = producto.categoriaId;
       stockCtrl.text = producto.stockMinimo.toString();
       codigoBarrasCtrl.text = producto.codigoBarras ?? "";
+      skuCtrl.text = producto.sku ?? "";
+      ivaCtrl.text = producto.ivaTasa?.toString() ?? "";
     } else {
       nombreCtrl.clear();
       descCtrl.clear();
@@ -105,6 +113,8 @@ class _ProductosViewState extends State<ProductosView> {
       precioCompraCtrl.clear();
       stockCtrl.clear();
       codigoBarrasCtrl.clear();
+      skuCtrl.clear();
+      ivaCtrl.clear();
       categoriaSeleccionada = null;
     }
 
@@ -156,15 +166,39 @@ class _ProductosViewState extends State<ProductosView> {
               },
             ),
           ),
+          CapturaMargen(
+            precioCtrl: precioCtrl,
+            precioCompraCtrl: precioCompraCtrl,
+          ),
           AppTextField(
             controller: stockCtrl,
             hint: "Inventario mínimo",
             keyboardType: TextInputType.number,
           ),
+          Row(
+            children: [
+              Expanded(
+                child: AppTextField(
+                  controller: codigoBarrasCtrl,
+                  hint: "Código de barras (opcional)",
+                  icon: Icons.qr_code_scanner,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: AppTextField(
+                  controller: skuCtrl,
+                  hint: "Clave / SKU (opcional)",
+                  icon: Icons.tag,
+                ),
+              ),
+            ],
+          ),
           AppTextField(
-            controller: codigoBarrasCtrl,
-            hint: "Código de barras (opcional)",
-            icon: Icons.qr_code_scanner,
+            controller: ivaCtrl,
+            hint: "IVA % de este producto (vacío = tasa general)",
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            icon: Icons.percent,
           ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -188,6 +222,7 @@ class _ProductosViewState extends State<ProductosView> {
           double precio = double.tryParse(precioCtrl.text) ?? 0;
           int stock = int.tryParse(stockCtrl.text) ?? 0;
           final codigoBarras = Producto.normalizarCodigoBarras(codigoBarrasCtrl.text);
+          final sku = Producto.normalizarSku(skuCtrl.text);
 
           if (codigoBarras != null) {
             final duplicado = await controller.existeCodigoBarras(
@@ -210,6 +245,27 @@ class _ProductosViewState extends State<ProductosView> {
             }
           }
 
+          if (sku != null) {
+            final duplicado = await controller.existeSku(
+              sku,
+              excluirId: producto?.idProducto,
+            );
+
+            if (duplicado) {
+              if (!mounted) return;
+              showDialog(
+                context: context,
+                builder: (_) => const CustomAlert(
+                  titulo: "Clave duplicada",
+                  mensaje: "Ya existe otro producto con esa clave (SKU).",
+                  icono: Icons.error_outline,
+                  textoConfirmar: "Aceptar",
+                ),
+              );
+              return;
+            }
+          }
+
           final nuevo = Producto(
             idProducto: producto?.idProducto,
             nombre: nombreCtrl.text,
@@ -220,6 +276,8 @@ class _ProductosViewState extends State<ProductosView> {
             estado: estado,
             stockMinimo: stock,
             codigoBarras: codigoBarras,
+            sku: sku,
+            ivaTasa: Producto.normalizarIvaTasa(ivaCtrl.text),
           );
 
           try {
@@ -268,6 +326,8 @@ class _ProductosViewState extends State<ProductosView> {
     precioCtrl.dispose();
     precioCompraCtrl.dispose();
     codigoBarrasCtrl.dispose();
+    skuCtrl.dispose();
+    ivaCtrl.dispose();
     super.dispose();
   }
 
@@ -476,6 +536,16 @@ class _ProductosViewState extends State<ProductosView> {
                             ],
                           ),
 
+                          if (p.sku != null)
+                            Text(
+                              "Clave: ${p.sku}",
+                              style: const TextStyle(
+                                fontSize: AppText.overline,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+
                           const SizedBox(height: 8),
 
                           Text(
@@ -521,7 +591,7 @@ class _ProductosViewState extends State<ProductosView> {
                               const Spacer(),
 
                               Text(
-                                "\$${p.precio}",
+                                AppConfig.formatoMoneda(p.precio),
 
                                 style: const TextStyle(
                                   fontSize: AppText.titleLg,

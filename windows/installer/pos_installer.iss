@@ -51,6 +51,15 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
+; Contrato de licencia (EULA) que el asistente muestra antes de instalar.
+; Sin esto no hay constancia de que el cliente acepto los terminos, en
+; particular el de que Pv Control NO timbra CFDI: eso se lo van a exigir
+; despues gratis si no quedo por escrito antes de vender.
+;
+; El archivo esta en ASCII puro A PROPOSITO: Inno lee los .txt de LicenseFile
+; como ANSI salvo que traigan BOM UTF-8, y un acento mal codificado en la
+; pantalla legal se ve pesimo. Mismo criterio que LEEME.txt de la USB.
+LicenseFile=..\..\docs\EULA.txt
 ; Program Files requiere permisos de administrador.
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible

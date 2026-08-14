@@ -22,18 +22,22 @@ class CarritoVenta {
     return index >= 0 ? items[index]['cantidad'] as int : 0;
   }
 
-  void agregar(Producto producto) {
+  /// Suma [cantidad] piezas de [producto] (una por defecto). Más de una llega
+  /// del multiplicador del escáner: "12*" y el código.
+  void agregar(Producto producto, {int cantidad = 1}) {
+    if (cantidad <= 0) return;
+
     final index = indexDeProducto(producto.idProducto);
 
     if (index >= 0) {
-      items[index]['cantidad']++;
+      items[index]['cantidad'] += cantidad;
     } else {
       items.add({
         "id_producto": producto.idProducto,
         "nombre": producto.nombre,
         "precio": producto.precio,
         "id_categoria": producto.categoriaId,
-        "cantidad": 1,
+        "cantidad": cantidad,
         "descuento_tipo": null,
         "descuento_valor": 0.0,
       });

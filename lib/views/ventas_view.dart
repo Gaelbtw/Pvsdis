@@ -7,9 +7,11 @@ import '../core/session/ventas_en_espera_store.dart';
 import '../core/theme/app_colors.dart';
 import '../core/utils/descuento_utils.dart';
 import '../core/utils/escaneo_utils.dart';
+import '../core/utils/limites_carrito.dart';
 import '../core/utils/pagos_mixtos.dart';
 import '../core/utils/promociones_engine.dart';
 import '../controllers/caja_controller.dart';
+import '../controllers/cliente_controller.dart';
 import '../controllers/ventas_controller.dart';
 import '../controllers/producto_controller.dart';
 import '../controllers/promociones_controller.dart';
@@ -21,10 +23,13 @@ import '../models/venta_en_espera.dart';
 import '../widgets/confirm_action.dart';
 import '../widgets/custom_alert.dart';
 import '../widgets/toast.dart';
+import '../widgets/ventas/atajos_ayuda_dialog.dart';
 import '../widgets/ventas/autorizacion_descuento_dialog.dart';
+import '../widgets/ventas/catalogo_productos.dart';
 import '../widgets/ventas/descuento_dialog.dart';
-import '../widgets/ventas/pagos_mixtos_section.dart';
-import '../widgets/ventas/promociones_aplicadas_section.dart';
+import '../widgets/ventas/panel_carrito.dart';
+import '../widgets/ventas/panel_cobro.dart';
+import '../widgets/ventas/seleccionar_cliente_dialog.dart';
 import '../widgets/ventas/venta_exitosa_dialog.dart';
 import '../widgets/ventas/ventas_atajos.dart' as atajos;
 import '../models/cliente_model.dart';
@@ -53,6 +58,7 @@ class _VentasViewState extends State<VentasView> {
   final productoController = ProductoController();
   final cajaController = CajaController();
   final promocionesController = PromocionesController();
+  final _clienteController = ClienteController();
 
   Cliente? clienteSeleccionado;
 
@@ -72,6 +78,9 @@ class _VentasViewState extends State<VentasView> {
   final busquedaFocus = FocusNode();
 
   String busqueda = "";
+
+  /// Categoría por la que está filtrado el catálogo, o `null` para "todas".
+  int? _categoriaFiltro;
 
   /// Temporizador del debounce del buscador (ver [_onBusquedaChanged]).
   Timer? _debounceBusqueda;
@@ -117,12 +126,24 @@ class _VentasViewState extends State<VentasView> {
       );
 
   /// Única fuente de verdad del desglose financiero de la venta en curso
-  /// (subtotal, descuentos, total). Se recalcula en cada build a partir del
-  /// carrito, las promociones vigentes y el descuento global — nunca se
-  /// guarda un total aparte que se pueda desincronizar.
-  VentaCalculada get calculo => calcularVenta(
+  /// (subtotal, descuentos, total). Se recalcula a partir del carrito, las
+  /// promociones vigentes y el descuento global — nunca se guarda un total
+  /// aparte que se pueda desincronizar.
+  ///
+  /// **En `build` NO se usa este getter**: ahí se calcula UNA vez con
+  /// [calcularVentaCon] y el resultado se pasa hacia abajo. Este atajo evalúa
+  /// el motor de promociones y la venta completa en cada lectura, y el árbol lo
+  /// consultaba dos veces por línea del carrito más el panel de cobro: con 20
+  /// líneas eran ~40 evaluaciones completas por cuadro, y cada tecla del
+  /// buscador dispara un cuadro. Queda para los manejadores de eventos (vender,
+  /// descuentos, atajos), donde se ejecuta una sola vez.
+  VentaCalculada get calculo => calcularVentaCon(resultadoPromociones);
+
+  /// El desglose de la venta reutilizando unas promociones ya evaluadas, para
+  /// no volver a correr el motor.
+  VentaCalculada calcularVentaCon(ResultadoPromociones promociones) => calcularVenta(
         carrito: carrito,
-        descuentosPromocionPorLinea: resultadoPromociones.descuentoPorLinea,
+        descuentosPromocionPorLinea: promociones.descuentoPorLinea,
         descuentoGlobalTipo: _carrito.descuentoGlobalTipo,
         descuentoGlobalValor: _carrito.descuentoGlobalValor,
         descuentoMaximoPorcentaje: AppConfig.actual.descuentoMaximoPorcentaje,
@@ -230,7 +251,7 @@ class _VentasViewState extends State<VentasView> {
   void _recalcularFiltro() {
     final consulta = busqueda.trim().toLowerCase();
 
-    if (consulta.isEmpty) {
+    if (consulta.isEmpty && _categoriaFiltro == null) {
       // Sin filtro no hace falta copiar nada: se reusa la misma lista.
       _productosFiltrados = productos;
       return;
@@ -238,19 +259,91 @@ class _VentasViewState extends State<VentasView> {
 
     _productosFiltrados = [
       for (final entrada in _indiceBusqueda)
-        if (entrada.coincide(consulta)) entrada.producto,
+        if ((consulta.isEmpty || entrada.coincide(consulta)) &&
+            (_categoriaFiltro == null ||
+                entrada.producto.categoriaId == _categoriaFiltro))
+          entrada.producto,
     ];
   }
 
+  /// Cambia (o quita, con `null`) el filtro por categoría. Es independiente
+  /// del texto buscado: se combinan, así que "azul" dentro de Playeras busca
+  /// solo entre playeras.
+  void _seleccionarCategoria(int? idCategoria) {
+    setState(() {
+      _categoriaFiltro = idCategoria;
+      _recalcularFiltro();
+    });
+  }
+
+  /// Categorías presentes en el catálogo vendible, en orden alfabético. Se
+  /// derivan de los productos ya cargados en vez de consultar `Categorias`:
+  /// así los botones nunca ofrecen una categoría que no tenga nada que
+  /// vender, y no cuesta una consulta extra al abrir la pantalla.
+  List<({int id, String nombre})> get _categoriasDelCatalogo {
+    final porId = <int, String>{};
+    for (final p in productos) {
+      final id = p.categoriaId;
+      if (id != null) porId[id] = p.categoriaNombre ?? 'Sin nombre';
+    }
+
+    final lista = porId.entries.map((e) => (id: e.key, nombre: e.value)).toList()
+      ..sort((a, b) => a.nombre.toLowerCase().compareTo(b.nombre.toLowerCase()));
+    return lista;
+  }
+
+  /// Veredicto de existencias para dejar [cantidad] piezas del producto
+  /// [idProducto] en el carrito.
+  ///
+  /// `null` cuando el producto no está en el catálogo cargado en pantalla: no
+  /// se bloquea al cajero por algo que esta vista no puede verificar (la
+  /// transacción de venta sí valida el stock real antes de cobrar).
+  LimiteLinea? _limiteDe(int? idProducto, int cantidad) {
+    if (idProducto == null) return null;
+
+    for (final p in productos) {
+      if (p.idProducto == idProducto) {
+        return validarCantidadEnCarrito(
+          producto: p,
+          cantidadDeseada: cantidad,
+          disponible: stockProductos[idProducto] ?? 0,
+        );
+      }
+    }
+
+    return null;
+  }
+
   // 🛒 AGREGAR PRODUCTO
-  void agregarProducto(Producto p) {
-    final yaExistia = _carrito.contieneProducto(p.idProducto);
+  //
+  // Pasa por la misma regla que el escáner ([validarCantidadEnCarrito]): antes
+  // tocar la tarjeta agregaba cualquier cosa —incluso un producto inactivo o
+  // agotado— y el problema aparecía hasta el cobro.
+  void agregarProducto(Producto p, {int cantidad = 1}) {
+    final limite = validarCantidadEnCarrito(
+      producto: p,
+      cantidadDeseada: _carrito.cantidadEnCarrito(p.idProducto) + cantidad,
+      disponible: stockProductos[p.idProducto] ?? 0,
+    );
+
+    if (!limite.permitido) {
+      Toast.error(context, limite.mensaje);
+      return;
+    }
 
     setState(() {
-      _carrito.agregar(p);
+      _carrito.agregar(p, cantidad: cantidad);
 
-      if (!yaExistia) {
-        controllers[p.idProducto!] = TextEditingController(text: "1");
+      // El texto del campo se sincroniza aquí porque el cambio viene de fuera
+      // de él (nunca durante el build, ver PanelCarrito).
+      final id = p.idProducto!;
+      final enCarrito = _carrito.cantidadEnCarrito(id).toString();
+      final controlador = controllers[id];
+
+      if (controlador == null) {
+        controllers[id] = TextEditingController(text: enCarrito);
+      } else {
+        controlador.text = enCarrito;
       }
     });
   }
@@ -271,19 +364,17 @@ class _VentasViewState extends State<VentasView> {
 
     switch (resultado.tipo) {
       case TipoResultadoEscaneo.agregado:
-        agregarProducto(resultado.producto!);
+        agregarProducto(resultado.producto!, cantidad: resultado.cantidad);
         break;
       case TipoResultadoEscaneo.noEncontrado:
       case TipoResultadoEscaneo.inactivo:
       case TipoResultadoEscaneo.stockInsuficiente:
-        showDialog(
-          context: context,
-          builder: (_) => CustomAlert(
-            titulo: 'Escaneo',
-            mensaje: resultado.mensaje,
-            icono: Icons.error_outline,
-          ),
-        );
+        // Toast y no un diálogo: escanear es la acción que más se repite en el
+        // día, y un modal obliga a soltar el lector para cerrarlo con el mouse
+        // o el teclado. El aviso se va solo y el foco nunca sale del buscador,
+        // así el siguiente código entra de inmediato. Es además la convención
+        // del resto de la app para errores a nivel de pantalla.
+        Toast.error(context, resultado.mensaje);
         break;
     }
 
@@ -309,6 +400,18 @@ class _VentasViewState extends State<VentasView> {
   // ➕➖ CAMBIAR CANTIDAD
   void cambiarCantidad(int index, int delta) {
     final id = carrito[index]['id_producto'];
+
+    // Solo se valida al subir: bajar la cantidad o quitar la línea siempre se
+    // puede, aunque el producto haya quedado sin existencia mientras tanto.
+    if (delta > 0) {
+      final cantidadNueva = (carrito[index]['cantidad'] as int) + delta;
+      final limite = _limiteDe(id, cantidadNueva);
+
+      if (limite != null && !limite.permitido) {
+        Toast.error(context, limite.mensaje);
+        return;
+      }
+    }
 
     setState(() {
       final eliminado = _carrito.cambiarCantidad(index, delta);
@@ -425,7 +528,14 @@ class _VentasViewState extends State<VentasView> {
 
   Future<void> _atajoEliminarLineaSeleccionada() async {
     final index = _lineaSeleccionada;
-    if (index == null || index < 0 || index >= carrito.length) return;
+    if (index == null) return;
+    await _quitarLinea(index);
+  }
+
+  /// Quita una línea completa del carrito, previa confirmación. Es el mismo
+  /// camino para el botón de la línea y para la tecla Supr.
+  Future<void> _quitarLinea(int index) async {
+    if (index < 0 || index >= carrito.length) return;
 
     final item = carrito[index];
     final nombre = item['nombre']?.toString() ?? 'este producto';
@@ -444,6 +554,35 @@ class _VentasViewState extends State<VentasView> {
       tituloExito: 'Producto quitado',
       mensajeExito: '"$nombre" se quitó del carrito.',
     );
+  }
+
+  // 👤 CLIENTE DE LA VENTA
+  //
+  // Se puede asignar y quitar en cualquier momento de la venta (F3). Antes solo
+  // llegaba desde la pantalla de Clientes, así que registrar la venta a nombre
+  // de alguien a medio cobro obligaba a cancelarla y volver a empezar.
+  Future<void> _elegirCliente() async {
+    final seleccion = await mostrarSeleccionarClienteDialog(
+      context,
+      cargarClientes: _clienteController.obtenerTodos,
+      actual: clienteSeleccionado,
+    );
+
+    if (seleccion == null || !mounted) return;
+
+    setState(() => clienteSeleccionado = seleccion.cliente);
+
+    Toast.exito(
+      context,
+      seleccion.cliente == null
+          ? 'Venta sin cliente (consumidor final).'
+          : 'Cliente asignado: ${seleccion.cliente!.nombre}.',
+    );
+  }
+
+  void _quitarCliente() {
+    setState(() => clienteSeleccionado = null);
+    Toast.info(context, 'Venta sin cliente (consumidor final).');
   }
 
   // 🗑 VACIAR CARRITO (cancela la venta en curso y limpia la pantalla)
@@ -780,12 +919,22 @@ class _VentasViewState extends State<VentasView> {
     List<Map<String, dynamic>> pagosVenta,
     double cambioVenta,
   ) async {
+    // `iva_tasa` e `importe_neto` viajan al ticket para que el desglose de IVA
+    // sea por línea: cada producto puede tener su propia tasa, y el neto ya
+    // trae aplicados todos los descuentos (ver `desglosarIva`).
+    final tasaPorProducto = {
+      for (final p in productos)
+        if (p.idProducto != null) p.idProducto!: p.ivaTasa,
+    };
+
     final carritoParaTicket = ventaCalculada.lineas
         .map((l) => {
               'nombre': l.nombre,
               'precio': l.precioOriginal,
               'cantidad': l.cantidad,
               'descuento_monto': l.descuentoMonto,
+              'iva_tasa': tasaPorProducto[l.idProducto],
+              'importe_neto': l.montoNeto,
             })
         .toList();
 
@@ -807,22 +956,53 @@ class _VentasViewState extends State<VentasView> {
     await ImpresionService.imprimir(pdf);
   }
 
+  /// Aplica una cantidad tecleada en una línea del carrito, recortándola a lo
+  /// que realmente hay disponible.
+  ///
+  /// Antes el campo aceptaba cualquier número y el problema aparecía al cobrar,
+  /// cuando la transacción validaba el stock real y rechazaba la venta entera.
+  void _cantidadTecleada(int index, int cantidad) {
+    if (index < 0 || index >= carrito.length) return;
+
+    final item = carrito[index];
+    final id = item['id_producto'] as int;
+    final limite = _limiteDe(id, cantidad);
+
+    if (limite == null || limite.permitido) {
+      setState(() => item['cantidad'] = cantidad);
+      return;
+    }
+
+    Toast.error(context, limite.mensaje);
+    if (limite.maximo <= 0) return;
+
+    // Se corrige el texto del campo —y solo aquí, nunca durante el build— para
+    // que lo que se ve coincida con lo que se va a cobrar.
+    final recortada = '${limite.maximo}';
+    controllers[id]?.value = TextEditingValue(
+      text: recortada,
+      selection: TextSelection.collapsed(offset: recortada.length),
+    );
+    setState(() => item['cantidad'] = limite.maximo);
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Las promociones y el desglose de la venta se evalúan UNA vez por cuadro y
+    // se pasan a las partes del árbol que los necesitan (ver [calculo]).
+    final promociones = resultadoPromociones;
+    final ventaCalculada = calcularVentaCon(promociones);
+
     return Scaffold(
       backgroundColor: const Color(0xFFF4F5F7),
-
       appBar: CustomHeader(
         titulo: clienteSeleccionado != null
             ? "Venta - ${clienteSeleccionado!.nombre}"
             : "Punto de Venta",
         mostrarVolver: true,
       ),
-
       body: cargando
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
+          ? const Center(child: CircularProgressIndicator())
           : atajos.VentasAtajos(
               onEnfocarBusqueda: _atajoEnfocarBusqueda,
               onConfirmarVenta: _atajoConfirmarVenta,
@@ -833,700 +1013,85 @@ class _VentasViewState extends State<VentasView> {
               onVerEnEspera: _mostrarVentasEnEspera,
               onReimprimir: _reimprimirUltimoTicket,
               onVaciar: _vaciarCarrito,
+              onCliente: _elegirCliente,
+              onAyuda: () => mostrarAtajosDialog(context),
               child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                24,
-                20,
-                24,
-                24,
-              ),
-              child: Column(
-                children: [
-                  if (_cajaAbierta == null) _bannerSinCaja(),
-                  Expanded(
-                    child: Row(
-                      children: [
-
-                  // 🔥 CATÁLOGO DE PRODUCTOS
-                  Expanded(
-                    flex: 62,
-                    child: Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(AppRadius.pill),
-                        boxShadow: AppColors.cardShadow,
-                      ),
-                      child: Column(
+                padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+                child: Column(
+                  children: [
+                    if (_cajaAbierta == null) _bannerSinCaja(),
+                    Expanded(
+                      child: Row(
                         children: [
-
-                          // 🔍 BUSCADOR / ESCÁNER
-                          TextField(
-                            controller: busquedaCtrl,
-                            focusNode: busquedaFocus,
-                            autofocus: true,
-                            onChanged: _onBusquedaChanged,
-                            onSubmitted: procesarEscaneo,
-                            decoration: InputDecoration(
-                              hintText: "Buscar o escanear código...",
-                              prefixIcon: const Icon(
-                                Icons.search,
-                              ),
-                              filled: true,
-                              fillColor:
-                                  AppColors.surface,
-                              contentPadding:
-                                  const EdgeInsets.symmetric(
-                                vertical: 14,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius:
-                                    BorderRadius.circular(AppRadius.md),
-                                borderSide: BorderSide.none,
-                              ),
+                          // 🔥 CATÁLOGO
+                          Expanded(
+                            flex: 62,
+                            child: CatalogoProductos(
+                              busquedaCtrl: busquedaCtrl,
+                              busquedaFocus: busquedaFocus,
+                              onBuscar: _onBusquedaChanged,
+                              onEscanear: procesarEscaneo,
+                              categorias: _categoriasDelCatalogo,
+                              categoriaFiltro: _categoriaFiltro,
+                              onFiltrarCategoria: _seleccionarCategoria,
+                              productos: _productosFiltrados,
+                              existencias: stockProductos,
+                              onAgregar: agregarProducto,
                             ),
                           ),
 
-                          const SizedBox(height: 20),
+                          const SizedBox(width: 16),
 
-                          // 📦 GRID
+                          // 🛒 TICKET EN CURSO
                           Expanded(
-                            child: GridView.builder(
-                              itemCount:
-                                  _productosFiltrados.length,
-                              // Nota: aquí se probó reducir la caché de scroll
-                              // para que la grilla no construya dos filas de
-                              // más fuera de pantalla. Se quitó porque
-                              // `cacheExtent` quedó obsoleto en Flutter 3.41 y
-                              // su reemplazo (`scrollCacheExtent`) ya no acepta
-                              // un número de píxeles sino un `ScrollCacheExtent`.
-                              // La ganancia era marginal frente al riesgo de
-                              // usar mal una API que no se pudo verificar; el
-                              // cuello de botella real de esta grilla era el
-                              // filtro, que ya está resuelto.
-                              // Grilla adaptativa: la cantidad de columnas se
-                              // ajusta al ancho de la ventana (≈5 a 1280px, menos
-                              // al achicar) y cada tarjeta tiene alto fijo, así no
-                              // se desborda en la ventana mínima.
-                              gridDelegate:
-                                  const SliverGridDelegateWithMaxCrossAxisExtent(
-                                maxCrossAxisExtent: 150,
-                                crossAxisSpacing: 12,
-                                mainAxisSpacing: 12,
-                                mainAxisExtent: 132,
+                            flex: 38,
+                            child: PanelCarrito(
+                              items: carrito,
+                              venta: ventaCalculada,
+                              promociones: promociones,
+                              controladoresCantidad: controllers,
+                              lineaSeleccionada: _lineaSeleccionada,
+                              onSeleccionarLinea: (i) =>
+                                  setState(() => _lineaSeleccionada = i),
+                              cliente: clienteSeleccionado,
+                              ventasEnEspera:
+                                  VentasEnEsperaStore.instancia.cantidad,
+                              ultimaVentaId: _ultimaVentaId,
+                              puedeAplicarDescuentos: puedeAplicarDescuentos,
+                              tieneDescuentoGlobal:
+                                  _carrito.descuentoGlobalTipo != null,
+                              onVerEnEspera: _mostrarVentasEnEspera,
+                              onReimprimir: _reimprimirUltimoTicket,
+                              onPausar: _pausarVenta,
+                              onVaciar: _vaciarCarrito,
+                              onEditarDescuentoGlobal: editarDescuentoGlobal,
+                              onElegirCliente: _elegirCliente,
+                              onQuitarCliente: _quitarCliente,
+                              onAyuda: () => mostrarAtajosDialog(context),
+                              onEditarDescuentoLinea: editarDescuentoLinea,
+                              onCambiarCantidad: cambiarCantidad,
+                              onCantidadTecleada: _cantidadTecleada,
+                              onQuitarLinea: _quitarLinea,
+                              cobro: PanelCobro(
+                                venta: ventaCalculada,
+                                habilitado: carrito.isNotEmpty &&
+                                    resultadoPagos.esValido &&
+                                    _cajaAbierta != null,
+                                ventaCounter: ventaCounter,
+                                onCambioPagos: actualizarPagos,
+                                onConfirmar: iniciarConfirmacionVenta,
                               ),
-                              itemBuilder: (_, i) {
-                                final p =
-                                    _productosFiltrados[i];
-
-                                return InkWell(
-                                  borderRadius:
-                                      BorderRadius.circular(
-                                    18,
-                                  ),
-                                  onTap: () =>
-                                      agregarProducto(p),
-                                  child: Container(
-                                    padding:
-                                        const EdgeInsets.all(
-                                      16,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(
-                                        0xFFFDFDFD,
-                                      ),
-                                      borderRadius:
-                                          BorderRadius.circular(
-                                        18,
-                                      ),
-                                      border: Border.all(
-                                        color: AppColors.border,
-                                      ),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment
-                                              .start,
-                                      children: [
-
-                                        // 🏷 NOMBRE
-                                        Text(
-                                          p.nombre,
-                                          maxLines: 2,
-                                          overflow:
-                                              TextOverflow
-                                                  .ellipsis,
-                                          style:
-                                              const TextStyle(
-                                            fontSize: AppText.body,
-                                            fontWeight:
-                                                FontWeight
-                                                    .bold,
-                                          ),
-                                        ),
-
-                                        const SizedBox(height: 4),
-
-                                        // 📦 INVENTARIO
-                                        Builder(builder: (_) {
-                                          final s = stockProductos[p.idProducto] ?? 0;
-                                          return Text(
-                                            "Inventario: $s",
-                                            style: TextStyle(
-                                              fontSize: AppText.caption,
-                                              color: s == 0
-                                                  ? AppColors.error
-                                                  : s <= p.stockMinimo
-                                                      ? AppColors.warning
-                                                      : AppColors.success,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          );
-                                        }),
-
-                                        const Spacer(),
-
-                                        // 💰 PRECIO + AGREGAR (toda la tarjeta
-                                        // agrega al tocar; el chip solo lo señala)
-                                        Row(
-                                          children: [
-                                            Expanded(
-                                              child: FittedBox(
-                                                fit: BoxFit.scaleDown,
-                                                alignment: Alignment.centerLeft,
-                                                child: Text(
-                                                  AppConfig.formatoMoneda(p.precio),
-                                                  style: const TextStyle(
-                                                    fontSize: AppText.subtitle,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            Container(
-                                              width: 26,
-                                              height: 26,
-                                              decoration: BoxDecoration(
-                                                color: AppColors.primary,
-                                                borderRadius: BorderRadius.circular(9),
-                                              ),
-                                              child: Icon(
-                                                Icons.add,
-                                                size: 18,
-                                                color: AppColors.onPrimary,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-
-                  const SizedBox(width: 16),
-
-                  // 🛒 TICKET
-                  Expanded(
-                    flex: 38,
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius:
-                            BorderRadius.circular(AppRadius.pill),
-                        boxShadow: AppColors.cardShadow,
-                      ),
-                      child: Column(
-                        children: [
-
-                          // 🧾 HEADER
-                          Row(
-                            children: [
-                              const Icon(
-                                Icons.shopping_cart,
-                              ),
-                              const SizedBox(width: 10),
-                              const Expanded(
-                                child: Text(
-                                  "Detalle de Venta",
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    fontSize: AppText.title,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                              if (VentasEnEsperaStore.instancia.hayVentas)
-                                Badge.count(
-                                  count:
-                                      VentasEnEsperaStore.instancia.cantidad,
-                                  child: IconButton(
-                                    tooltip: 'Ventas en espera (F8)',
-                                    visualDensity: VisualDensity.compact,
-                                    onPressed: _mostrarVentasEnEspera,
-                                    icon: const Icon(Icons.pending_actions),
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              if (_ultimaVentaId != null)
-                                IconButton(
-                                  tooltip:
-                                      'Reimprimir último ticket #$_ultimaVentaId (F9)',
-                                  visualDensity: VisualDensity.compact,
-                                  onPressed: _reimprimirUltimoTicket,
-                                  icon: const Icon(Icons.receipt_long_outlined),
-                                  color: AppColors.textSecondary,
-                                ),
-                              if (carrito.isNotEmpty) ...[
-                                IconButton(
-                                  tooltip: 'Poner en espera (F7)',
-                                  visualDensity: VisualDensity.compact,
-                                  onPressed: _pausarVenta,
-                                  icon: const Icon(Icons.pause_circle_outline),
-                                  color: AppColors.textSecondary,
-                                ),
-                                IconButton(
-                                  tooltip: 'Vaciar carrito (Shift+Supr)',
-                                  visualDensity: VisualDensity.compact,
-                                  onPressed: _vaciarCarrito,
-                                  icon: const Icon(
-                                      Icons.remove_shopping_cart_outlined),
-                                  color: AppColors.error,
-                                ),
-                              ],
-                            ],
-                          ),
-
-                          if (clienteSeleccionado !=
-                              null) ...[
-                            const SizedBox(height: 10),
-
-                            Container(
-                              width: double.infinity,
-                              padding:
-                                  const EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: const Color(
-                                  0xFFF8F6F2,
-                                ),
-                                borderRadius:
-                                    BorderRadius.circular(
-                                  14,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(
-                                    Icons.person,
-                                    size: 18,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      clienteSeleccionado!
-                                          .nombre,
-                                      style:
-                                          const TextStyle(
-                                        fontWeight:
-                                            FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-
-                          const SizedBox(height: 20),
-
-                          // 🛒 ITEMS
-                          Expanded(
-                            child: carrito.isEmpty
-                                ? const Center(
-                                    child: Text(
-                                      "No hay productos",
-                                    ),
-                                  )
-                                : ListView.separated(
-                                    itemCount:
-                                        carrito.length,
-                                    separatorBuilder:
-                                        (_, _) =>
-                                            const SizedBox(
-                                      height: 10,
-                                    ),
-                                    itemBuilder: (_, i) {
-                                      final item =
-                                          carrito[i];
-
-                                      final id = item[
-                                          'id_producto'];
-
-                                      controllers[id]!
-                                              .text =
-                                          item['cantidad']
-                                              .toString();
-
-                                      final seleccionada =
-                                          i == _lineaSeleccionada;
-
-                                      return GestureDetector(
-                                      onTap: () => setState(
-                                          () => _lineaSeleccionada = i),
-                                      child: Container(
-                                        padding:
-                                            const EdgeInsets
-                                                .all(12),
-                                        decoration:
-                                            BoxDecoration(
-                                          color: AppColors
-                                              .surface,
-                                          borderRadius:
-                                              BorderRadius
-                                                  .circular(
-                                            16,
-                                          ),
-                                          border: seleccionada
-                                              ? Border.all(
-                                                  color: AppColors
-                                                      .primary,
-                                                  width: 2,
-                                                )
-                                              : null,
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment
-                                                  .start,
-                                          children: [
-
-                                            // 🏷 NOMBRE + DESCUENTO
-                                            Row(
-                                              children: [
-                                                Expanded(
-                                                  child: Text(
-                                                    item['nombre'],
-                                                    style: const TextStyle(
-                                                      fontWeight: FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                ),
-                                                if (puedeAplicarDescuentos)
-                                                  InkWell(
-                                                    onTap: () => editarDescuentoLinea(i),
-                                                    borderRadius: BorderRadius.circular(AppRadius.sm),
-                                                    child: Padding(
-                                                      padding: const EdgeInsets.all(4),
-                                                      child: Icon(
-                                                        Icons.sell_outlined,
-                                                        size: 18,
-                                                        color: item['descuento_tipo'] != null
-                                                            ? AppColors.primaryDark
-                                                            : AppColors.disabled,
-                                                      ),
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-
-                                            const SizedBox(
-                                                height: 6),
-
-                                            Builder(builder: (_) {
-                                              final precio = (item['precio'] as num).toDouble();
-                                              final tieneDesc = item['descuento_tipo'] != null;
-                                              final lc = calculo.lineas[i];
-                                              final unit = tieneDesc && lc.cantidad > 0
-                                                  ? (lc.subtotalLinea - lc.descuentoMonto) / lc.cantidad
-                                                  : precio;
-                                              return Text(
-                                                tieneDesc
-                                                    ? "${AppConfig.formatoMoneda(unit)} c/u  ·  lista ${AppConfig.formatoMoneda(precio)}"
-                                                    : "${AppConfig.formatoMoneda(precio)} c/u",
-                                                style: TextStyle(
-                                                  fontSize: AppText.caption,
-                                                  fontWeight: tieneDesc ? FontWeight.w600 : FontWeight.w400,
-                                                  color: tieneDesc
-                                                      ? AppColors.primaryDark
-                                                      : AppColors.textSecondary,
-                                                ),
-                                              );
-                                            }),
-
-                                            const SizedBox(
-                                                height: 10),
-
-                                            Row(
-                                              children: [
-
-                                                // ➖
-                                                IconButton(
-                                                  onPressed:
-                                                      () =>
-                                                          cambiarCantidad(
-                                                    i,
-                                                    -1,
-                                                  ),
-                                                  icon:
-                                                      const Icon(
-                                                    Icons
-                                                        .remove_circle_outline,
-                                                  ),
-                                                ),
-
-                                                // 🔢 INPUT
-                                                SizedBox(
-                                                  width: 60,
-                                                  child:
-                                                      TextField(
-                                                    controller:
-                                                        controllers[
-                                                            id],
-                                                    keyboardType:
-                                                        TextInputType.number,
-                                                    textAlign:
-                                                        TextAlign.center,
-                                                    decoration:
-                                                        InputDecoration(
-                                                      isDense:
-                                                          true,
-                                                      filled:
-                                                          true,
-                                                      fillColor:
-                                                          Colors.white,
-                                                      contentPadding:
-                                                          const EdgeInsets.symmetric(
-                                                        vertical:
-                                                            10,
-                                                      ),
-                                                      border:
-                                                          OutlineInputBorder(
-                                                        borderRadius:
-                                                            BorderRadius.circular(
-                                                          10,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                    onChanged:
-                                                        (
-                                                      value,
-                                                    ) {
-                                                      final nuevaCantidad =
-                                                          int.tryParse(
-                                                        value,
-                                                      );
-
-                                                      if (nuevaCantidad !=
-                                                              null &&
-                                                          nuevaCantidad >
-                                                              0) {
-                                                        setState(
-                                                          () {
-                                                            item['cantidad'] =
-                                                                nuevaCantidad;
-                                                          },
-                                                        );
-                                                      }
-                                                    },
-                                                  ),
-                                                ),
-
-                                                // ➕
-                                                IconButton(
-                                                  onPressed:
-                                                      () =>
-                                                          cambiarCantidad(
-                                                    i,
-                                                    1,
-                                                  ),
-                                                  icon:
-                                                      const Icon(
-                                                    Icons
-                                                        .add_circle_outline,
-                                                  ),
-                                                ),
-
-                                                const Spacer(),
-
-                                                // 💰 SUBTOTAL (con su descuento de línea, sin el global)
-                                                Builder(builder: (_) {
-                                                  final lineaCalculada = calculo.lineas[i];
-                                                  final montoLinea = lineaCalculada.subtotalLinea -
-                                                      lineaCalculada.descuentoMonto;
-                                                  return Text(
-                                                    AppConfig.formatoMoneda(montoLinea),
-                                                    style: const TextStyle(
-                                                      fontWeight: FontWeight.bold,
-                                                    ),
-                                                  );
-                                                }),
-                                              ],
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      );
-                                    },
-                                  ),
-                          ),
-
-                          const Divider(height: 30),
-
-                          // 🏷️ PROMOCIONES AUTOMÁTICAS
-                          Builder(builder: (_) {
-                            final rp = resultadoPromociones;
-                            return PromocionesAplicadasSection(
-                              aplicaciones: rp.aplicaciones,
-                              ahorroTotal: rp.ahorroTotal,
-                            );
-                          }),
-
-                          // 🏷 DESCUENTO GLOBAL
-                          if (puedeAplicarDescuentos)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: SizedBox(
-                                width: double.infinity,
-                                child: OutlinedButton.icon(
-                                  onPressed: carrito.isEmpty ? null : editarDescuentoGlobal,
-                                  icon: const Icon(Icons.sell_outlined, size: 18),
-                                  label: Text(
-                                    _carrito.descuentoGlobalTipo != null
-                                        ? "Editar descuento global"
-                                        : "Aplicar descuento global",
-                                  ),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppColors.primaryDark,
-                                    side: BorderSide(color: AppColors.primaryDark),
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(AppRadius.sm),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-
-                          // 💰 ZONA DE COBRO (total dominante + pagos + botón)
-                          _panelCheckout(),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             ),
     );
   }
-
-  /// Zona de cobro delimitada: subtotal/descuento discretos, el TOTAL como el
-  /// elemento dominante de la pantalla (lo leen cajero y cliente), los pagos y
-  /// el botón de confirmar, todo dentro de un panel para que el ojo aterrice
-  /// aquí de inmediato. Antes vivía suelto tras el listado del carrito, con el
-  /// total en 22px (apenas mayor que el texto normal) y colores hardcodeados.
-  Widget _panelCheckout() {
-    final c = calculo;
-    final habilitado = carrito.isNotEmpty && resultadoPagos.esValido && _cajaAbierta != null;
-
-    return Container(
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Column(
-        children: [
-          if (c.descuentoTotal > 0) ...[
-            _lineaResumen("Subtotal", AppConfig.formatoMoneda(c.subtotal)),
-            const SizedBox(height: 6),
-            _lineaResumen("Descuento", "-${AppConfig.formatoMoneda(c.descuentoTotal)}", color: AppColors.error),
-            const SizedBox(height: 12),
-            const Divider(height: 1, color: AppColors.border),
-            const SizedBox(height: 12),
-          ],
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Padding(
-                padding: EdgeInsets.only(bottom: 6),
-                child: Text(
-                  "TOTAL",
-                  style: TextStyle(
-                    fontSize: AppText.body,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ),
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    AppConfig.formatoMoneda(c.total),
-                    style: const TextStyle(
-                      fontSize: 46,
-                      fontWeight: FontWeight.w900,
-                      height: 1.0,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          PagosMixtosSection(
-            key: ValueKey(ventaCounter),
-            total: total,
-            onCambio: actualizarPagos,
-          ),
-          const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: ElevatedButton.icon(
-              onPressed: habilitado ? iniciarConfirmacionVenta : null,
-              icon: const Icon(Icons.check_circle),
-              label: const Text(
-                "Confirmar venta  ·  F4",
-                style: TextStyle(fontSize: AppText.bodyLg, fontWeight: FontWeight.w700),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.onPrimary,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _lineaResumen(String etiqueta, String valor, {Color? color}) => Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(etiqueta, style: const TextStyle(color: AppColors.textSecondary)),
-          Text(valor, style: TextStyle(color: color ?? AppColors.textPrimary, fontWeight: FontWeight.w600)),
-        ],
-      );
 
   // 🔐 BANNER SIN CAJA
   Widget _bannerSinCaja() {
@@ -1591,13 +1156,25 @@ class _VentasViewState extends State<VentasView> {
 class _ProductoBuscable {
   _ProductoBuscable(this.producto)
       : nombre = producto.nombre.toLowerCase(),
-        codigoBarras = producto.codigoBarras?.toLowerCase() ?? '';
+        codigoBarras = producto.codigoBarras?.toLowerCase() ?? '',
+        sku = producto.sku?.toLowerCase() ?? '',
+        categoria = producto.categoriaNombre?.toLowerCase() ?? '';
 
   final Producto producto;
   final String nombre;
   final String codigoBarras;
 
+  /// Clave interna del catálogo: es lo que el cajero tiene a mano cuando el
+  /// producto no se vende por nombre ("cuál es el 210?").
+  final String sku;
+
+  /// Nombre de la categoría, para poder teclear "papelería" y ver todo lo de
+  /// esa familia sin usar los botones de filtro.
+  final String categoria;
+
   bool coincide(String consultaEnMinusculas) =>
       nombre.contains(consultaEnMinusculas) ||
-      codigoBarras.contains(consultaEnMinusculas);
+      codigoBarras.contains(consultaEnMinusculas) ||
+      sku.contains(consultaEnMinusculas) ||
+      categoria.contains(consultaEnMinusculas);
 }

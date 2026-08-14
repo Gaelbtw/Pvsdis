@@ -1,6 +1,7 @@
 import 'package:sqflite/sqflite.dart';
 
 import '../core/database/database_helper.dart';
+import '../core/utils/motivo_ajuste_inventario.dart';
 import '../core/utils/pagos_mixtos.dart';
 import 'cuentas_por_pagar_controller.dart';
 
@@ -75,6 +76,43 @@ class ReporteUtilidadResumen {
     final total = lineasConCosto + lineasSinCosto;
     return total == 0 ? 0 : (lineasConCosto / total) * 100;
   }
+}
+
+/// Movimientos de inventario de un rango de fechas: cada entrada y salida de
+/// mercancía con su porqué.
+///
+/// Es distinto de la bitácora de auditoría (que registra QUIÉN tocó qué
+/// pantalla) y del reporte de ventas (que cuenta dinero): aquí se sigue la
+/// PIEZA. Es lo que permite explicar por qué el conteo físico no cuadra —
+/// cuánto salió por venta, cuánto entró por compra, cuánto se ajustó a mano y
+/// con qué motivo.
+class ReporteMovimientosInventario {
+  /// Filas del movimiento, de la más reciente a la más antigua.
+  final List<Map<String, dynamic>> movimientos;
+
+  /// Piezas que entraron al inventario en el rango.
+  final int piezasEntrada;
+
+  /// Piezas que salieron del inventario en el rango.
+  final int piezasSalida;
+
+  /// Piezas ajustadas a mano con motivo de merma, dentro de [piezasSalida].
+  /// Se expone aparte porque es el número que un negocio quiere vigilar.
+  final int piezasMerma;
+
+  const ReporteMovimientosInventario({
+    required this.movimientos,
+    required this.piezasEntrada,
+    required this.piezasSalida,
+    required this.piezasMerma,
+  });
+
+  static const ReporteMovimientosInventario vacio = ReporteMovimientosInventario(
+    movimientos: [],
+    piezasEntrada: 0,
+    piezasSalida: 0,
+    piezasMerma: 0,
+  );
 }
 
 /// Resumen de compras para un rango de fechas, análogo a
@@ -406,6 +444,100 @@ class ReporteController {
     );
   }
 
+  /// Movimientos de inventario del rango, ya clasificados en entradas y
+  /// salidas (ver [ReporteMovimientosInventario]).
+  ///
+  /// Dos detalles del filtrado, ambos deliberados:
+  ///
+  /// - `Movimiento_Inventario.fecha` se guarda en UTC (lo escribe
+  ///   `MovimientoInventarioLogger`), a diferencia de `Ventas.fecha`, que es
+  ///   hora local. Por eso aquí el rango se compara con
+  ///   `date(fecha, 'localtime')`: sin eso, los movimientos de la noche
+  ///   aparecerían en el día siguiente y el reporte de "hoy" mentiría.
+  /// - Los tipos se clasifican por nombre y no por el signo de la cantidad
+  ///   (que siempre se guarda en positivo): entradas son compra, ajuste
+  ///   positivo, transferencia de entrada y devolución de venta; el resto
+  ///   descuenta existencia.
+  Future<ReporteMovimientosInventario> obtenerMovimientosInventario({
+    required DateTime desde,
+    required DateTime hasta,
+    int? idProducto,
+    String? tipoMovimiento,
+  }) async {
+    final db = await DatabaseHelper().database;
+
+    final fechaInicio = desde.toIso8601String().substring(0, 10);
+    final fechaFin = hasta.toIso8601String().substring(0, 10);
+
+    final filtros = <String>[];
+    final params = <Object?>[fechaInicio, fechaFin];
+
+    if (idProducto != null) {
+      filtros.add('AND m.id_producto = ?');
+      params.add(idProducto);
+    }
+    if (tipoMovimiento != null && tipoMovimiento.isNotEmpty) {
+      filtros.add('AND m.tipo_movimiento = ?');
+      params.add(tipoMovimiento);
+    }
+
+    final filas = await db.rawQuery(
+      '''
+      SELECT
+        m.id_movimiento,
+        m.fecha,
+        m.tipo_movimiento,
+        m.cantidad,
+        m.cantidad_anterior,
+        m.cantidad_nueva,
+        m.motivo,
+        m.referencia_tipo,
+        m.referencia_id,
+        p.nombre AS producto,
+        p.sku AS sku,
+        u.nombre AS usuario
+      FROM Movimiento_Inventario m
+      INNER JOIN Producto p ON p.id_producto = m.id_producto
+      LEFT JOIN Usuarios u ON u.id_usuario = m.id_usuario
+      WHERE date(m.fecha, 'localtime') BETWEEN date(?) AND date(?)
+      ${filtros.join('\n      ')}
+      ORDER BY m.fecha DESC, m.id_movimiento DESC
+      LIMIT 500
+      ''',
+      params,
+    );
+
+    const tiposEntrada = {
+      'EntradaCompra',
+      'AjustePositivo',
+      'TransferenciaEntrada',
+      'DevolucionVenta',
+    };
+
+    var entrada = 0;
+    var salida = 0;
+    var merma = 0;
+
+    for (final fila in filas) {
+      final cantidad = (fila['cantidad'] as num?)?.toInt() ?? 0;
+      if (tiposEntrada.contains(fila['tipo_movimiento'])) {
+        entrada += cantidad;
+      } else {
+        salida += cantidad;
+        if (fila['motivo'] == MotivoAjusteInventario.merma.etiqueta) {
+          merma += cantidad;
+        }
+      }
+    }
+
+    return ReporteMovimientosInventario(
+      movimientos: filas,
+      piezasEntrada: entrada,
+      piezasSalida: salida,
+      piezasMerma: merma,
+    );
+  }
+
   Future<ReporteComprasResumen> obtenerReporteCompras({
     required DateTime desde,
     required DateTime hasta,
@@ -595,10 +727,16 @@ class ReporteController {
   Future<List<Map<String, dynamic>>> obtenerDetalleVentaParaTicket(int idVenta) async {
     final db = await DatabaseHelper().database;
 
+    // `iva_tasa` e `importe_neto` van para que la reimpresión desglose el IVA
+    // igual que el ticket original (por línea, con la tasa de cada producto).
+    // El neto sale de `precio_neto`, que ya trae todos los descuentos; si la
+    // venta es anterior a esa columna se usa `precio`, que era el importe real.
     final detalles = await db.rawQuery(
       '''
-      SELECT Producto.nombre, Detalle_Venta.cantidad, Detalle_Venta.precio,
-             Detalle_Venta.descuento_monto
+      SELECT Producto.nombre, Producto.iva_tasa, Detalle_Venta.cantidad,
+             Detalle_Venta.precio, Detalle_Venta.descuento_monto,
+             IFNULL(Detalle_Venta.precio_neto, Detalle_Venta.precio)
+               * Detalle_Venta.cantidad AS importe_neto
       FROM Detalle_Venta
       INNER JOIN Producto ON Producto.id_producto = Detalle_Venta.id_producto
       WHERE Detalle_Venta.id_venta = ?
@@ -613,6 +751,8 @@ class ReporteController {
         'precio': item['precio'],
         'cantidad': item['cantidad'],
         'descuento_monto': item['descuento_monto'],
+        'iva_tasa': item['iva_tasa'],
+        'importe_neto': item['importe_neto'],
       };
     }).toList();
   }

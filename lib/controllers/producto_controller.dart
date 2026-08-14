@@ -5,8 +5,16 @@ import '../core/database/db_exceptions.dart';
 import '../core/sync/auth_service.dart';
 import '../core/sync/bitacoras/movimiento_inventario_logger.dart';
 import '../core/sync/outbox/sync_outbox_writer.dart';
+import '../core/utils/motivo_ajuste_inventario.dart';
 import '../models/producto_model.dart';
 import 'auditoria_controller.dart';
+
+/// Mensaje único para las dos claves únicas de `Producto` (código de barras y
+/// SKU). Las vistas validan cada una por separado antes de guardar y avisan
+/// cuál está repetida; esto es la red de seguridad de la base de datos, que
+/// solo sabe que hubo una colisión de unicidad.
+const _mensajeClaveDuplicada =
+    'Ya existe otro producto con ese código de barras o con esa clave (SKU).';
 
 /// Única fuente de verdad para operaciones sobre productos e inventario.
 /// (Antes existían dos clases distintas con el mismo nombre en archivos
@@ -53,7 +61,7 @@ class ProductoController {
 
         return nuevoId;
       }),
-      'Ya existe un producto con ese código de barras.',
+      _mensajeClaveDuplicada,
     );
 
     await _auditoriaController.registrar(
@@ -98,7 +106,7 @@ class ProductoController {
         where: 'id_producto = ?',
         whereArgs: [producto.idProducto],
       ),
-      'Ya existe un producto con ese código de barras.',
+      _mensajeClaveDuplicada,
     );
 
     if (rows > 0) {
@@ -116,10 +124,17 @@ class ProductoController {
     return rows;
   }
 
+  /// Fija la existencia de [idProducto] en [cantidadNueva].
+  ///
+  /// [motivo] explica el porqué del ajuste y queda tanto en la bitácora de
+  /// movimientos como en la auditoría: sin él, una merma y un error de captura
+  /// se ven exactamente igual al revisar el historial (ver
+  /// [MotivoAjusteInventario]).
   Future<void> actualizarStock(
     int idProducto,
-    int cantidadNueva,
-  ) async {
+    int cantidadNueva, {
+    MotivoAjusteInventario motivo = MotivoAjusteInventario.porDefectoAjuste,
+  }) async {
     final db = await DatabaseHelper().database;
     final producto = await _obtenerNombreProducto(db, idProducto);
     final stockAnterior = await _obtenerStockActual(db, idProducto);
@@ -141,7 +156,7 @@ class ProductoController {
         cantidad: (cantidadNueva - stockAnterior).abs(),
         cantidadAnterior: stockAnterior,
         cantidadNueva: cantidadNueva,
-        motivo: 'Ajuste manual de stock',
+        motivo: motivo.etiqueta,
       );
     }
 
@@ -150,7 +165,8 @@ class ProductoController {
       accion: 'EDIT',
       idRegistro: idProducto,
       descripcion:
-          'Stock de $producto modificado de $stockAnterior a $cantidadNueva',
+          'Stock de $producto modificado de $stockAnterior a $cantidadNueva. '
+          'Motivo: ${motivo.etiqueta}',
     );
   }
 
@@ -192,6 +208,8 @@ class ProductoController {
         p.stock_minimo,
         p.id_categoria,
         p.codigo_barras,
+        p.sku,
+        p.iva_tasa,
         IFNULL(i.cantidad, 0) as cantidad,
         IFNULL(i.cantidad_reservada, 0) as cantidad_reservada,
         IFNULL(i.cantidad, 0) - IFNULL(i.cantidad_reservada, 0) as disponible,
@@ -220,20 +238,45 @@ class ProductoController {
     return Producto.fromMap(result.first);
   }
 
+  /// Busca un producto por coincidencia exacta de SKU. El SKU es la clave
+  /// interna del catálogo, así que también sirve para teclearlo en el punto de
+  /// venta o leerlo de una etiqueta impresa por el propio negocio.
+  Future<Producto?> buscarPorSku(String sku) async {
+    final normalizado = Producto.normalizarSku(sku);
+    if (normalizado == null) return null;
+
+    final db = await DatabaseHelper().database;
+    final result = await db.query(
+      'Producto',
+      where: 'sku = ?',
+      whereArgs: [normalizado],
+      limit: 1,
+    );
+
+    if (result.isEmpty) return null;
+    return Producto.fromMap(result.first);
+  }
+
   /// Indica si ya existe un producto con ese código de barras. [excluirId]
   /// se usa al editar, para no contar el propio producto como duplicado.
-  Future<bool> existeCodigoBarras(String codigo, {int? excluirId}) async {
-    final normalizado = Producto.normalizarCodigoBarras(codigo);
-    if (normalizado == null) return false;
+  Future<bool> existeCodigoBarras(String codigo, {int? excluirId}) =>
+      _existeValor('codigo_barras', Producto.normalizarCodigoBarras(codigo), excluirId);
+
+  /// Igual que [existeCodigoBarras] pero para el SKU, que también es único.
+  Future<bool> existeSku(String sku, {int? excluirId}) =>
+      _existeValor('sku', Producto.normalizarSku(sku), excluirId);
+
+  Future<bool> _existeValor(String columna, String? valor, int? excluirId) async {
+    if (valor == null) return false;
 
     final db = await DatabaseHelper().database;
     final result = await db.query(
       'Producto',
       columns: ['id_producto'],
       where: excluirId == null
-          ? 'codigo_barras = ?'
-          : 'codigo_barras = ? AND id_producto != ?',
-      whereArgs: excluirId == null ? [normalizado] : [normalizado, excluirId],
+          ? '$columna = ?'
+          : '$columna = ? AND id_producto != ?',
+      whereArgs: excluirId == null ? [valor] : [valor, excluirId],
       limit: 1,
     );
 
@@ -248,7 +291,11 @@ class ProductoController {
   /// sin ningún rastro de quién ni por qué —exactamente lo que la bitácora
   /// existe para impedir—. El resto de controladores que tocan inventario ya
   /// usaban `db.transaction`; este se había quedado fuera.
-  Future<void> agregarStock(int idProducto, int cantidadNueva) async {
+  Future<void> agregarStock(
+    int idProducto,
+    int cantidadNueva, {
+    MotivoAjusteInventario motivo = MotivoAjusteInventario.porDefectoEntrada,
+  }) async {
     final db = await DatabaseHelper().database;
 
     if (cantidadNueva <= 0) {
@@ -280,7 +327,7 @@ class ProductoController {
         cantidad: cantidadNueva,
         cantidadAnterior: actual,
         cantidadNueva: nuevo,
-        motivo: 'Entrada manual de stock',
+        motivo: motivo.etiqueta,
       );
 
       await _auditoriaController.registrar(
@@ -288,7 +335,8 @@ class ProductoController {
         accion: 'EDIT',
         idRegistro: idProducto,
         descripcion:
-            'Stock de $producto aumentado de $actual a $nuevo (+$cantidadNueva)',
+            'Stock de $producto aumentado de $actual a $nuevo (+$cantidadNueva). '
+            'Motivo: ${motivo.etiqueta}',
         executor: txn,
       );
     });

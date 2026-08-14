@@ -35,13 +35,15 @@ void main() {
 
     // Configuración por defecto: umbral 20%, cajero puede aplicar y necesita autorización.
     AppConfig.actualizar(Configuracion.porDefecto());
-    SessionManager.clear();
 
-    // SessionManager.currentUserId queda en null tras clear(); el
-    // controlador cae entonces a id_usuario=1 (ver `?? 1` en
-    // insertarVentaCompleta), así que se siembra ese usuario para que la
-    // FK de Ventas.id_usuario no falle en las pruebas que no llaman a
-    // SessionManager.setUser explícitamente.
+    // Sesión activa por defecto (Admin id=1). Antes aquí había un
+    // `SessionManager.clear()` apoyado en que el controlador caía a
+    // `id_usuario ?? 1`; ese respaldo se quitó (ahora `requiredUserId` lanza
+    // si no hay sesión, para no atribuir ventas a un usuario inventado), así
+    // que las pruebas que no fijan usuario explícitamente fallaban. Las que
+    // sí lo hacen —el grupo de autorización— lo sobrescriben con setUser.
+    SessionManager.setUser(id: 1, nombre: 'Sistema', rol: 'Admin');
+
     await db.insert('Usuarios', {
       'nombre': 'Sistema',
       'contra': PasswordHasher.hash('x'),

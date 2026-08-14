@@ -42,6 +42,8 @@ class TicketDevolucionService {
               pw.Text('Atendió: ${comprobante.usuario}'),
               pw.SizedBox(height: 5),
               pw.Text('Motivo: ${comprobante.motivo}'),
+              if (!comprobante.reintegroInventario)
+                pw.Text('Mercancía dada de baja (merma): no regresó al inventario'),
 
               pw.Divider(),
 

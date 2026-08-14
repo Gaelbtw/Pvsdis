@@ -61,6 +61,13 @@ class VentasAtajos extends StatelessWidget {
   /// Shift+Supr: vaciar el carrito.
   final VoidCallback? onVaciar;
 
+  /// F3: asignar o cambiar el cliente de la venta.
+  final VoidCallback? onCliente;
+
+  /// F1: mostrar la lista de atajos. Es el único que se dispara incluso
+  /// escribiendo: pedir ayuda no debe depender de dónde esté el cursor.
+  final VoidCallback? onAyuda;
+
   const VentasAtajos({
     super.key,
     required this.child,
@@ -73,6 +80,8 @@ class VentasAtajos extends StatelessWidget {
     this.onVerEnEspera,
     this.onReimprimir,
     this.onVaciar,
+    this.onCliente,
+    this.onAyuda,
   });
 
   /// `true` si el foco actual está dentro de un campo de texto editable
@@ -125,6 +134,8 @@ class VentasAtajos extends StatelessWidget {
         if (onVaciar != null)
           const SingleActivator(LogicalKeyboardKey.delete, shift: true):
               () => _siNoEstaEscribiendo(onVaciar!),
+        const SingleActivator(LogicalKeyboardKey.f3): ?onCliente,
+        const SingleActivator(LogicalKeyboardKey.f1): ?onAyuda,
       },
       child: child,
     );

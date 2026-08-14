@@ -1,0 +1,274 @@
+===========================================================================
+  CONTRATO DE LICENCIA DE USO DE SOFTWARE
+  Pv Control - Sistema de Punto de Venta
+  2A2G Company
+===========================================================================
+
+  Version del documento: 1.0
+  Ultima revision: agosto de 2026
+
+LEA ESTE CONTRATO ANTES DE INSTALAR. Al instalar o usar Pv Control usted
+acepta quedar obligado por estos terminos. Si no esta de acuerdo, cancele
+la instalacion y no use el programa.
+
+En este documento, "el Licenciante" es 2A2G Company; "el Licenciatario" o
+"usted" es la persona fisica o moral que instala y usa el programa; "el
+Programa" es Pv Control, incluidos su instalador, sus actualizaciones y su
+documentacion.
+
+
+---------------------------------------------------------------------------
+1. LO QUE SE LE OTORGA
+---------------------------------------------------------------------------
+
+1.1  El Licenciante le otorga una licencia de uso NO exclusiva, NO
+     transferible y revocable para instalar y usar el Programa en los
+     equipos autorizados en su comprobante de compra o contrato de
+     servicio.
+
+1.2  Esta licencia es de USO. El Programa no se le vende. El Licenciante
+     conserva la titularidad del codigo fuente, del diseno y de todos los
+     derechos de propiedad intelectual sobre el Programa.
+
+1.3  Salvo pacto expreso por escrito, la licencia ampara UN (1) equipo por
+     licencia adquirida. Instalarlo en equipos adicionales requiere
+     licencias adicionales.
+
+
+---------------------------------------------------------------------------
+2. LO QUE NO PUEDE HACER
+---------------------------------------------------------------------------
+
+Usted no puede, ni permitir que un tercero:
+
+2.1  Copiar, distribuir, vender, rentar, prestar o sublicenciar el Programa
+     o su instalador a terceros.
+
+2.2  Realizar ingenieria inversa, descompilar o desensamblar el Programa,
+     salvo en la medida en que la ley se lo permita expresamente pese a
+     esta prohibicion.
+
+2.3  Eliminar o alterar los avisos de autoria, marca o version.
+
+2.4  Usar el Programa para actividades ilicitas o para llevar contabilidad
+     paralela con fines de evasion fiscal.
+
+
+---------------------------------------------------------------------------
+3. SUS DATOS SON SUYOS  (lealo, es importante)
+---------------------------------------------------------------------------
+
+3.1  TODA la informacion que usted captura o genera con el Programa
+     -productos, precios, inventario, ventas, clientes, proveedores, cortes
+     de caja, reportes- es de SU PROPIEDAD EXCLUSIVA.
+
+3.2  El Programa guarda esa informacion LOCALMENTE en el equipo donde se
+     instala, en la carpeta:
+
+         %APPDATA%\2A2G Company\Pv Control\
+
+     El Licenciante no tiene acceso remoto a esa carpeta ni a su contenido.
+
+3.3  El Programa NO envia su informacion a internet, salvo que usted active
+     expresamente la funcion de sincronizacion y configure un servidor. Si
+     no la activa, el Programa funciona por completo sin conexion y sus
+     datos nunca salen del equipo.
+
+3.4  Si usted contrata el servicio opcional de sincronizacion o de respaldo
+     en la nube, ese servicio se rige por un contrato aparte que debera
+     especificar donde se almacenan los datos y por cuanto tiempo.
+
+3.5  Al terminar esta licencia, sus datos siguen siendo suyos. El
+     desinstalador NO borra la carpeta de datos. Puede solicitar apoyo para
+     exportarlos.
+
+
+---------------------------------------------------------------------------
+4. PROTECCION DE DATOS PERSONALES
+---------------------------------------------------------------------------
+
+4.1  El Programa permite registrar datos personales de sus clientes finales
+     (nombre, telefono, correo, RFC).
+
+4.2  Frente a esos clientes finales, USTED es el responsable del
+     tratamiento de sus datos personales en terminos de la Ley Federal de
+     Proteccion de Datos Personales en Posesion de los Particulares. El
+     Licenciante NO es responsable ni encargado del tratamiento, porque no
+     tiene acceso a esa informacion.
+
+4.3  Es su obligacion contar con su propio aviso de privacidad y ponerlo a
+     disposicion de sus clientes.
+
+4.4  Si usted comparte voluntariamente su base de datos con el Licenciante
+     para efectos de soporte tecnico, el Licenciante la usara unicamente
+     para diagnosticar y resolver el problema reportado, y la eliminara al
+     concluir la atencion.
+
+
+---------------------------------------------------------------------------
+5. EL PROGRAMA NO ES UN SISTEMA DE FACTURACION FISCAL
+---------------------------------------------------------------------------
+
+5.1  Pv Control NO emite, NO timbra y NO cancela Comprobantes Fiscales
+     Digitales por Internet (CFDI). No esta certificado ni autorizado por
+     el Servicio de Administracion Tributaria (SAT) ni por ningun Proveedor
+     Autorizado de Certificacion (PAC).
+
+5.2  Los comprobantes que imprime el Programa son TICKETS DE VENTA de uso
+     interno y control administrativo. No tienen validez fiscal y no
+     sustituyen a una factura.
+
+5.3  El cumplimiento de sus obligaciones fiscales -incluida la expedicion
+     de CFDI y la contabilidad electronica- es responsabilidad exclusiva
+     suya. El Licenciante no asume responsabilidad alguna por multas,
+     creditos fiscales, recargos o sanciones derivadas de su cumplimiento
+     fiscal.
+
+5.4  Usted declara haber leido y entendido esta clausula ANTES de adquirir
+     el Programa.
+
+
+---------------------------------------------------------------------------
+6. RESPALDOS: DE QUIEN ES LA RESPONSABILIDAD
+---------------------------------------------------------------------------
+
+6.1  El Programa guarda toda su informacion en UN SOLO ARCHIVO de base de
+     datos dentro de su equipo. Si ese equipo se dana, se pierde, se roba o
+     su disco falla, y no existe un respaldo fuera del equipo, LA
+     INFORMACION NO SE PUEDE RECUPERAR.
+
+6.2  El Programa incluye herramientas de respaldo (respaldo manual, copia a
+     unidad externa y respaldo automatico programado). MANTENER ESOS
+     RESPALDOS AL CORRIENTE Y VERIFICAR QUE SE ESTAN GENERANDO ES
+     RESPONSABILIDAD EXCLUSIVA DEL LICENCIATARIO.
+
+6.3  En particular, es su responsabilidad mantener conectada la unidad
+     externa de destino del respaldo automatico y revisar periodicamente
+     que las copias se esten creando.
+
+6.4  El Licenciante solo asume responsabilidad sobre los respaldos si usted
+     contrata expresamente y por escrito el servicio de respaldo en la
+     nube, y unicamente en los terminos de ese contrato.
+
+6.5  La recuperacion de datos por fallas ajenas al Programa (falla de
+     hardware, virus, borrado accidental, apagones) no forma parte del
+     soporte incluido y se cotiza por separado.
+
+
+---------------------------------------------------------------------------
+7. ACTUALIZACIONES
+---------------------------------------------------------------------------
+
+7.1  El Licenciante puede publicar actualizaciones. Su entrega e
+     instalacion se rigen por el contrato de soporte que usted tenga
+     vigente.
+
+7.2  Instalar una actualizacion sobre una instalacion existente conserva su
+     informacion. Aun asi, se recomienda generar un respaldo antes de
+     actualizar.
+
+7.3  NO instale una version ANTERIOR a la que ya tiene instalada. El
+     Programa lo impide para proteger su informacion, pero forzarlo por
+     otros medios puede dejar la base de datos inutilizable.
+
+7.4  Actualice siempre con la caja cerrada y sin ventas en curso.
+
+
+---------------------------------------------------------------------------
+8. GARANTIA LIMITADA
+---------------------------------------------------------------------------
+
+8.1  El Programa se proporciona "TAL CUAL". Dentro de los limites que
+     permita la ley aplicable, el Licenciante no otorga garantias implicitas
+     de comerciabilidad o de idoneidad para un proposito particular.
+
+8.2  El Licenciante no garantiza que el Programa opere libre de errores ni
+     sin interrupciones, ni que sea compatible con todo el hardware o
+     software de terceros (impresoras, cajones de dinero, lectores de
+     codigo de barras, antivirus, sistemas operativos futuros).
+
+8.3  Lo anterior no limita los derechos que la legislacion mexicana de
+     proteccion al consumidor le reconozca de manera irrenunciable.
+
+
+---------------------------------------------------------------------------
+9. LIMITE DE RESPONSABILIDAD
+---------------------------------------------------------------------------
+
+9.1  En la medida maxima permitida por la ley, el Licenciante no sera
+     responsable por danos indirectos, incidentales, especiales o
+     consecuenciales, incluidos de manera enunciativa: perdida de ganancias,
+     perdida de ventas, interrupcion del negocio, perdida de informacion o
+     dano reputacional.
+
+9.2  La responsabilidad total y acumulada del Licenciante por cualquier
+     reclamacion relacionada con el Programa no excedera el monto que usted
+     haya pagado por la licencia durante los DOCE (12) meses anteriores al
+     hecho que origino la reclamacion.
+
+9.3  Los limites de esta clausula no aplican en casos de dolo o mala fe del
+     Licenciante.
+
+
+---------------------------------------------------------------------------
+10. SOPORTE TECNICO
+---------------------------------------------------------------------------
+
+10.1 El soporte tecnico NO esta incluido en esta licencia. Se contrata por
+     separado y su alcance, horario y tiempos de respuesta se definen en el
+     contrato de servicio correspondiente.
+
+10.2 Sin un contrato de soporte vigente, cualquier atencion que el
+     Licenciante brinde es a su entera discrecion y no genera obligacion.
+
+
+---------------------------------------------------------------------------
+11. VIGENCIA Y TERMINACION
+---------------------------------------------------------------------------
+
+11.1 Esta licencia inicia al instalar el Programa y continua hasta que se
+     termine conforme a esta clausula.
+
+11.2 El Licenciante puede terminarla si usted incumple de forma grave
+     cualquiera de sus terminos, en particular los de la clausula 2.
+
+11.3 Al terminar, usted debe dejar de usar el Programa y desinstalarlo. Su
+     informacion permanece en su equipo y sigue siendo suya (clausula 3.5).
+
+
+---------------------------------------------------------------------------
+12. SOFTWARE DE TERCEROS
+---------------------------------------------------------------------------
+
+El Programa incorpora componentes de terceros bajo sus propias licencias de
+codigo abierto, entre ellos Flutter y SQLite. Nada en este contrato limita
+los derechos que esas licencias le otorguen respecto de dichos componentes.
+
+
+---------------------------------------------------------------------------
+13. LEY APLICABLE
+---------------------------------------------------------------------------
+
+Este contrato se rige por las leyes de los Estados Unidos Mexicanos. Para
+su interpretacion y cumplimiento, las partes se someten a los tribunales
+competentes del domicilio del Licenciante, renunciando a cualquier otro
+fuero.
+
+
+---------------------------------------------------------------------------
+14. ACUERDO COMPLETO
+---------------------------------------------------------------------------
+
+Este contrato, junto con su comprobante de compra y, en su caso, el
+contrato de soporte, constituye el acuerdo integro entre las partes
+respecto del Programa y sustituye cualquier acuerdo verbal previo.
+
+Si alguna clausula resulta invalida, el resto permanece en vigor.
+
+
+===========================================================================
+  CONTACTO
+  2A2G Company
+  Correo:   [pendiente]
+  Telefono: [pendiente]
+===========================================================================

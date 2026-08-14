@@ -87,9 +87,24 @@ class InventarioTabla extends StatelessWidget {
         children: [
           Expanded(
             flex: 22,
-            child: Text(
-              p['nombre'],
-              style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textStrong),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  p['nombre'],
+                  style: const TextStyle(fontWeight: FontWeight.w700, color: AppColors.textStrong),
+                ),
+                if (p['sku'] != null)
+                  Text(
+                    p['sku'].toString(),
+                    style: const TextStyle(
+                      fontSize: AppText.overline,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+              ],
             ),
           ),
           Expanded(flex: 18, child: Text(p['categoria_nombre'] ?? 'Sin categoría')),
