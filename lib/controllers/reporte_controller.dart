@@ -451,9 +451,18 @@ class ReporteController {
   ///
   /// - `Movimiento_Inventario.fecha` se guarda en UTC (lo escribe
   ///   `MovimientoInventarioLogger`), a diferencia de `Ventas.fecha`, que es
-  ///   hora local. Por eso aquí el rango se compara con
-  ///   `date(fecha, 'localtime')`: sin eso, los movimientos de la noche
-  ///   aparecerían en el día siguiente y el reporte de "hoy" mentiría.
+  ///   hora local. El rango de días locales que pide el usuario se convierte
+  ///   a los instantes UTC equivalentes **en Dart**, y la consulta compara
+  ///   contra la columna tal cual.
+  ///
+  ///   Antes se hacía con `date(m.fecha, 'localtime') BETWEEN ...`, que es
+  ///   correcto pero imposible de indexar: `'localtime'` depende de la zona
+  ///   horaria del equipo, así que SQLite considera la expresión NO
+  ///   determinista y prohíbe crear un índice sobre ella. El resultado era un
+  ///   recorrido completo de la tabla que más crece después de `Auditorias`,
+  ///   en cada apertura del reporte. Convertir el rango de este lado da
+  ///   exactamente el mismo conjunto de filas y deja que trabaje
+  ///   `idx_movimiento_inventario_fecha`.
   /// - Los tipos se clasifican por nombre y no por el signo de la cantidad
   ///   (que siempre se guarda en positivo): entradas son compra, ajuste
   ///   positivo, transferencia de entrada y devolución de venta; el resto
@@ -466,11 +475,20 @@ class ReporteController {
   }) async {
     final db = await DatabaseHelper().database;
 
-    final fechaInicio = desde.toIso8601String().substring(0, 10);
-    final fechaFin = hasta.toIso8601String().substring(0, 10);
+    // Primer instante del día local `desde` y último del día local `hasta`,
+    // ambos expresados en UTC para poder compararlos con la columna. Las dos
+    // cadenas salen en el mismo formato ISO-8601 con `Z` que escribe el
+    // logger, y en ISO-8601 el orden alfabético coincide con el cronológico.
+    final desdeUtc = DateTime(desde.year, desde.month, desde.day)
+        .toUtc()
+        .toIso8601String();
+    final hastaUtc =
+        DateTime(hasta.year, hasta.month, hasta.day, 23, 59, 59, 999)
+            .toUtc()
+            .toIso8601String();
 
     final filtros = <String>[];
-    final params = <Object?>[fechaInicio, fechaFin];
+    final params = <Object?>[desdeUtc, hastaUtc];
 
     if (idProducto != null) {
       filtros.add('AND m.id_producto = ?');
@@ -499,7 +517,7 @@ class ReporteController {
       FROM Movimiento_Inventario m
       INNER JOIN Producto p ON p.id_producto = m.id_producto
       LEFT JOIN Usuarios u ON u.id_usuario = m.id_usuario
-      WHERE date(m.fecha, 'localtime') BETWEEN date(?) AND date(?)
+      WHERE m.fecha >= ? AND m.fecha <= ?
       ${filtros.join('\n      ')}
       ORDER BY m.fecha DESC, m.id_movimiento DESC
       LIMIT 500

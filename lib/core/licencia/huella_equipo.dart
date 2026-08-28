@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 
 /// Identifica el equipo donde corre la app, de forma **tolerante a que cambie
 /// una pieza**.
@@ -50,14 +51,55 @@ class HuellaEquipo {
 
   /// Lee las tres señales del equipo actual, en orden fijo. Una señal que no
   /// se pueda leer vuelve como cadena vacía; nunca lanza.
-  static Future<List<String>> senales() async {
+  ///
+  /// [cache] es lo que devolvió [cacheDe] en una corrida anterior. Sirve para
+  /// **no pagar el arranque de PowerShell en cada apertura de la app**: leer
+  /// el UUID de SMBIOS exige lanzar `powershell.exe`, y eso cuesta entre 300 y
+  /// 800 ms en una PC de punto de venta de gama baja. Las otras dos señales se
+  /// leen siempre, porque son baratas.
+  ///
+  /// **Solo se reutiliza el UUID, y solo si el MachineGuid sigue siendo el
+  /// mismo.** Cachear la huella completa habría abierto un agujero: la caché
+  /// vive en `configuracion`, dentro del mismo `%APPDATA%` que el archivo de
+  /// licencia, así que copiar esa carpeta a otra computadora habría llevado la
+  /// huella junto con la licencia y ambas habrían coincidido. Con este
+  /// esquema, en la computadora copiada el MachineGuid y el nombre son otros,
+  /// la caché del UUID se descarta por no corresponder, y quedan cero o una
+  /// coincidencia: no llega a las dos que exige [esMismoEquipo].
+  ///
+  /// Dicho de otro modo: la caché solo puede provocar una lectura de más,
+  /// nunca aceptar una licencia que debería rechazar.
+  static Future<List<String>> senales({String? cache}) async {
     if (!Platform.isWindows) {
       // En pruebas y en cualquier otra plataforma solo hay una señal real.
       // Las otras dos quedan vacías, lo que hace imposible llegar a dos
       // coincidencias: fuera de Windows la licencia no ata a un equipo.
       return ['', '', _hostname()];
     }
-    return [await _machineGuid(), await _uuidEquipo(), _hostname()];
+
+    final guid = await _machineGuid();
+    final uuid = uuidDesdeCache(cache, guid) ?? await _uuidEquipo();
+
+    return [guid, uuid, _hostname()];
+  }
+
+  /// Serializa las señales para guardarlas en `configuracion.equipo_codigo`.
+  /// Guarda el ancla (MachineGuid) junto al valor caro (UUID) para poder
+  /// invalidar la caché sola cuando el equipo cambie.
+  static String cacheDe(List<String> senales) =>
+      senales.length < 2 ? '' : '${senales[0]}|${senales[1]}';
+
+  /// UUID guardado, si el ancla coincide con el MachineGuid actual.
+  @visibleForTesting
+  static String? uuidDesdeCache(String? cache, String machineGuidActual) {
+    if (cache == null || cache.isEmpty) return null;
+    if (machineGuidActual.isEmpty) return null;
+
+    final partes = cache.split('|');
+    if (partes.length != 2) return null;
+    if (partes[0] != machineGuidActual) return null;
+
+    return partes[1].isEmpty ? null : partes[1];
   }
 
   /// Código de instalación que el cliente dicta o pega en WhatsApp, del estilo
@@ -70,7 +112,8 @@ class HuellaEquipo {
   static String codigoDesde(List<String> senales) =>
       senales.map(_grupo).join('-');
 
-  static Future<String> codigoActual() async => codigoDesde(await senales());
+  static Future<String> codigoActual({String? cache}) async =>
+      codigoDesde(await senales(cache: cache));
 
   /// Cuántos grupos coinciden entre dos códigos, comparando **por posición**.
   ///

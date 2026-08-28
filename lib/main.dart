@@ -1,12 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
+import 'controllers/auditoria_controller.dart';
 import 'controllers/auth_controller.dart';
+import 'core/actualizacion/actualizacion_service.dart';
 import 'core/config/app_config.dart';
 import 'core/config/app_info.dart';
 import 'core/config/backend_config.dart';
 import 'core/database/database_helper.dart';
 import 'core/database/db_exceptions.dart';
 import 'core/licencia/licencia_service.dart';
+import 'core/navegacion/navegador_global.dart';
 import 'core/security/login_throttle.dart';
 import 'core/security/throttle_archivo_store.dart';
 import 'core/sync/auth_service.dart';
@@ -21,17 +26,26 @@ import 'widgets/barra_ventana.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // La versión se lee antes que nada para que, si el arranque falla, la
-  // pantalla de error ya pueda decir de qué versión se trata: es el primer
-  // dato que hace falta para diagnosticar por teléfono.
-  await AppInfo.cargar();
+  // La versión sale de los metadatos del .exe y no depende de la base, así
+  // que se lee EN PARALELO con la apertura de la base en vez de antes. Se
+  // espera más abajo, a tiempo para que la pantalla de error pueda decir de
+  // qué versión se trata: es el primer dato que hace falta para diagnosticar
+  // por teléfono.
+  final versionLista = AppInfo.cargar();
 
   // Abrir la base es el único paso del arranque que puede fallar de forma
   // irrecuperable. Si el archivo viene de una versión más nueva, se aborta
   // aquí: seguir adelante corrompería datos del negocio.
+  BaseDeDatosMasNuevaException? errorEsquema;
   try {
     await DatabaseHelper().database;
   } on BaseDeDatosMasNuevaException catch (e) {
+    errorEsquema = e;
+  }
+
+  await versionLista;
+
+  if (errorEsquema case final e?) {
     await _arrancarPantallaDeError(
       titulo: 'No se pudo abrir el sistema',
       mensaje: e.mensajeParaElUsuario,
@@ -43,27 +57,45 @@ void main() async {
     return;
   }
 
-  await AppConfig.cargar();
-
-  // Evalúa la licencia una vez al arrancar. Nunca lanza y nunca bloquea el
-  // arranque: sin licencia --que es el estado de todos los clientes hasta que
-  // se compile una clave pública-- reporta `sinLicencia` y todo funciona igual
-  // que siempre.
-  await LicenciaService.instancia.cargar();
-
-  // Restaura el contador de intentos fallidos de login. Sin esto vivía solo
-  // en memoria y bastaba cerrar y reabrir el .exe para ponerlo a cero, así
-  // que la escalada de espera no frenaba un ataque por fuerza bruta contra un
-  // PIN de 4 dígitos. Los contadores caducan solos (ver
+  // Tres cargas independientes entre sí: la configuración del negocio (base
+  // de datos), el contador de intentos de login (archivo) y la sesión de sync
+  // (archivos). Encadenarlas con `await` sumaba sus latencias sin razón.
+  //
+  // `LoginThrottle` restaura el contador de intentos fallidos: sin esto vivía
+  // solo en memoria y bastaba cerrar y reabrir el .exe para ponerlo a cero,
+  // así que la escalada de espera no frenaba un ataque por fuerza bruta contra
+  // un PIN de 4 dígitos. Los contadores caducan solos (ver
   // `LoginThrottle.ventanaFallos`), así que un corte de luz no deja la caja
   // bloqueada.
-  await LoginThrottle.instancia.cargar(ThrottleArchivoStore());
+  await Future.wait([
+    AppConfig.cargar(),
+    LoginThrottle.instancia.cargar(ThrottleArchivoStore()),
+    _inicializarSync(),
+  ]);
 
-  await _inicializarSync();
+  // Esta SÍ va después de AppConfig y no dentro del `Future.wait`: las dos
+  // siembran la fila de `configuracion` si no existe, y en paralelo podrían
+  // chocar insertando el mismo id.
+  //
+  // Nunca lanza y nunca bloquea el arranque: sin licencia --que es el estado
+  // de todos los clientes hasta que se compile una clave pública-- reporta
+  // `sinLicencia` y todo funciona igual que siempre.
+  await LicenciaService.instancia.cargar();
+
+  // Mantenimiento en segundo plano, sin `await`: recorta la bitácora vieja
+  // como mucho una vez por semana. Sin esto `Auditorias` crece para siempre y
+  // el respaldo diario a la USB tarda más cada mes.
+  unawaited(AuditoriaController().purgarAntiguasSiToca());
   // Arranca el ciclo automático de sync (corrida inmediata + cada 2 min). No
   // se hace `await`: no debe demorar el arranque de la UI, y el motor ya
   // maneja internamente el caso sin sesión/sin conexión (no-op barato).
   SyncScheduler.instancia.iniciar();
+
+  // Revisión de actualizaciones: sin `await` y sin bloquear nada. Si no hay
+  // internet o el servidor está caído, simplemente no aparece el aviso -- que
+  // la revisión falle no puede estorbarle a un negocio que necesita abrir la
+  // caja. Viene apagada mientras `urlManifiesto` esté vacía.
+  unawaited(ActualizacionService.instancia.buscar());
 
   // Ventana sin barra de título nativa: se oculta la barra de Windows (la que
   // decía "Pv Control") y la app dibuja sus propios controles (ver
@@ -137,6 +169,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: AppConfig.actual.nombreNegocio,
       debugShowCheckedModeBanner: false,
+      // La barra de ventana se monta en `builder`, es decir POR ENCIMA de este
+      // Navigator, así que no puede usar `Navigator.of(context)`. Ver
+      // core/navegacion/navegador_global.dart.
+      navigatorKey: navegadorGlobal,
       // Monta la barra de ventana propia por encima de todas las pantallas.
       builder: (context, child) => Column(
         children: [

@@ -34,6 +34,28 @@ Formato: `MAYOR.MENOR.PARCHE`.
 > Mientras no se emita ninguna licencia, el sistema funciona sin restricción
 > alguna. Actualizar a esta versión no cambia nada para quien ya lo usa.
 
+### Rendimiento
+
+- Los reportes por rango de fechas de **devoluciones, apartados y movimientos
+  de inventario** ya no recorren toda la tabla. En una instalación con historia
+  la diferencia se nota al abrir cada reporte.
+- La **bitácora de actividad se recorta sola** a los últimos 24 meses
+  (configurable). Antes crecía sin límite y hacía que el respaldo diario a la
+  USB tardara más cada mes.
+- El sistema **abre más rápido**: lo que no depende entre sí ahora se carga a la
+  vez en vez de en fila.
+
+### Avisos
+
+- **Aviso de versión nueva** dentro del sistema: una franja discreta —nunca una
+  ventana que interrumpa— cuando hay una actualización publicada. Descarga el
+  instalador y comprueba que llegó completo, pero **no lo instala**: eso lo
+  decide el negocio, con la caja cerrada.
+- Si la actualización va a modificar la información guardada, el aviso lo dice
+  y recomienda respaldar antes.
+- Aviso de licencia visible en todas las pantallas cuando está vencida o hay
+  algo que resolver, y un aviso al abrir cuando está por vencer.
+
 ### Instalación
 
 - El instalador puede firmarse digitalmente (opcional). Sin firma, se genera

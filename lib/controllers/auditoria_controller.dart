@@ -27,6 +27,80 @@ class PaginaAuditorias {
 class AuditoriaController {
   final dbHelper = DatabaseHelper();
 
+  /// Cada cuánto se revisa si toca purgar. No es la retención: es cada cuánto
+  /// se molesta en preguntar.
+  static const _diasEntreRevisiones = 7;
+
+  /// Retención por omisión, en meses, si `configuracion` no dice otra cosa.
+  ///
+  /// Dos años cubre de sobra cualquier aclaración real ("¿quién cambió este
+  /// precio?", "¿quién canceló esta venta?") y mantiene el archivo en un
+  /// tamaño manejable.
+  static const mesesRetencionPorDefecto = 24;
+
+  /// Borra la bitácora más vieja que la retención configurada, a lo mucho una
+  /// vez por semana.
+  ///
+  /// `Auditorias` es la tabla que más crece: una fila por venta, por
+  /// movimiento de stock, por cambio de precio y por login. A 200 tickets
+  /// diarios son del orden de 150 000 filas al año. La pantalla no sufre
+  /// --pagina en SQL-- pero el archivo `.db` sí, y con él **el respaldo diario
+  /// a la USB**, que es lo que de verdad se nota: el respaldo tarda más cada
+  /// mes hasta que alguien lo desconecta por lento.
+  ///
+  /// **No hace `VACUUM` a propósito.** Compactar bloquea la base varios
+  /// segundos y aquí correría durante el arranque. Sin `VACUUM` el espacio
+  /// liberado no se le devuelve al disco, pero SQLite lo reutiliza para las
+  /// filas nuevas: el archivo deja de crecer, que es el objetivo. Compactar
+  /// de verdad es una acción manual desde Copias de seguridad.
+  ///
+  /// Devuelve cuántas filas se borraron (0 si no tocaba revisar). Nunca lanza:
+  /// corre en segundo plano durante el arranque y un fallo aquí no puede
+  /// estorbarle a un negocio que necesita abrir la caja.
+  Future<int> purgarAntiguasSiToca({DateTime? ahora}) async {
+    try {
+      final db = await dbHelper.database;
+      final hoy = ahora ?? DateTime.now();
+
+      final filas = await db.query(
+        'configuracion',
+        columns: ['auditoria_meses_retencion', 'auditoria_purga_ultima'],
+        limit: 1,
+      );
+      if (filas.isEmpty) return 0;
+
+      final meses = (filas.first['auditoria_meses_retencion'] as int?) ??
+          mesesRetencionPorDefecto;
+
+      // 0 o negativo = conservar todo. Es una salida explícita para quien
+      // quiera la bitácora íntegra por política contable.
+      if (meses <= 0) return 0;
+
+      final ultima =
+          DateTime.tryParse('${filas.first['auditoria_purga_ultima']}');
+      if (ultima != null &&
+          hoy.difference(ultima).inDays < _diasEntreRevisiones) {
+        return 0;
+      }
+
+      final corte = DateTime(hoy.year, hoy.month - meses, hoy.day);
+      final borradas = await db.delete(
+        'Auditorias',
+        where: 'fecha_hora < ?',
+        whereArgs: [corte.toIso8601String()],
+      );
+
+      await db.update(
+        'configuracion',
+        {'auditoria_purga_ultima': hoy.toIso8601String()},
+      );
+
+      return borradas;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   /// Escribe un evento en la bitácora.
   ///
   /// [executor] permite que el registro participe de la transacción de quien

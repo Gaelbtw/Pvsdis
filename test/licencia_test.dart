@@ -115,6 +115,57 @@ void main() {
       expect(HuellaEquipo.esMismoEquipo(a, b), isFalse);
     });
 
+    group('caché de la señal cara', () {
+      // Leer el UUID de SMBIOS exige lanzar powershell.exe: entre 300 y 800 ms
+      // en una PC de punto de venta. Cachearlo evita pagarlo en cada apertura.
+      // Lo que NO se puede cachear es la huella completa, y de eso trata la
+      // última prueba de este grupo.
+
+      test('reusa el UUID cuando el MachineGuid sigue igual', () {
+        final cache = HuellaEquipo.cacheDe(['guid-1', 'uuid-1', 'CAJA-01']);
+        expect(HuellaEquipo.uuidDesdeCache(cache, 'guid-1'), 'uuid-1');
+      });
+
+      test('descarta el UUID si el MachineGuid cambió', () {
+        // Reinstalaron Windows: el UUID guardado ya no se puede dar por bueno
+        // sin volver a leerlo del equipo.
+        final cache = HuellaEquipo.cacheDe(['guid-1', 'uuid-1', 'CAJA-01']);
+        expect(HuellaEquipo.uuidDesdeCache(cache, 'guid-2'), isNull);
+      });
+
+      test('una caché vacía, corrupta o sin ancla no se usa', () {
+        for (final basura in [null, '', 'sin-separador', 'a|b|c', '|uuid', 'guid-1|']) {
+          expect(
+            HuellaEquipo.uuidDesdeCache(basura, 'guid-1'),
+            isNull,
+            reason: 'caché: $basura',
+          );
+        }
+      });
+
+      test('COPIAR LA CARPETA DE DATOS A OTRA PC NO CUELA LA LICENCIA', () {
+        // La caché vive en `configuracion`, dentro del mismo %APPDATA% que el
+        // archivo .lic. Si se cacheara la huella COMPLETA, copiar esa carpeta
+        // llevaría huella y licencia juntas y ambas coincidirían.
+        //
+        // Con solo el UUID cacheado: en la PC copiada el MachineGuid es otro,
+        // la caché se descarta por no corresponder, el UUID real es otro y el
+        // nombre también. Cero coincidencias, muy lejos de las dos que exige
+        // esMismoEquipo.
+        final cacheRobada = HuellaEquipo.cacheDe(['guid-1', 'uuid-1', 'CAJA-01']);
+        final huellaLicencia =
+            HuellaEquipo.codigoDesde(['guid-1', 'uuid-1', 'CAJA-01']);
+
+        // En la otra computadora: el ancla no coincide -> nada que reusar.
+        expect(HuellaEquipo.uuidDesdeCache(cacheRobada, 'guid-2'), isNull);
+
+        final huellaOtraPc =
+            HuellaEquipo.codigoDesde(['guid-2', 'uuid-2', 'CAJA-02']);
+        expect(HuellaEquipo.coincidencias(huellaLicencia, huellaOtraPc), 0);
+        expect(HuellaEquipo.esMismoEquipo(huellaLicencia, huellaOtraPc), isFalse);
+      });
+    });
+
     test('el alfabeto no incluye caracteres que se confundan al dictarlos', () {
       // Alguien va a leer esto en voz alta por teléfono.
       final codigos = List.generate(

@@ -11,6 +11,8 @@ import '../controllers/auditoria_controller.dart';
 import '../controllers/reporte_controller.dart';
 import '../controllers/usuarios_controller.dart';
 import '../core/config/app_config.dart';
+import '../core/licencia/guarda_licencia.dart';
+import '../core/licencia/licencia_service.dart';
 import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
 import '../core/utils/auditoria_helpers.dart';
@@ -183,6 +185,14 @@ class _ReporteViewState extends State<ReporteView> {
   /// (normalmente el contador) quiere las filas para hacer sus propias sumas.
   /// Los totales los recalcula Excel.
   Future<void> _exportarReporte() async {
+    // Sacar los datos del sistema es de lo primero que se restringe con la
+    // licencia vencida: no estorba la operación diaria del negocio, pero sí
+    // impide llevarse el catálogo y el historial a otro lado sin pagar.
+    if (!await GuardaLicencia.permite(context, FuncionLicenciada.exportacion)) {
+      return;
+    }
+    if (!mounted) return;
+
     setState(() => _exportando = true);
 
     try {

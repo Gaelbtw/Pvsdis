@@ -7,6 +7,8 @@ import '../controllers/caja_controller.dart';
 import '../controllers/producto_controller.dart';
 import '../controllers/reporte_controller.dart';
 import '../core/config/app_config.dart';
+import '../core/licencia/guarda_licencia.dart';
+import '../core/licencia/licencia_service.dart';
 import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
 import '../models/caja_model.dart';
@@ -18,6 +20,7 @@ import 'compras_view.dart';
 import 'configuracion_view.dart';
 import 'cuentas_por_pagar_view.dart';
 import 'inventario_view.dart';
+import 'licencia_view.dart';
 import 'login_view.dart';
 import 'pedidos_view.dart';
 import 'productos_view.dart';
@@ -59,10 +62,54 @@ class _HomeViewState extends State<HomeView> {
 
   bool get _esAdmin => SessionManager.isAdmin;
 
+  /// El aviso de licencia se muestra una vez por arranque, no una vez por
+  /// visita al inicio: se vuelve aquí después de cada venta, y un modal cada
+  /// vez enseña a cerrarlo sin leerlo.
+  static bool _avisoLicenciaMostrado = false;
+
   @override
   void initState() {
     super.initState();
     _cargarTablero();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _avisarLicencia());
+  }
+
+  /// Aviso de una sola vez al abrir, para lo que no amerita franja permanente
+  /// (una licencia por vencer) y para que lo degradado no pase inadvertido.
+  Future<void> _avisarLicencia() async {
+    if (_avisoLicenciaMostrado) return;
+
+    final estado = LicenciaService.instancia.estado;
+    if (!estado.requiereAvisoAlAbrir) return;
+
+    _avisoLicenciaMostrado = true;
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: Icon(
+          Icons.workspace_premium_outlined,
+          size: 32,
+          color: estado.estaDegradada ? AppColors.error : AppColors.warning,
+        ),
+        title: const Text('Licencia'),
+        content: Text(estado.mensaje),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Después'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              _abrir((_) => const LicenciaView());
+            },
+            child: const Text('Ver licencia'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _cargarTablero() async {
@@ -110,6 +157,21 @@ class _HomeViewState extends State<HomeView> {
       if (!mounted) return;
       setState(() => _cargando = false);
     }
+  }
+
+  /// Configuración queda bloqueada con la licencia vencida, pero la pantalla
+  /// de Licencia NO: el cliente tiene que poder activar lo que acaba de pagar
+  /// aunque todo lo demás esté restringido. Por eso el guarda desvía ahí en
+  /// vez de simplemente negar.
+  Future<void> _abrirConfiguracion() async {
+    if (!await GuardaLicencia.permite(
+      context,
+      FuncionLicenciada.configuracion,
+    )) {
+      return;
+    }
+    if (!mounted) return;
+    await _abrir((_) => const ConfiguracionView());
   }
 
   Future<void> _abrir(WidgetBuilder builder) async {
@@ -266,7 +328,7 @@ class _HomeViewState extends State<HomeView> {
       onSelected: (v) {
         switch (v) {
           case 'config':
-            _abrir((_) => const ConfiguracionView());
+            _abrirConfiguracion();
             break;
           case 'cambiar':
           case 'salir':
@@ -332,7 +394,16 @@ class _HomeViewState extends State<HomeView> {
             valor: _cargando ? '—' : AppConfig.formatoMoneda(_ventasHoy),
             pie: _cambioVsAyer == null ? 'Sin datos de ayer' : '${_cambioVsAyer! >= 0 ? '↑' : '↓'} ${_cambioVsAyer!.abs().toStringAsFixed(0)}% vs. ayer',
             pieColor: _cambioVsAyer == null || _cambioVsAyer! >= 0 ? AppColors.success : AppColors.error,
-            onTap: () => _abrir((_) => const ReporteView()),
+            onTap: () async {
+              if (!await GuardaLicencia.permite(
+                context,
+                FuncionLicenciada.reportes,
+              )) {
+                return;
+              }
+              if (!mounted) return;
+              await _abrir((_) => const ReporteView());
+            },
           ),
           _kpi(
             icono: Icons.point_of_sale_outlined, iconoColor: AppColors.success,

@@ -179,18 +179,22 @@ class LicenciaService {
   @visibleForTesting
   void reiniciarParaPruebas() {
     _clavePublica = clavePublicaLicencias;
-    _estado = const EstadoLicencia(situacion: SituacionLicencia.sinLicencia);
+    estadoNotificador.value =
+        const EstadoLicencia(situacion: SituacionLicencia.sinLicencia);
   }
 
-  EstadoLicencia _estado = const EstadoLicencia(
-    situacion: SituacionLicencia.sinLicencia,
+  /// Observable para que el banner de la barra superior se redibuje solo al
+  /// importar o renovar una licencia. Sin esto habría que acordarse de
+  /// refrescar la barra desde cada pantalla que toque la licencia, y tarde o
+  /// temprano alguien no lo haría.
+  final ValueNotifier<EstadoLicencia> estadoNotificador = ValueNotifier(
+    const EstadoLicencia(situacion: SituacionLicencia.sinLicencia),
   );
 
-  EstadoLicencia get estado => _estado;
+  EstadoLicencia get estado => estadoNotificador.value;
 
   /// Atajo para los puntos de uso: `if (!LicenciaService.permiteAhora(...))`.
-  static bool permiteAhora(FuncionLicenciada f) =>
-      instancia._estado.permite(f);
+  static bool permiteAhora(FuncionLicenciada f) => instancia.estado.permite(f);
 
   /// Evalúa la licencia y deja el resultado en [estado]. Se llama al arrancar
   /// y después de importar un archivo nuevo.
@@ -201,13 +205,14 @@ class LicenciaService {
   /// exactamente lo que todo este módulo trata de evitar.
   Future<EstadoLicencia> cargar() async {
     try {
-      _estado = await _evaluar();
+      estadoNotificador.value = await _evaluar();
     } catch (e) {
       debugPrint('Licencia: fallo inesperado al evaluar ($e). Se continúa sin '
           'restricciones.');
-      _estado = const EstadoLicencia(situacion: SituacionLicencia.sinLicencia);
+      estadoNotificador.value =
+          const EstadoLicencia(situacion: SituacionLicencia.sinLicencia);
     }
-    return _estado;
+    return estado;
   }
 
   /// Traduce una licencia verificada a una situación, según qué tan lejos
@@ -285,12 +290,28 @@ class LicenciaService {
 
     return evaluarVigencia(
       licencia,
-      mismoEquipo: HuellaEquipo.esMismoEquipo(
-        licencia.huella,
-        await HuellaEquipo.codigoActual(),
-      ),
+      mismoEquipo: HuellaEquipo.esMismoEquipo(licencia.huella, await codigoEquipo()),
       relojSospechoso: await _revisarReloj(),
     );
+  }
+
+  /// Código de instalación de este equipo, reusando la caché de señales
+  /// guardada en `configuracion.equipo_codigo`.
+  ///
+  /// Evita lanzar `powershell.exe` en cada apertura de la app --entre 300 y
+  /// 800 ms en una PC de gama baja-- sin debilitar la verificación: la caché
+  /// solo cubre el UUID de SMBIOS y se descarta sola si el MachineGuid cambió.
+  /// Ver [HuellaEquipo.senales].
+  Future<String> codigoEquipo() async {
+    final cache = await _leerColumna('equipo_codigo');
+    final senales = await HuellaEquipo.senales(cache: cache);
+
+    final nueva = HuellaEquipo.cacheDe(senales);
+    if (nueva.isNotEmpty && nueva != cache) {
+      await _guardarColumna('equipo_codigo', nueva);
+    }
+
+    return HuellaEquipo.codigoDesde(senales);
   }
 
   /// Verifica la firma Ed25519 y devuelve la licencia. Público para que el
@@ -341,7 +362,7 @@ class LicenciaService {
   Future<EstadoLicencia> importar(String contenido) async {
     final licencia = await verificarContenido(contenido);
 
-    final codigoActual = await HuellaEquipo.codigoActual();
+    final codigoActual = await codigoEquipo();
     if (!HuellaEquipo.esMismoEquipo(licencia.huella, codigoActual)) {
       throw LicenciaInvalidaException(
         'Esta licencia fue emitida para otra computadora.\n\n'
@@ -400,18 +421,32 @@ class LicenciaService {
     }
   }
 
-  Future<String?> _leerHashGuardado() async {
+  Future<String?> _leerHashGuardado() => _leerColumna('licencia_hash');
+
+  Future<String?> _leerColumna(String columna) async {
     try {
       final db = await DatabaseHelper().database;
-      final filas = await db.query(
-        'configuracion',
-        columns: ['licencia_hash'],
-        limit: 1,
-      );
+      final filas =
+          await db.query('configuracion', columns: [columna], limit: 1);
       if (filas.isEmpty) return null;
-      return filas.first['licencia_hash'] as String?;
+      return filas.first[columna] as String?;
     } catch (_) {
       return null;
+    }
+  }
+
+  Future<void> _guardarColumna(String columna, String valor) async {
+    try {
+      final db = await DatabaseHelper().database;
+      final existe = (await db.query('configuracion', limit: 1)).isNotEmpty;
+      if (existe) {
+        await db.update('configuracion', {columna: valor});
+      } else {
+        await db.insert('configuracion', {'id': 1, columna: valor});
+      }
+    } catch (_) {
+      // Que no se pueda guardar la caché solo cuesta una lectura de más en el
+      // próximo arranque. No es motivo para fallar nada.
     }
   }
 

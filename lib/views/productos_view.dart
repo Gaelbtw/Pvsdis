@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/config/app_config.dart';
+import '../core/licencia/guarda_licencia.dart';
+import '../core/licencia/licencia_service.dart';
 import '../core/theme/app_colors.dart';
 import '../controllers/producto_controller.dart';
 import '../controllers/categoria_controller.dart';
@@ -390,7 +392,19 @@ class _ProductosViewState extends State<ProductosView> {
 
                   if (puedeGestionarProductos)
                     ElevatedButton.icon(
-                      onPressed: () => mostrarFormulario(),
+                      // Dar de alta productos se bloquea con la licencia
+                      // vencida; editar y vender los que ya existen, no. El
+                      // negocio sigue operando con su catálogo tal como está.
+                      onPressed: () async {
+                        if (!await GuardaLicencia.permite(
+                          context,
+                          FuncionLicenciada.altaProductos,
+                        )) {
+                          return;
+                        }
+                        if (!context.mounted) return;
+                        mostrarFormulario();
+                      },
 
                       icon: const Icon(Icons.add),
 

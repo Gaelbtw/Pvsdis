@@ -120,18 +120,23 @@ onTap: () async {
 },
 ```
 
-**Ya está puesto en:** Configuración → Accesos → Reportes.
+Está puesto en los cuatro puntos que degrada la licencia vencida:
 
-**Falta ponerlo en** (hazlo cuando enciendas el licenciamiento; hoy no cambia
-nada porque `sinLicencia` permite todo):
+| Función | Dónde |
+|---|---|
+| `reportes` | Configuración → Accesos → Reportes, y el KPI "Ventas de hoy" del inicio |
+| `exportacion` | `ReporteView._exportarReporte` (Exportar CSV) |
+| `altaProductos` | Botón "Nuevo producto" en `ProductosView` |
+| `configuracion` | Entrada a `ConfiguracionView` desde el menú de la cuenta |
 
-- `FuncionLicenciada.exportacion` — botones de exportar a CSV en
-  `reporte_view.dart` y en el resto de listados.
-- `FuncionLicenciada.altaProductos` — botón de producto nuevo en
-  `productos_view.dart`.
-- `FuncionLicenciada.configuracion` — entrada a `ConfiguracionView` desde
-  `home_view.dart`. Ojo: **no** bloquees la pantalla de Licencia, o el cliente
-  no podría activar la licencia que acaba de pagar.
+Dos decisiones a conservar si agregas más:
+
+- **La pantalla de Licencia nunca se bloquea.** Si Configuración estuviera
+  cerrada del todo, el cliente no podría activar la licencia que acaba de
+  pagar. Por eso el diálogo del guarda ofrece "Ver licencia" en vez de solo
+  negar.
+- **Editar y vender productos existentes sigue permitido**, solo se bloquea dar
+  de alta nuevos. El negocio sigue operando con el catálogo que ya tiene.
 
 ---
 

@@ -95,7 +95,11 @@ class DatabaseHelper {
   /// base para evadirlo cuesta todas las ventas y el inventario, que es
   /// justamente el punto. `licencia_reloj` guarda el día más avanzado visto,
   /// para notar que el reloj del sistema retrocedió.
-  static const _databaseVersion = 25;
+  ///
+  /// v26: columnas de mantenimiento en `configuracion` (`equipo_codigo`,
+  /// `auditoria_meses_retencion`, `auditoria_purga_ultima`) e índices que
+  /// faltaban para los rangos de fecha de los reportes. Ver [_crearIndices].
+  static const _databaseVersion = 26;
 
   /// Versión del esquema que maneja esta compilación.
   ///
@@ -572,7 +576,10 @@ class DatabaseHelper {
         edicion TEXT,
         licencia_expira TEXT,
         licencia_hash TEXT,
-        licencia_reloj TEXT
+        licencia_reloj TEXT,
+        equipo_codigo TEXT,
+        auditoria_meses_retencion INTEGER DEFAULT 24,
+        auditoria_purga_ultima TEXT
       );
     ''');
 
@@ -696,6 +703,10 @@ class DatabaseHelper {
 
     if (oldVersion < 25) {
       await _ensureConfiguracionLicenciaEstadoColumns(db);
+    }
+
+    if (oldVersion < 26) {
+      await _ensureConfiguracionMantenimientoColumns(db);
     }
 
     // Idempotente (CREATE INDEX IF NOT EXISTS): se repite en cada upgrade
@@ -1796,6 +1807,37 @@ class DatabaseHelper {
     }
   }
 
+  /// Agrega a `configuracion` las columnas de mantenimiento:
+  ///
+  /// - `equipo_codigo`: caché del código de instalación. Calcularlo lanza
+  ///   `powershell` para leer el UUID de SMBIOS, y arrancar PowerShell en una
+  ///   PC de gama baja cuesta entre 300 y 800 ms **en cada apertura**. Con la
+  ///   caché solo se paga la primera vez, o cuando la verificación falla y hay
+  ///   que confirmar si de verdad cambió el equipo.
+  /// - `auditoria_meses_retencion`: cuántos meses de bitácora se conservan.
+  ///   La tabla `Auditorias` crece con cada operación y nunca se purgaba: no
+  ///   afecta a la pantalla (que pagina en SQL) pero sí engorda el archivo de
+  ///   base de datos y, con él, el respaldo diario a la USB.
+  /// - `auditoria_purga_ultima`: para no purgar en cada arranque.
+  Future<void> _ensureConfiguracionMantenimientoColumns(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(configuracion)');
+    final columnNames = info.map((row) => row['name']?.toString()).toSet();
+
+    const columnasNuevas = {
+      'equipo_codigo': 'TEXT',
+      'auditoria_meses_retencion': 'INTEGER DEFAULT 24',
+      'auditoria_purga_ultima': 'TEXT',
+    };
+
+    for (final entry in columnasNuevas.entries) {
+      if (!columnNames.contains(entry.key)) {
+        await db.execute(
+          'ALTER TABLE configuracion ADD COLUMN ${entry.key} ${entry.value};',
+        );
+      }
+    }
+  }
+
   /// Agrega a `configuracion` las columnas de opciones de ticket agregadas
   /// después de la identidad del negocio (hoy solo el toggle de IVA
   /// desglosado). Idempotente: se llama en cada apertura.
@@ -2066,6 +2108,33 @@ class DatabaseHelper {
   /// CREATE INDEX IF NOT EXISTS es idempotente: seguro de llamar en cada
   /// instalación nueva y en la migración de una ya existente.
   Future<void> _crearIndices(Database db) async {
+    // --- Rangos de fecha de los reportes -------------------------------
+    //
+    // Los reportes filtran con `date(columna) BETWEEN date(?) AND date(?)`.
+    // Envolver la columna en una función impide usar un índice normal sobre
+    // ella: SQLite tendría que evaluar `date()` fila por fila, es decir
+    // recorrer la tabla entera. Por eso estos van sobre la EXPRESIÓN
+    // `date(columna)`, que es lo único que el planificador puede aprovechar.
+    //
+    // Ventas y Compras ya los tenían; Devoluciones, Apartados y los abonos
+    // no, y eran un recorrido completo en cada reporte.
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_devoluciones_fecha_dia ON Devoluciones(date(fecha_hora));');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_apartado_abonos_fecha_dia ON Apartado_Abonos(date(fecha));');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_apartados_fecha_creacion_dia ON Apartados(date(fecha_creacion));');
+
+    // Movimiento_Inventario no tenía NI UN índice, y es la tabla que más
+    // crece después de Auditorias: una fila por cada venta, compra,
+    // devolución y ajuste.
+    //
+    // Aquí el índice va sobre la columna cruda, no sobre una expresión, y es
+    // a propósito: la consulta usaba `date(fecha, 'localtime')`, que SQLite
+    // NUNCA puede indexar porque 'localtime' la vuelve no determinista (el
+    // resultado depende de la zona horaria del equipo). La consulta se
+    // reescribió para comparar instantes UTC contra la columna tal cual
+    // (ver `ReporteController.obtenerMovimientosInventario`).
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_movimiento_inventario_fecha ON Movimiento_Inventario(fecha);');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_movimiento_inventario_id_producto ON Movimiento_Inventario(id_producto);');
+
     await db.execute('CREATE INDEX IF NOT EXISTS idx_ventas_fecha ON Ventas(fecha);');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_ventas_fecha_dia ON Ventas(date(fecha));');
     await db.execute('CREATE INDEX IF NOT EXISTS idx_ventas_id_cliente ON Ventas(id_cliente);');

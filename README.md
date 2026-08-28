@@ -119,7 +119,7 @@ Si añades una vista de listado, pagina desde el principio.
 Un solo archivo SQLite en el directorio de datos de la app, junto a
 `backups/` y `exportaciones/`.
 
-- **Versión actual del esquema:** 24 (ver `_databaseVersion` en
+- **Versión actual del esquema:** 26 (ver `_databaseVersion` en
   `core/database/database_helper.dart`, expuesta como
   `DatabaseHelper.versionEsquema`)
 - **Antes de cada migración se respalda el archivo completo**, con
@@ -212,6 +212,12 @@ propio `sqlite3.dll`, y los plugins del proyecto (`win32`, `window_manager`,
 - **Firma del instalador:** opcional, vía `build_installer.ps1 -Firmar`. Sin
   ella el build no falla y el `LEEME.txt` de la USB explica al cliente la
   pantalla de SmartScreen.
+- **Aviso de actualización:** `lib/core/actualizacion/` consulta un JSON
+  estático, compara versiones con `VersionApp` (nunca como texto: `'1.10.0' <
+  '1.9.0'` es cierto alfabéticamente) y muestra una franja discreta. Descarga y
+  verifica el SHA256, pero **no instala**: una actualización no se aplica sola
+  a media venta. Apagado mientras `ActualizacionService.urlManifiesto` esté
+  vacía.
 - **Papeleo del cliente:** contrato de servicio, aviso de privacidad, checklist
   de instalación y registro de instalaciones están en `docs/` — ver
   [`docs/README.md`](docs/README.md) para el orden de un cliente nuevo.
