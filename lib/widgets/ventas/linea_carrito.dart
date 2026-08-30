@@ -20,6 +20,14 @@ class LineaCarrito extends StatelessWidget {
 
   final TextEditingController cantidadCtrl;
   final bool seleccionada;
+
+  /// Es la línea que acaba de entrar al ticket.
+  ///
+  /// Distinta de [seleccionada], que marca dónde está el cursor de las flechas.
+  /// Esta responde a otra pregunta, y es la que el cajero se hace cien veces al
+  /// día sin despegar la vista del mostrador: *¿sí entró, y entró lo que era?*
+  /// Con lector, uno pasa el producto y mira al cliente, no a la pantalla.
+  final bool recienAgregada;
   final bool puedeAplicarDescuentos;
 
   final VoidCallback onSeleccionar;
@@ -40,6 +48,7 @@ class LineaCarrito extends StatelessWidget {
     required this.calculada,
     required this.cantidadCtrl,
     required this.seleccionada,
+    this.recienAgregada = false,
     required this.puedeAplicarDescuentos,
     required this.onSeleccionar,
     required this.onEditarDescuento,
@@ -55,9 +64,14 @@ class LineaCarrito extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          // Recién agregada tiñe el fondo; seleccionada dibuja el borde. Son
+          // dos señales distintas y pueden coincidir en la misma línea, así
+          // que no pueden competir por el mismo recurso visual.
+          color: recienAgregada ? AppColors.primaryLighter : AppColors.surface,
           borderRadius: BorderRadius.circular(16),
-          border: seleccionada ? Border.all(color: AppColors.primary, width: 2) : null,
+          border: seleccionada
+              ? Border.all(color: AppColors.primary, width: 2)
+              : null,
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

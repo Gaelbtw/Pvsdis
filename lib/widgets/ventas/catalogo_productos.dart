@@ -4,23 +4,18 @@ import '../../core/config/app_config.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/producto_model.dart';
 
-/// Mitad izquierda del punto de venta: buscador/escáner, filtro por categoría
-/// y rejilla de productos.
+/// Filtro por categoría y rejilla de productos, para lo que no entra por el
+/// lector: granel, etiqueta despegada, el cliente que pregunta el precio.
 ///
-/// Antes vivía dentro del `build` de `ventas_view.dart`, anidada una decena de
-/// niveles. No tiene estado ni reglas: recibe la lista ya filtrada y avisa por
+/// No tiene estado ni reglas: recibe la lista ya filtrada y avisa por
 /// callbacks. Toda la decisión de qué se puede agregar sigue en la vista (ver
 /// `validarCantidadEnCarrito`).
+///
+/// **Ya no dibuja el buscador ni su propia tarjeta.** El campo de búsqueda se
+/// fue a [BarraEscaneo], que cruza toda la pantalla, porque con lector de
+/// códigos es por donde entra casi toda la venta; y el fondo blanco lo pone
+/// ahora [PanelLateralVenta], que es la pestaña que lo contiene.
 class CatalogoProductos extends StatelessWidget {
-  final TextEditingController busquedaCtrl;
-  final FocusNode busquedaFocus;
-
-  /// Texto tecleado (con amortiguación en la vista).
-  final ValueChanged<String> onBuscar;
-
-  /// Enter del lector de códigos: llega el código completo de una vez.
-  final ValueChanged<String> onEscanear;
-
   /// Categorías presentes en el catálogo, ya ordenadas.
   final List<({int id, String nombre})> categorias;
   final int? categoriaFiltro;
@@ -36,10 +31,6 @@ class CatalogoProductos extends StatelessWidget {
 
   const CatalogoProductos({
     super.key,
-    required this.busquedaCtrl,
-    required this.busquedaFocus,
-    required this.onBuscar,
-    required this.onEscanear,
     required this.categorias,
     required this.categoriaFiltro,
     required this.onFiltrarCategoria,
@@ -50,42 +41,12 @@ class CatalogoProductos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        boxShadow: AppColors.cardShadow,
-      ),
-      child: Column(
-        children: [
-          _buscador(),
-          _filtroCategorias(),
-          const SizedBox(height: 20),
-          Expanded(child: _rejilla()),
-        ],
-      ),
-    );
-  }
-
-  Widget _buscador() {
-    return TextField(
-      controller: busquedaCtrl,
-      focusNode: busquedaFocus,
-      autofocus: true,
-      onChanged: onBuscar,
-      onSubmitted: onEscanear,
-      decoration: InputDecoration(
-        hintText: "Buscar por nombre, clave, categoría o código...",
-        prefixIcon: const Icon(Icons.search),
-        filled: true,
-        fillColor: AppColors.surface,
-        contentPadding: const EdgeInsets.symmetric(vertical: 14),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          borderSide: BorderSide.none,
-        ),
-      ),
+    return Column(
+      children: [
+        _filtroCategorias(),
+        const SizedBox(height: 16),
+        Expanded(child: _rejilla()),
+      ],
     );
   }
 
@@ -95,34 +56,33 @@ class CatalogoProductos extends StatelessWidget {
   Widget _filtroCategorias() {
     if (categorias.isEmpty) return const SizedBox.shrink();
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 14),
-      child: SizedBox(
-        height: 38,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: categorias.length + 1,
-          separatorBuilder: (_, _) => const SizedBox(width: 8),
-          itemBuilder: (_, i) {
-            final esTodos = i == 0;
-            final categoria = esTodos ? null : categorias[i - 1];
-            final seleccionada = categoriaFiltro == categoria?.id;
+    return SizedBox(
+      height: 38,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: categorias.length + 1,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final esTodos = i == 0;
+          final categoria = esTodos ? null : categorias[i - 1];
+          final seleccionada = categoriaFiltro == categoria?.id;
 
-            return ChoiceChip(
-              label: Text(esTodos ? "Todos" : categoria!.nombre),
-              selected: seleccionada,
-              selectedColor: AppColors.primary,
-              backgroundColor: AppColors.surface,
-              side: BorderSide(color: seleccionada ? AppColors.primary : AppColors.border),
-              labelStyle: TextStyle(
-                fontSize: AppText.caption,
-                fontWeight: FontWeight.w700,
-                color: seleccionada ? AppColors.onPrimary : AppColors.textPrimary,
-              ),
-              onSelected: (_) => onFiltrarCategoria(categoria?.id),
-            );
-          },
-        ),
+          return ChoiceChip(
+            label: Text(esTodos ? "Todos" : categoria!.nombre),
+            selected: seleccionada,
+            selectedColor: AppColors.primary,
+            backgroundColor: AppColors.surface,
+            side: BorderSide(
+              color: seleccionada ? AppColors.primary : AppColors.border,
+            ),
+            labelStyle: TextStyle(
+              fontSize: AppText.caption,
+              fontWeight: FontWeight.w700,
+              color: seleccionada ? AppColors.onPrimary : AppColors.textPrimary,
+            ),
+            onSelected: (_) => onFiltrarCategoria(categoria?.id),
+          );
+        },
       ),
     );
   }
@@ -166,7 +126,7 @@ class CatalogoProductos extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: const Color(0xFFFDFDFD),
+            color: AppColors.surfaceAlt,
             borderRadius: BorderRadius.circular(18),
             border: Border.all(color: AppColors.border),
           ),

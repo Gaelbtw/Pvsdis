@@ -11,6 +11,7 @@ import 'package:pvapp/core/utils/descuento_utils.dart';
 import 'package:pvapp/core/utils/promociones_engine.dart';
 import 'package:pvapp/models/cliente_model.dart';
 import 'package:pvapp/models/producto_model.dart';
+import 'package:pvapp/widgets/ventas/barra_escaneo.dart';
 import 'package:pvapp/widgets/ventas/catalogo_productos.dart';
 import 'package:pvapp/widgets/ventas/linea_carrito.dart';
 import 'package:pvapp/widgets/ventas/panel_carrito.dart';
@@ -98,10 +99,6 @@ void main() {
       void Function(int?)? onFiltrar,
     }) {
       return CatalogoProductos(
-          busquedaCtrl: TextEditingController(),
-          busquedaFocus: FocusNode(),
-          onBuscar: (_) {},
-          onEscanear: (_) {},
           categorias: categorias,
           categoriaFiltro: categoriaFiltro,
           onFiltrarCategoria: onFiltrar ?? (_) {},
@@ -193,6 +190,8 @@ void main() {
       void Function(int)? onCantidadTecleada,
       VoidCallback? onQuitar,
       bool puedeAplicarDescuentos = true,
+      bool seleccionada = false,
+      bool recienAgregada = false,
     }) {
       return LineaCarrito(
           item: item ??
@@ -206,7 +205,8 @@ void main() {
               },
           calculada: calculada ?? _linea(),
           cantidadCtrl: controlador ?? TextEditingController(text: '2'),
-          seleccionada: false,
+          seleccionada: seleccionada,
+          recienAgregada: recienAgregada,
           puedeAplicarDescuentos: puedeAplicarDescuentos,
           onSeleccionar: () {},
           onEditarDescuento: () {},
@@ -215,6 +215,56 @@ void main() {
           onQuitar: onQuitar ?? () {},
       );
     }
+
+    /// Fondo de la caja de la línea.
+    Color? fondo(WidgetTester tester) {
+      final caja = tester.widget<Container>(
+        find.descendant(
+          of: find.byType(LineaCarrito),
+          matching: find.byType(Container),
+        ).first,
+      );
+      return (caja.decoration as BoxDecoration?)?.color;
+    }
+
+    /// Borde de la caja de la línea.
+    BoxBorder? borde(WidgetTester tester) {
+      final caja = tester.widget<Container>(
+        find.descendant(
+          of: find.byType(LineaCarrito),
+          matching: find.byType(Container),
+        ).first,
+      );
+      return (caja.decoration as BoxDecoration?)?.border;
+    }
+
+    testWidgets('la recién escaneada se distingue de una normal', (tester) async {
+      // El cajero pasa el producto mirando al cliente, no a la pantalla.
+      // Necesita confirmar de reojo que entró, y cuál.
+      await _montar(tester, linea());
+      final normal = fondo(tester);
+
+      await _montar(tester, linea(recienAgregada: true));
+      expect(fondo(tester), isNot(normal));
+    });
+
+    testWidgets('recién escaneada y seleccionada son señales distintas',
+        (tester) async {
+      // Una marca el fondo y la otra el borde, así que pueden coincidir en la
+      // misma línea sin que una tape a la otra. Si alguna vez las dos usaran
+      // el mismo recurso, escanear un producto que ya estaba seleccionado
+      // haría desaparecer una de las dos confirmaciones.
+      await _montar(tester, linea(seleccionada: true, recienAgregada: true));
+
+      expect(borde(tester), isNotNull, reason: 'perdió la selección');
+
+      await _montar(tester, linea(seleccionada: true));
+      final soloSeleccionada = fondo(tester);
+
+      await _montar(tester, linea(seleccionada: true, recienAgregada: true));
+      expect(fondo(tester), isNot(soloSeleccionada),
+          reason: 'perdió la marca de recién escaneada');
+    });
 
     testWidgets('muestra precio unitario e importe de la línea', (tester) async {
       await _montar(tester, linea());
@@ -393,7 +443,6 @@ void main() {
             onCambiarCantidad: (_, _) {},
             onCantidadTecleada: (_, _) {},
             onQuitarLinea: (_) {},
-        cobro: const SizedBox.shrink(),
       );
     }
 
@@ -480,6 +529,68 @@ void main() {
 
       expect(find.text('Sin controlador'), findsOneWidget);
       expect(find.widgetWithText(TextField, '3'), findsOneWidget);
+    });
+  });
+
+  group('BarraEscaneo', () {
+    // La barra es donde vive el foco todo el turno. Lo que se prueba aquí no
+    // es cómo se ve, sino las dos cosas de las que depende que el lector
+    // funcione: que tome el foco sola y que el Enter del lector llegue entero
+    // a la vista, sin pasar por el filtro de búsqueda.
+
+    Widget barra({
+      TextEditingController? ctrl,
+      void Function(String)? onBuscar,
+      void Function(String)? onEscanear,
+    }) {
+      return BarraEscaneo(
+        controlador: ctrl ?? TextEditingController(),
+        foco: FocusNode(),
+        onBuscar: onBuscar ?? (_) {},
+        onEscanear: onEscanear ?? (_) {},
+      );
+    }
+
+    testWidgets('toma el foco sola al abrirse', (tester) async {
+      await _montar(tester, barra());
+      await tester.pump();
+
+      final campo = tester.widget<TextField>(find.byType(TextField));
+      expect(campo.focusNode?.hasFocus, isTrue,
+          reason: 'sin foco automático, el primer código escaneado se pierde');
+    });
+
+    testWidgets('el Enter del lector entrega el código completo', (tester) async {
+      String? escaneado;
+      await _montar(tester, barra(onEscanear: (c) => escaneado = c));
+
+      await tester.enterText(find.byType(TextField), '7501055300006');
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pump();
+
+      expect(escaneado, '7501055300006');
+    });
+
+    testWidgets('teclear filtra, pero no cuenta como escaneo', (tester) async {
+      // Un lector termina con Enter; teclear no. Confundir los dos haría que
+      // se intente cobrar un producto a medio escribir.
+      final buscados = <String>[];
+      String? escaneado;
+      await _montar(tester, barra(
+        onBuscar: buscados.add,
+        onEscanear: (c) => escaneado = c,
+      ));
+
+      await tester.enterText(find.byType(TextField), 'coca');
+      await tester.pump();
+
+      expect(buscados, contains('coca'));
+      expect(escaneado, isNull);
+    });
+
+    testWidgets('recuerda el atajo F2', (tester) async {
+      await _montar(tester, barra());
+      expect(find.text('F2'), findsOneWidget);
     });
   });
 }

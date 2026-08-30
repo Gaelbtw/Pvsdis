@@ -98,6 +98,25 @@ class AppText {
   static const double titleLg = 22; // 22
   static const double heading = 24; // 24, 26
   static const double display = 28; // 28, 30, 32
+
+  /// Un solo paso por encima de [display], y con un uso concreto: el TOTAL de
+  /// la venta.
+  ///
+  /// La escala nace de los tamaños que ya existían en las pantallas, y por eso
+  /// se cortaba en 28. Pero el total es lo único que leen a la vez el cajero
+  /// **y el cliente parado del otro lado del mostrador**, a más de un metro y
+  /// en diagonal. Es el número que se reclama cuando no coincide con lo que la
+  /// persona esperaba pagar.
+  ///
+  /// No usarlo para nada más: si empieza a aparecer en títulos, deja de
+  /// significar "esto es lo que se cobra".
+  ///
+  /// El valor sale de `PanelCobro`, donde ya estaba escrito a mano con este
+  /// comentario: *"Tamaño literal a propósito: es el número dominante de la
+  /// pantalla, por encima de la escala tipográfica normal"*. Alguien ya había
+  /// llegado a la misma conclusión; esto solo le pone nombre para que el
+  /// siguiente no tenga que volver a justificarlo.
+  static const double hero = 46;
 }
 
 /// Radios de borde centralizados, para reemplazar los ~10 valores sueltos de

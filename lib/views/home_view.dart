@@ -389,7 +389,10 @@ class _HomeViewState extends State<HomeView> {
         childAspectRatio: 2.6,
         children: [
           _kpi(
-            icono: Icons.trending_up, iconoColor: const Color(0xFF2740C6),
+            // `info` y no un azul suelto: es un color de ESTADO, y los de
+            // estado no se derivan del color de marca ni se escriben a mano,
+            // para que se lean igual en los 30 negocios.
+            icono: Icons.trending_up, iconoColor: AppColors.info,
             label: 'Ventas de hoy',
             valor: _cargando ? '—' : AppConfig.formatoMoneda(_ventasHoy),
             pie: _cambioVsAyer == null ? 'Sin datos de ayer' : '${_cambioVsAyer! >= 0 ? '↑' : '↓'} ${_cambioVsAyer!.abs().toStringAsFixed(0)}% vs. ayer',

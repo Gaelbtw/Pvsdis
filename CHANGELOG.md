@@ -16,6 +16,29 @@ Formato: `MAYOR.MENOR.PARCHE`.
 
 ---
 
+## 1.3.0 — sin publicar
+
+### La pantalla de venta, rediseñada
+
+El sistema se usa con lector de códigos, pero estaba dibujado como si se
+usara tocando la pantalla: el catálogo se llevaba el 62% del ancho y el
+ticket apenas el 38%. Se invirtió.
+
+- **El escaneo tiene su propia barra**, cruzando toda la pantalla. Antes era
+  un campo más dentro del catálogo, del mismo tamaño que cualquier otro. El
+  borde se enciende cuando está lista para recibir el lector, que responde a
+  una pregunta real: *¿está escuchando?*
+- **El ticket es ahora la mitad ancha.** Es lo que el cajero mira.
+- **El catálogo pasó a una pestaña** junto al cobro, para cuando el producto
+  no tiene código: granel, etiqueta despegada, el cliente que pregunta.
+- **La última línea escaneada se resalta.** Uno pasa el producto mirando al
+  cliente, no a la pantalla: hace falta poder confirmar de reojo que entró, y
+  cuál. Si esa línea se quita del ticket, el resaltado se apaga solo.
+- El fondo de la pantalla de venta era de un gris distinto al del resto del
+  sistema. Ahora es el mismo.
+
+---
+
 ## 1.1.0 — sin publicar
 
 ### Licencia (apagada de fábrica)

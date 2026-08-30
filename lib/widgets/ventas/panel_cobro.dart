@@ -80,10 +80,8 @@ class PanelCobro extends StatelessWidget {
                   alignment: Alignment.centerRight,
                   child: Text(
                     AppConfig.formatoMoneda(venta.total),
-                    // Tamaño literal a propósito: es el número dominante de la
-                    // pantalla, por encima de la escala tipográfica normal.
                     style: const TextStyle(
-                      fontSize: 46,
+                      fontSize: AppText.hero,
                       fontWeight: FontWeight.w900,
                       height: 1.0,
                       color: AppColors.textPrimary,

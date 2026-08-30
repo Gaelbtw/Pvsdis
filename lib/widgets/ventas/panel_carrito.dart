@@ -7,12 +7,17 @@ import '../../models/cliente_model.dart';
 import 'linea_carrito.dart';
 import 'promociones_aplicadas_section.dart';
 
-/// Mitad derecha del punto de venta: el ticket en curso.
+/// El ticket en curso: la columna ancha y principal de la pantalla de venta.
 ///
 /// Agrupa el encabezado con sus acciones (espera, reimpresión, vaciar), el
-/// cliente asignado, las líneas del carrito, las promociones aplicadas, el
-/// descuento global y la zona de cobro, que llega ya armada en [cobro] para no
-/// arrastrar hasta aquí las dependencias del pago.
+/// cliente asignado, las líneas del carrito, las promociones aplicadas y el
+/// descuento global.
+///
+/// **El cobro ya no vive aquí.** Se fue a [PanelLateralVenta], la columna
+/// angosta, y con él se invirtió el reparto de la pantalla: el ticket pasó de
+/// 38 a 58 y el catálogo de 62 a compartir 42 con el cobro. Con lector de
+/// códigos, lo que el cajero mira es lo que acaba de entrar al ticket, no una
+/// rejilla que casi no toca.
 ///
 /// No decide nada: todo llega calculado desde `ventas_view`, que sigue siendo
 /// la dueña del estado de la venta.
@@ -27,6 +32,14 @@ class PanelCarrito extends StatelessWidget {
   final Map<int, TextEditingController> controladoresCantidad;
 
   final int? lineaSeleccionada;
+
+  /// Producto de la última línea que entró al ticket (ver [LineaCarrito]).
+  ///
+  /// Se guarda el ID y no el índice a propósito: quitar una línea de arriba
+  /// correría todos los índices y el resaltado terminaría señalando un
+  /// producto que nadie escaneó. Con el ID, si esa línea ya no está, no
+  /// coincide con ninguna y el resaltado se apaga solo.
+  final int? idUltimoAgregado;
   final ValueChanged<int> onSeleccionarLinea;
 
   final Cliente? cliente;
@@ -57,8 +70,6 @@ class PanelCarrito extends StatelessWidget {
   final void Function(int index, int cantidad) onCantidadTecleada;
   final ValueChanged<int> onQuitarLinea;
 
-  /// La zona de cobro (ver `PanelCobro`).
-  final Widget cobro;
 
   const PanelCarrito({
     super.key,
@@ -67,6 +78,7 @@ class PanelCarrito extends StatelessWidget {
     required this.promociones,
     required this.controladoresCantidad,
     required this.lineaSeleccionada,
+    this.idUltimoAgregado,
     required this.onSeleccionarLinea,
     required this.cliente,
     required this.ventasEnEspera,
@@ -85,7 +97,6 @@ class PanelCarrito extends StatelessWidget {
     required this.onCambiarCantidad,
     required this.onCantidadTecleada,
     required this.onQuitarLinea,
-    required this.cobro,
   });
 
   @override
@@ -110,7 +121,6 @@ class PanelCarrito extends StatelessWidget {
             ahorroTotal: promociones.ahorroTotal,
           ),
           if (puedeAplicarDescuentos) _botonDescuentoGlobal(),
-          cobro,
         ],
       ),
     );
@@ -256,6 +266,7 @@ class PanelCarrito extends StatelessWidget {
           calculada: venta.lineas[i],
           cantidadCtrl: controlador,
           seleccionada: i == lineaSeleccionada,
+          recienAgregada: id == idUltimoAgregado,
           puedeAplicarDescuentos: puedeAplicarDescuentos,
           onSeleccionar: () => onSeleccionarLinea(i),
           onEditarDescuento: () => onEditarDescuentoLinea(i),

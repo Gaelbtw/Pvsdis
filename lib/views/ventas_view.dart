@@ -25,7 +25,9 @@ import '../widgets/custom_alert.dart';
 import '../widgets/toast.dart';
 import '../widgets/ventas/atajos_ayuda_dialog.dart';
 import '../widgets/ventas/autorizacion_descuento_dialog.dart';
+import '../widgets/ventas/barra_escaneo.dart';
 import '../widgets/ventas/catalogo_productos.dart';
+import '../widgets/ventas/panel_lateral_venta.dart';
 import '../widgets/ventas/descuento_dialog.dart';
 import '../widgets/ventas/panel_carrito.dart';
 import '../widgets/ventas/panel_cobro.dart';
@@ -104,6 +106,13 @@ class _VentasViewState extends State<VentasView> {
   // Delete (ver atajos de teclado más abajo). Puramente de UI: no cambia
   // ninguna regla de venta.
   int? _lineaSeleccionada;
+
+  /// Producto de la última línea que entró al ticket, para resaltarla.
+  ///
+  /// No se limpia con un temporizador: mientras nadie escanee otra cosa, esa
+  /// SIGUE siendo la última que entró, y apagarla sola solo lograría que el
+  /// cajero que voltea tarde no encuentre la confirmación que buscaba.
+  int? _idUltimoAgregado;
 
   /// La política de descuentos del cajero es configurable aparte de la
   /// matriz de permisos (`descuentoCajeroPuedeAplicar` /
@@ -333,6 +342,7 @@ class _VentasViewState extends State<VentasView> {
 
     setState(() {
       _carrito.agregar(p, cantidad: cantidad);
+      _idUltimoAgregado = p.idProducto;
 
       // El texto del campo se sincroniza aquí porque el cambio viene de fuera
       // de él (nunca durante el build, ver PanelCarrito).
@@ -602,6 +612,7 @@ class _VentasViewState extends State<VentasView> {
           pagos = [];
           ventaCounter++;
           _lineaSeleccionada = null;
+          _idUltimoAgregado = null;
 
           for (final c in controllers.values) {
             c.dispose();
@@ -645,6 +656,7 @@ class _VentasViewState extends State<VentasView> {
       pagos = [];
       ventaCounter++;
       _lineaSeleccionada = null;
+      _idUltimoAgregado = null;
 
       for (final c in controllers.values) {
         c.dispose();
@@ -690,6 +702,7 @@ class _VentasViewState extends State<VentasView> {
       pagos = [];
       ventaCounter++;
       _lineaSeleccionada = null;
+      _idUltimoAgregado = null;
     });
 
     VentasEnEsperaStore.instancia.eliminar(venta);
@@ -994,7 +1007,11 @@ class _VentasViewState extends State<VentasView> {
     final ventaCalculada = calcularVentaCon(promociones);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F5F7),
+      // Antes: Color(0xFFF4F5F7), escrito a mano. Es un gris AZULADO, y el
+      // resto de la app usa el cálido de la paleta. Con las dos pantallas
+      // abiertas una junto a otra la diferencia se ve, y no había ninguna
+      // razón para ella.
+      backgroundColor: AppColors.surface,
       appBar: CustomHeader(
         titulo: clienteSeleccionado != null
             ? "Venta - ${clienteSeleccionado!.nombre}"
@@ -1020,37 +1037,30 @@ class _VentasViewState extends State<VentasView> {
                 child: Column(
                   children: [
                     if (_cajaAbierta == null) _bannerSinCaja(),
+
+                    // ⌨️ ESCANEO — cruza toda la pantalla porque es por donde
+                    // entra casi toda la venta.
+                    BarraEscaneo(
+                      controlador: busquedaCtrl,
+                      foco: busquedaFocus,
+                      onBuscar: _onBusquedaChanged,
+                      onEscanear: procesarEscaneo,
+                    ),
+                    const SizedBox(height: 16),
+
                     Expanded(
                       child: Row(
                         children: [
-                          // 🔥 CATÁLOGO
-                          Expanded(
-                            flex: 62,
-                            child: CatalogoProductos(
-                              busquedaCtrl: busquedaCtrl,
-                              busquedaFocus: busquedaFocus,
-                              onBuscar: _onBusquedaChanged,
-                              onEscanear: procesarEscaneo,
-                              categorias: _categoriasDelCatalogo,
-                              categoriaFiltro: _categoriaFiltro,
-                              onFiltrarCategoria: _seleccionarCategoria,
-                              productos: _productosFiltrados,
-                              existencias: stockProductos,
-                              onAgregar: agregarProducto,
-                            ),
-                          ),
-
-                          const SizedBox(width: 16),
-
                           // 🛒 TICKET EN CURSO
                           Expanded(
-                            flex: 38,
+                            flex: 58,
                             child: PanelCarrito(
                               items: carrito,
                               venta: ventaCalculada,
                               promociones: promociones,
                               controladoresCantidad: controllers,
                               lineaSeleccionada: _lineaSeleccionada,
+                              idUltimoAgregado: _idUltimoAgregado,
                               onSeleccionarLinea: (i) =>
                                   setState(() => _lineaSeleccionada = i),
                               cliente: clienteSeleccionado,
@@ -1072,6 +1082,15 @@ class _VentasViewState extends State<VentasView> {
                               onCambiarCantidad: cambiarCantidad,
                               onCantidadTecleada: _cantidadTecleada,
                               onQuitarLinea: _quitarLinea,
+                            ),
+                          ),
+
+                          const SizedBox(width: 16),
+
+                          // 💵 COBRO Y CATÁLOGO
+                          Expanded(
+                            flex: 42,
+                            child: PanelLateralVenta(
                               cobro: PanelCobro(
                                 venta: ventaCalculada,
                                 habilitado: carrito.isNotEmpty &&
@@ -1080,6 +1099,14 @@ class _VentasViewState extends State<VentasView> {
                                 ventaCounter: ventaCounter,
                                 onCambioPagos: actualizarPagos,
                                 onConfirmar: iniciarConfirmacionVenta,
+                              ),
+                              catalogo: CatalogoProductos(
+                                categorias: _categoriasDelCatalogo,
+                                categoriaFiltro: _categoriaFiltro,
+                                onFiltrarCategoria: _seleccionarCategoria,
+                                productos: _productosFiltrados,
+                                existencias: stockProductos,
+                                onAgregar: agregarProducto,
                               ),
                             ),
                           ),
