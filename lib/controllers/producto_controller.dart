@@ -99,75 +99,129 @@ class ProductoController {
   Future<int> actualizar(Producto producto) async {
     final db = await DatabaseHelper().database;
 
-    final rows = await ejecutarConMensajeDeDuplicado(
-      () => db.update(
-        'Producto',
-        producto.toMap(),
-        where: 'id_producto = ?',
-        whereArgs: [producto.idProducto],
-      ),
-      _mensajeClaveDuplicada,
-    );
-
-    if (rows > 0) {
-      await _auditoriaController.registrar(
-        tabla: 'Productos',
-        accion: 'EDIT',
-        idRegistro: producto.idProducto,
-        descripcion: 'Producto ${producto.nombre} modificado',
+    // El cambio, su auditoría y su encolado van en UNA transacción: si se va
+    // la luz entre el UPDATE y el encolado, el cambio queda guardado
+    // localmente y el backend nunca se entera, sin nada pendiente que lo
+    // corrija.
+    return db.transaction((txn) async {
+      final rows = await ejecutarConMensajeDeDuplicado(
+        () => txn.update(
+          'Producto',
+          producto.toMap(),
+          where: 'id_producto = ?',
+          whereArgs: [producto.idProducto],
+        ),
+        _mensajeClaveDuplicada,
       );
-      if (producto.idProducto != null) {
-        await _outboxWriter.actualizar(db, entidad: 'Producto', tabla: 'Producto', idLocal: producto.idProducto!);
-      }
-    }
 
-    return rows;
+      if (rows > 0) {
+        await _auditoriaController.registrar(
+          tabla: 'Productos',
+          accion: 'EDIT',
+          idRegistro: producto.idProducto,
+          descripcion: 'Producto ${producto.nombre} modificado',
+          executor: txn,
+        );
+        if (producto.idProducto != null) {
+          await _outboxWriter.actualizar(txn,
+              entidad: 'Producto', tabla: 'Producto', idLocal: producto.idProducto!);
+        }
+      }
+
+      return rows;
+    });
   }
 
-  /// Fija la existencia de [idProducto] en [cantidadNueva].
+  /// Ajusta la existencia de [idProducto] para dejarla en [cantidadNueva].
   ///
   /// [motivo] explica el porqué del ajuste y queda tanto en la bitácora de
   /// movimientos como en la auditoría: sin él, una merma y un error de captura
   /// se ven exactamente igual al revisar el historial (ver
   /// [MotivoAjusteInventario]).
+  ///
+  /// [stockVisto] es la existencia que tenía el producto **cuando el usuario
+  /// abrió el formulario**. Con ella, lo que se aplica es la diferencia que la
+  /// persona quiso hacer, no el número absoluto que tecleó.
+  ///
+  /// La distinción no es teórica. Antes esto leía el stock, lo escribía como
+  /// valor ABSOLUTO y lo hacía en tres operaciones sueltas, sin transacción:
+  /// producto con 8 piezas, el admin abre el diálogo, se venden 3 mientras lo
+  /// tiene abierto, el admin corrige a 10 y guarda. El UPDATE absoluto escribía
+  /// 10 en lugar de 7 y la venta desaparecía del inventario. Peor: el
+  /// movimiento quedaba registrado como "anterior: 8", así que la bitácora
+  /// tampoco permitía reconstruir lo que pasó.
+  ///
+  /// Su hermano [agregarStock] ya se había corregido con este mismo criterio;
+  /// este método se quedó fuera de aquel arreglo.
   Future<void> actualizarStock(
     int idProducto,
     int cantidadNueva, {
     MotivoAjusteInventario motivo = MotivoAjusteInventario.porDefectoAjuste,
+    int? stockVisto,
   }) async {
     final db = await DatabaseHelper().database;
-    final producto = await _obtenerNombreProducto(db, idProducto);
-    final stockAnterior = await _obtenerStockActual(db, idProducto);
 
-    await db.update(
-      "Inventario",
-      {
-        "cantidad": cantidadNueva,
-      },
-      where: "id_producto = ?",
-      whereArgs: [idProducto],
-    );
+    await db.transaction((txn) async {
+      final producto = await _obtenerNombreProducto(txn, idProducto);
+      final stockAnterior = await _obtenerStockActual(txn, idProducto);
 
-    if (cantidadNueva != stockAnterior) {
-      await _movimientoInventarioLogger.registrar(
-        db,
-        idProducto: idProducto,
-        tipoMovimiento: cantidadNueva > stockAnterior ? 'AjustePositivo' : 'AjusteNegativo',
-        cantidad: (cantidadNueva - stockAnterior).abs(),
-        cantidadAnterior: stockAnterior,
-        cantidadNueva: cantidadNueva,
-        motivo: motivo.etiqueta,
+      // Sin [stockVisto] no hay forma de saber qué diferencia quiso hacer el
+      // usuario, así que se cae al comportamiento anterior (fijar el valor)
+      // pero ya dentro de la transacción.
+      final delta = cantidadNueva - (stockVisto ?? stockAnterior);
+      final stockFinal = stockAnterior + delta;
+
+      // El apartado ya comprometió mercancía que sigue físicamente en la
+      // tienda. Dejar la existencia por debajo de lo reservado manda el
+      // disponible a negativo y revienta al liquidar el apartado.
+      final reservadoRes = await txn.rawQuery(
+        'SELECT IFNULL(cantidad_reservada, 0) AS r FROM Inventario WHERE id_producto = ?',
+        [idProducto],
       );
-    }
+      final reservado =
+          reservadoRes.isEmpty ? 0 : (reservadoRes.first['r'] as num).toInt();
 
-    await _auditoriaController.registrar(
-      tabla: 'Inventario',
-      accion: 'EDIT',
-      idRegistro: idProducto,
-      descripcion:
-          'Stock de $producto modificado de $stockAnterior a $cantidadNueva. '
-          'Motivo: ${motivo.etiqueta}',
-    );
+      if (stockFinal < reservado) {
+        throw Exception(
+          'No puedes dejar $producto en $stockFinal: hay $reservado '
+          'apartadas que todavía están en la tienda.',
+        );
+      }
+
+      final filas = await txn.rawUpdate(
+        'UPDATE Inventario SET cantidad = cantidad + ? WHERE id_producto = ?',
+        [delta, idProducto],
+      );
+
+      if (filas == 0) {
+        throw Exception('El producto no tiene un registro de inventario');
+      }
+
+      if (delta != 0) {
+        await _movimientoInventarioLogger.registrar(
+          txn,
+          idProducto: idProducto,
+          tipoMovimiento: delta > 0 ? 'AjustePositivo' : 'AjusteNegativo',
+          cantidad: delta.abs(),
+          cantidadAnterior: stockAnterior,
+          cantidadNueva: stockFinal,
+          motivo: motivo.etiqueta,
+        );
+      }
+
+      await _auditoriaController.registrar(
+        tabla: 'Inventario',
+        accion: 'EDIT',
+        idRegistro: idProducto,
+        descripcion:
+            'Stock de $producto modificado de $stockAnterior a $stockFinal. '
+            'Motivo: ${motivo.etiqueta}',
+        // Obligatorio: sin el `executor` la auditoría pediría la conexión de
+        // la app estando esta transacción abierta, y sqflite serializa todo
+        // sobre una sola conexión -- se traba y no se destraba.
+        executor: txn,
+      );
+    });
   }
 
   Future<int> eliminar(int id) async {
@@ -202,7 +256,13 @@ class ProductoController {
       SELECT
         p.id_producto,
         p.nombre,
+        -- `descripcion` y `precio_compra` no se muestran en la tabla de
+        -- inventario, pero el dialogo de edicion rapida los necesita para
+        -- poder devolverlos intactos al guardar. Sin ellos en la fila, el
+        -- dialogo no tiene forma de conservarlos y se pierden.
+        p.descripcion,
         p.precio,
+        p.precio_compra,
         p.categoria,
         p.estado,
         p.stock_minimo,

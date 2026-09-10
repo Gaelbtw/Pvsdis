@@ -4,6 +4,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../core/utils/mensaje_error.dart';
+
 import '../core/licencia/licencia.dart';
 import '../core/licencia/licencia_service.dart';
 import '../core/theme/app_colors.dart';
@@ -38,13 +40,18 @@ class _LicenciaViewState extends State<LicenciaView> {
   }
 
   Future<void> _cargar() async {
-    final codigo = await LicenciaService.instancia.codigoEquipo();
-    final estado = await LicenciaService.instancia.cargar();
-    if (!mounted) return;
-    setState(() {
-      _codigo = codigo;
-      _estado = estado;
-    });
+    try {
+      final codigo = await LicenciaService.instancia.codigoEquipo();
+      final estado = await LicenciaService.instancia.cargar();
+      if (!mounted) return;
+      setState(() {
+        _codigo = codigo;
+        _estado = estado;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo leer el estado de la licencia. ${mensajeDeError(e)}');
+    }
   }
 
   Future<void> _importar() async {

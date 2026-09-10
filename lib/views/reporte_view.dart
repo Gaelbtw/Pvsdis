@@ -3,6 +3,8 @@ import 'package:path/path.dart' as p;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+
+import '../core/utils/mensaje_error.dart';
 import '../core/utils/csv.dart';
 import '../services/exportacion_service.dart';
 import '../widgets/custom_alert.dart';
@@ -138,27 +140,41 @@ class _ReporteViewState extends State<ReporteView> {
   }
 
   Future<void> _cargarUsuarios() async {
-    final data = await UsuariosController().obtenerTodos();
-    if (!mounted) return;
-    setState(() => usuarios = data);
+    try {
+      final data = await UsuariosController().obtenerTodos();
+      if (!mounted) return;
+      setState(() => usuarios = data);
+    } catch (e) {
+      // Un fallo aquí avisa y no apaga la pantalla: esta es una de varias
+      // secciones del reporte, y que una no cargue no debe borrar las otras.
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo cargar la lista de usuarios. ${mensajeDeError(e)}');
+    }
   }
 
   Future<void> _cargarMovimientos() async {
     setState(() => cargandoMovimientos = true);
 
-    final data = await _auditoriaController.obtenerFiltradas(
-      idUsuario: filtroUsuarioId,
-      accion: filtroAccion,
-      tabla: filtroTabla,
-      desde: filtroDesde,
-      hasta: filtroHasta,
-    );
+    try {
+      final data = await _auditoriaController.obtenerFiltradas(
+        idUsuario: filtroUsuarioId,
+        accion: filtroAccion,
+        tabla: filtroTabla,
+        desde: filtroDesde,
+        hasta: filtroHasta,
+      );
 
-    if (!mounted) return;
-    setState(() {
-      movimientos = data;
-      cargandoMovimientos = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        movimientos = data;
+        cargandoMovimientos = false;
+      });
+    } catch (e) {
+      // Sin esto la bandera se quedaba encendida y la bitácora giraba sin fin.
+      if (!mounted) return;
+      setState(() => cargandoMovimientos = false);
+      Toast.error(context, 'No se pudo cargar la bitácora. ${mensajeDeError(e)}');
+    }
   }
 
   Future<void> _cargarReportes() async {
@@ -338,72 +354,105 @@ class _ReporteViewState extends State<ReporteView> {
   /// Solo se llama con permiso `verGanancias`: es justo el dato que ese
   /// permiso protege (márgenes y costos).
   Future<void> _cargarUtilidad() async {
-    final resumen = await _reporteController.obtenerReporteUtilidad(
-      desde: desde,
-      hasta: hasta,
-      filtrarPorUsuario: false,
-    );
+    try {
+      final resumen = await _reporteController.obtenerReporteUtilidad(
+        desde: desde,
+        hasta: hasta,
+        filtrarPorUsuario: false,
+      );
 
-    if (!mounted) return;
-    setState(() => utilidad = resumen);
+      if (!mounted) return;
+      setState(() => utilidad = resumen);
+    } catch (e) {
+      // Un fallo aquí avisa y no apaga la pantalla: esta es una de varias
+      // secciones del reporte, y que una no cargue no debe borrar las otras.
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo calcular la utilidad. ${mensajeDeError(e)}');
+    }
   }
 
   Future<void> _cargarMovimientosInventario() async {
-    final resumen = await _reporteController.obtenerMovimientosInventario(
-      desde: desde,
-      hasta: hasta,
-      tipoMovimiento: filtroTipoMovimiento,
-    );
+    try {
+      final resumen = await _reporteController.obtenerMovimientosInventario(
+        desde: desde,
+        hasta: hasta,
+        tipoMovimiento: filtroTipoMovimiento,
+      );
 
-    if (!mounted) return;
-    setState(() => movimientosInventario = resumen);
+      if (!mounted) return;
+      setState(() => movimientosInventario = resumen);
+    } catch (e) {
+      // Un fallo aquí avisa y no apaga la pantalla: esta es una de varias
+      // secciones del reporte, y que una no cargue no debe borrar las otras.
+      if (!mounted) return;
+      Toast.error(context, 'No se pudieron cargar los movimientos de inventario. ${mensajeDeError(e)}');
+    }
   }
 
   Future<void> _cargarCuentasPorPagar() async {
-    final resumen = await _reporteController.obtenerReporteCuentasPorPagar(
-      desde: desde,
-      hasta: hasta,
-    );
+    try {
+      final resumen = await _reporteController.obtenerReporteCuentasPorPagar(
+        desde: desde,
+        hasta: hasta,
+      );
 
-    if (!mounted) return;
-    setState(() => cuentasPorPagar = resumen);
+      if (!mounted) return;
+      setState(() => cuentasPorPagar = resumen);
+    } catch (e) {
+      // Un fallo aquí avisa y no apaga la pantalla: esta es una de varias
+      // secciones del reporte, y que una no cargue no debe borrar las otras.
+      if (!mounted) return;
+      Toast.error(context, 'No se pudieron cargar las cuentas por pagar. ${mensajeDeError(e)}');
+    }
   }
 
 Future<void> _cargarReportesVentas() async {
-  final resumen = await _reporteController.obtenerReporteVentas(
-    desde: desde,
-    hasta: hasta,
-    filtrarPorUsuario: vistaRestringida,
-    usuarioId: usuarioId,
-  );
+  try {
+    final resumen = await _reporteController.obtenerReporteVentas(
+      desde: desde,
+      hasta: hasta,
+      filtrarPorUsuario: vistaRestringida,
+      usuarioId: usuarioId,
+    );
 
-  if (!mounted) return;
+    if (!mounted) return;
 
-  setState(() {
-    totalVentas = resumen.totalVentas;
-    ingresosTotales = resumen.ingresosTotales;
-    productosVendidos = resumen.productosVendidos;
-    ventasRecientes = resumen.ventasRecientes;
-  });
+    setState(() {
+      totalVentas = resumen.totalVentas;
+      ingresosTotales = resumen.ingresosTotales;
+      productosVendidos = resumen.productosVendidos;
+      ventasRecientes = resumen.ventasRecientes;
+    });
+  } catch (e) {
+    if (!mounted) return;
+    Toast.error(context, 'No se pudo cargar el reporte de ventas. ${mensajeDeError(e)}');
+  }
 }
 
   Future<void> _cargarReportesCompras() async {
-  final resumen = await _reporteController.obtenerReporteCompras(
-    desde: desde,
-    hasta: hasta,
-    filtrarPorUsuario: vistaRestringida,
-    usuarioId: SessionManager.currentUserId,
-  );
+    try {
+      final resumen = await _reporteController.obtenerReporteCompras(
+        desde: desde,
+        hasta: hasta,
+        filtrarPorUsuario: vistaRestringida,
+        usuarioId: SessionManager.currentUserId,
+      );
 
-  if (!mounted) return;
+      if (!mounted) return;
 
-  setState(() {
-    totalCompras = resumen.totalCompras;
-    gastoTotal = resumen.gastoTotal;
-    productosComprados = resumen.productosComprados;
-    comprasRecientes = resumen.comprasRecientes;
-  });
-}
+      setState(() {
+        totalCompras = resumen.totalCompras;
+        gastoTotal = resumen.gastoTotal;
+        productosComprados = resumen.productosComprados;
+        comprasRecientes = resumen.comprasRecientes;
+      });
+    } catch (e) {
+      // Un fallo aquí avisa y no apaga la pantalla: esta es una de varias
+      // secciones del reporte, y que una no cargue no debe borrar las otras.
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo cargar el reporte de compras. ${mensajeDeError(e)}');
+    }
+  }
 
   Future<void> _seleccionarRango(int diasAtras) async {
     final now = DateTime.now();
@@ -421,7 +470,7 @@ Future<void> _cargarReportesVentas() async {
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
     );
-    if (fechaInicio == null) return;
+    if (fechaInicio == null || !mounted) return;
     if (!mounted) return;
 
     final fechaFin = await showDatePicker(
@@ -430,7 +479,7 @@ Future<void> _cargarReportesVentas() async {
       firstDate: fechaInicio,
       lastDate: DateTime.now(),
     );
-    if (fechaFin == null) return;
+    if (fechaFin == null || !mounted) return;
 
     setState(() {
       desde = fechaInicio;
@@ -440,79 +489,84 @@ Future<void> _cargarReportesVentas() async {
   }
 
   Future<void> _imprimirReporte() async {
-    final pdf = pw.Document();
-    final esVentas = paginaSeleccionada == 0;
-    final productos = esVentas ? productosVendidos : productosComprados;
-    final movimientos = esVentas ? ventasRecientes : comprasRecientes;
+    try {
+      final pdf = pw.Document();
+      final esVentas = paginaSeleccionada == 0;
+      final productos = esVentas ? productosVendidos : productosComprados;
+      final movimientos = esVentas ? ventasRecientes : comprasRecientes;
 
-    pdf.addPage(
-      pw.MultiPage(
-        pageTheme: pw.PageTheme(
-          margin: const pw.EdgeInsets.all(32),
-        ),
-        build: (_) => [
-          pw.Row(
-            mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-            children: [
-              pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Text(
-                    AppConfig.actual.nombreNegocio,
-                    style: pw.TextStyle(
-                      fontSize: AppText.heading,
-                      fontWeight: pw.FontWeight.bold,
+      pdf.addPage(
+        pw.MultiPage(
+          pageTheme: pw.PageTheme(
+            margin: const pw.EdgeInsets.all(32),
+          ),
+          build: (_) => [
+            pw.Row(
+              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+              children: [
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      AppConfig.actual.nombreNegocio,
+                      style: pw.TextStyle(
+                        fontSize: AppText.heading,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  pw.SizedBox(height: 4),
-                  pw.Text(tituloReporte),
-                ],
-              ),
-              pw.Container(
-                padding: const pw.EdgeInsets.all(10),
-                decoration: pw.BoxDecoration(
-                  color: PdfColors.amber100,
-                  borderRadius: pw.BorderRadius.circular(AppRadius.sm),
+                    pw.SizedBox(height: 4),
+                    pw.Text(tituloReporte),
+                  ],
                 ),
-                child: pw.Text('Rango: $rangoTexto'),
-              ),
-            ],
-          ),
-          pw.SizedBox(height: 24),
-          pw.Row(
-            children: [
-              _pdfResumen(
-                esVentas ? 'Ventas realizadas' : 'Compras realizadas',
-                esVentas ? '$totalVentas' : '$totalCompras',
-              ),
-              pw.SizedBox(width: 12),
-              _pdfResumen(
-                esVentas ? 'Ingresos' : 'Gastos',
-                AppConfig.formatoMoneda((esVentas ? ingresosTotales : gastoTotal)),
-              ),
-            ],
-          ),
-          pw.SizedBox(height: 24),
-          pw.Text(
-            esVentas ? 'Productos mas vendidos' : 'Productos mas comprados',
-            style: pw.TextStyle(fontSize: AppText.bodyLg, fontWeight: pw.FontWeight.bold),
-          ),
-          pw.SizedBox(height: 8),
-          _pdfProductos(productos),
-          pw.SizedBox(height: 24),
-          pw.Text(
-            esVentas ? 'Ventas registradas' : 'Compras registradas',
-            style: pw.TextStyle(fontSize: AppText.bodyLg, fontWeight: pw.FontWeight.bold),
-          ),
-          pw.SizedBox(height: 8),
-          _pdfMovimientos(movimientos, esVentas),
-        ],
-      ),
-    );
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(10),
+                  decoration: pw.BoxDecoration(
+                    color: PdfColors.amber100,
+                    borderRadius: pw.BorderRadius.circular(AppRadius.sm),
+                  ),
+                  child: pw.Text('Rango: $rangoTexto'),
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 24),
+            pw.Row(
+              children: [
+                _pdfResumen(
+                  esVentas ? 'Ventas realizadas' : 'Compras realizadas',
+                  esVentas ? '$totalVentas' : '$totalCompras',
+                ),
+                pw.SizedBox(width: 12),
+                _pdfResumen(
+                  esVentas ? 'Ingresos' : 'Gastos',
+                  AppConfig.formatoMoneda((esVentas ? ingresosTotales : gastoTotal)),
+                ),
+              ],
+            ),
+            pw.SizedBox(height: 24),
+            pw.Text(
+              esVentas ? 'Productos mas vendidos' : 'Productos mas comprados',
+              style: pw.TextStyle(fontSize: AppText.bodyLg, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 8),
+            _pdfProductos(productos),
+            pw.SizedBox(height: 24),
+            pw.Text(
+              esVentas ? 'Ventas registradas' : 'Compras registradas',
+              style: pw.TextStyle(fontSize: AppText.bodyLg, fontWeight: pw.FontWeight.bold),
+            ),
+            pw.SizedBox(height: 8),
+            _pdfMovimientos(movimientos, esVentas),
+          ],
+        ),
+      );
 
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
-    );
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo imprimir el reporte. ${mensajeDeError(e)}');
+    }
   }
 
   pw.Widget _pdfResumen(String label, String value) {
@@ -598,116 +652,120 @@ Future<void> _cargarReportesVentas() async {
   }
 
   Future<void> _mostrarRecibo(
-  int idVenta,
-  String metodoPago,
-  double total,
-  String cliente,
-  String fecha,
-) async {
-  final carrito = await _reporteController.obtenerDetalleVentaParaTicket(idVenta);
-  final totales = await _reporteController.obtenerTotalesVentaParaTicket(idVenta);
-  final pagos = await _reporteController.obtenerPagosVenta(idVenta);
+    int idVenta,
+    String metodoPago,
+    double total,
+    String cliente,
+    String fecha,
+  ) async {
+    try {
+      final carrito = await _reporteController.obtenerDetalleVentaParaTicket(idVenta);
+      final totales = await _reporteController.obtenerTotalesVentaParaTicket(idVenta);
+      final pagos = await _reporteController.obtenerPagosVenta(idVenta);
 
-  if (!mounted) return;
+      if (!mounted) return;
 
-  showDialog(
-    context: context,
-    builder: (_) => CustomAlert(
-      titulo: 'Ticket de venta #$idVenta',
-      mensaje:
-          'Cliente: ${cliente.isNotEmpty ? cliente : 'Consumidor final'}\n\n'
-          'Fecha: ${_formatDate(DateTime.parse(fecha))}\n'
-          'Método: $metodoPago\n\n'
-          '${totales.descuentoTotal > 0 ? 'Subtotal: ${AppConfig.formatoMoneda(totales.subtotal)}\nDescuento: -${AppConfig.formatoMoneda(totales.descuentoTotal)}\n' : ''}'
-          'Total: ${AppConfig.formatoMoneda(total)}\n\n'
-          '¿Deseas imprimir el ticket?',
-      icono: Icons.receipt_long,
-      textoCancelar: 'Cerrar',
-      textoConfirmar: 'Imprimir',
+      showDialog(
+        context: context,
+        builder: (_) => CustomAlert(
+          titulo: 'Ticket de venta #$idVenta',
+          mensaje:
+              'Cliente: ${cliente.isNotEmpty ? cliente : 'Consumidor final'}\n\n'
+              'Fecha: ${_formatDate(DateTime.parse(fecha))}\n'
+              'Método: $metodoPago\n\n'
+              '${totales.descuentoTotal > 0 ? 'Subtotal: ${AppConfig.formatoMoneda(totales.subtotal)}\nDescuento: -${AppConfig.formatoMoneda(totales.descuentoTotal)}\n' : ''}'
+              'Total: ${AppConfig.formatoMoneda(total)}\n\n'
+              '¿Deseas imprimir el ticket?',
+          icono: Icons.receipt_long,
+          textoCancelar: 'Cerrar',
+          textoConfirmar: 'Imprimir',
+          onConfirm: () async {
+            try {
+              final pdf = await TicketService.generarTicket(
+                carrito: carrito,
+                total: totales.total,
+                subtotal: totales.subtotal,
+                descuento: totales.descuentoTotal,
+                pagos: pagos,
+                cambio: totales.cambio,
+              );
 
-      onConfirm: () async {
-        final pdf = await TicketService.generarTicket(
-          carrito: carrito,
-          total: totales.total,
-          subtotal: totales.subtotal,
-          descuento: totales.descuentoTotal,
-          pagos: pagos,
-          cambio: totales.cambio,
-        );
-
-        await Printing.layoutPdf(
-          onLayout: (PdfPageFormat format) async => pdf.save(),
-        );
-      },
-    ),
-  );
-}
-
-  Future<void> _mostrarReciboCompra(
-  int idCompra,
-  String proveedor,
-  double total,
-) async {
-  final carrito = await _reporteController.obtenerDetalleCompraParaTicket(idCompra);
-
-  if (carrito.isEmpty) {
-    if (!mounted) return;
-
-    showDialog(
-      context: context,
-      builder: (_) => const CustomAlert(
-        titulo: 'Sin productos',
-        mensaje: 'No se encontraron productos para esta compra.',
-        icono: Icons.warning_amber_rounded,
-        textoConfirmar: 'Aceptar',
-      ),
-    );
-
-    return;
+              await Printing.layoutPdf(
+                onLayout: (PdfPageFormat format) async => pdf.save(),
+              );
+            } catch (e) {
+              if (!mounted) return;
+              Toast.error(context, 'No se pudo imprimir el ticket. ${mensajeDeError(e)}');
+            }
+          },
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo abrir el recibo. ${mensajeDeError(e)}');
+    }
   }
 
-  if (!mounted) return;
+  Future<void> _mostrarReciboCompra(
+    int idCompra,
+    String proveedor,
+    double total,
+  ) async {
+    try {
+      final carrito = await _reporteController.obtenerDetalleCompraParaTicket(idCompra);
 
-  showDialog(
-    context: context,
-    builder: (_) => CustomAlert(
-      titulo: 'Ticket de compra #$idCompra',
-      mensaje:
-          'Proveedor: $proveedor\n\n'
-          'Total: ${AppConfig.formatoMoneda(total)}\n\n'
-          '¿Deseas imprimir el ticket de compra?',
-      icono: Icons.shopping_bag_outlined,
-      textoCancelar: 'Cerrar',
-      textoConfirmar: 'Imprimir',
+      if (carrito.isEmpty) {
+        if (!mounted) return;
 
-      onConfirm: () async {
-        try {
-          final pdf = await TicketComprasService.generarTicket(
-            carrito: carrito,
-            total: total,
-            proveedor: proveedor,
-          );
+        showDialog(
+          context: context,
+          builder: (_) => const CustomAlert(
+            titulo: 'Sin productos',
+            mensaje: 'No se encontraron productos para esta compra.',
+            icono: Icons.warning_amber_rounded,
+            textoConfirmar: 'Aceptar',
+          ),
+        );
 
-          await Printing.layoutPdf(
-            onLayout: (PdfPageFormat format) async => pdf.save(),
-          );
-        } catch (e) {
-          if (!mounted) return;
+        return;
+      }
 
-          showDialog(
-            context: context,
-            builder: (_) => CustomAlert(
-              titulo: 'Error',
-              mensaje: 'Error al abrir el ticket de compra:\n$e',
-              icono: Icons.error_outline,
-              textoConfirmar: 'Aceptar',
-            ),
-          );
-        }
-      },
-    ),
-  );
-}
+      if (!mounted) return;
+
+      showDialog(
+        context: context,
+        builder: (_) => CustomAlert(
+          titulo: 'Ticket de compra #$idCompra',
+          mensaje:
+              'Proveedor: $proveedor\n\n'
+              'Total: ${AppConfig.formatoMoneda(total)}\n\n'
+              '¿Deseas imprimir el ticket de compra?',
+          icono: Icons.shopping_bag_outlined,
+          textoCancelar: 'Cerrar',
+          textoConfirmar: 'Imprimir',
+          onConfirm: () async {
+            try {
+              final pdf = await TicketComprasService.generarTicket(
+                carrito: carrito,
+                total: total,
+                proveedor: proveedor,
+              );
+
+              await Printing.layoutPdf(
+                onLayout: (PdfPageFormat format) async => pdf.save(),
+              );
+            } catch (e) {
+              if (!mounted) return;
+              Toast.error(context, 'No se pudo imprimir el ticket de compra. ${mensajeDeError(e)}');
+            }
+          },
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo abrir el recibo de compra. ${mensajeDeError(e)}');
+    }
+  }
 
   // Solo lectura: registrar abonos vive en CuentasPorPagarView (evita
   // duplicar esa acción en dos pantallas). Reutiliza el mismo rango de
@@ -1407,7 +1465,7 @@ Future<void> _cargarReportesVentas() async {
       firstDate: fechaInicio,
       lastDate: DateTime.now(),
     );
-    if (fechaFin == null) return;
+    if (fechaFin == null || !mounted) return;
 
     setState(() {
       filtroDesde = fechaInicio;
@@ -1497,52 +1555,57 @@ Future<void> _cargarReportesVentas() async {
   }
 
   Future<void> _exportarMovimientosPDF() async {
-    if (movimientos.isEmpty) {
-      Toast.info(context, 'No hay movimientos para exportar.');
-      return;
+    try {
+      if (movimientos.isEmpty) {
+        Toast.info(context, 'No hay movimientos para exportar.');
+        return;
+      }
+
+      final pdf = pw.Document();
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          build: (context) => [
+            pw.Header(level: 0, text: 'Movimientos por usuario'),
+            pw.Paragraph(text: 'Generado el ${formatearFechaHora(DateTime.now().toIso8601String())}'),
+            pw.SizedBox(height: 10),
+            pw.TableHelper.fromTextArray(
+              headers: [
+                'Fecha y hora',
+                'Usuario',
+                'Acción',
+                'Módulo',
+                'Folio',
+                'Caja',
+                'Descripción',
+              ],
+              data: movimientos.map((m) {
+                return [
+                  formatearFechaHora(m.fechaHora),
+                  m.usuario,
+                  etiquetaAccionAuditoria(m.accion),
+                  etiquetaModuloAuditoria(m.tabla),
+                  m.idRegistro?.toString() ?? '-',
+                  m.idCaja?.toString() ?? '-',
+                  m.descripcion,
+                ];
+              }).toList(),
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              cellAlignment: pw.Alignment.centerLeft,
+              headerDecoration: const pw.BoxDecoration(color: PdfColors.amber100),
+              cellStyle: const pw.TextStyle(fontSize: AppText.overline),
+            ),
+          ],
+        ),
+      );
+
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo exportar el PDF. ${mensajeDeError(e)}');
     }
-
-    final pdf = pw.Document();
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        build: (context) => [
-          pw.Header(level: 0, text: 'Movimientos por usuario'),
-          pw.Paragraph(text: 'Generado el ${formatearFechaHora(DateTime.now().toIso8601String())}'),
-          pw.SizedBox(height: 10),
-          pw.TableHelper.fromTextArray(
-            headers: [
-              'Fecha y hora',
-              'Usuario',
-              'Acción',
-              'Módulo',
-              'Folio',
-              'Caja',
-              'Descripción',
-            ],
-            data: movimientos.map((m) {
-              return [
-                formatearFechaHora(m.fechaHora),
-                m.usuario,
-                etiquetaAccionAuditoria(m.accion),
-                etiquetaModuloAuditoria(m.tabla),
-                m.idRegistro?.toString() ?? '-',
-                m.idCaja?.toString() ?? '-',
-                m.descripcion,
-              ];
-            }).toList(),
-            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-            cellAlignment: pw.Alignment.centerLeft,
-            headerDecoration: const pw.BoxDecoration(color: PdfColors.amber100),
-            cellStyle: const pw.TextStyle(fontSize: AppText.overline),
-          ),
-        ],
-      ),
-    );
-
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
-    );
   }
 
   @override
@@ -1698,7 +1761,7 @@ Future<void> _cargarReportesVentas() async {
               style: ElevatedButton.styleFrom(
                 elevation: 0,
                 backgroundColor: AppColors.primary,
-                foregroundColor: Colors.black,
+                foregroundColor: AppColors.onPrimary,
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppRadius.md),

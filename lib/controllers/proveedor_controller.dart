@@ -19,22 +19,29 @@ class ProveedorController {
     // 🔥 QUITAR ID SI ES NULL (CLAVE)
     data.remove('id_proveedor');
 
-    final result = await _outboxWriter.crear(
-      db,
-      entidad: 'Proveedor',
-      tabla: 'Proveedores',
-      values: data,
-      conflictAlgorithm: ConflictAlgorithm.replace,
-    );
+    // El cambio, su auditoría y su encolado van en UNA transacción: si se va
+    // la luz entre el UPDATE y el encolado, el cambio queda guardado
+    // localmente y el backend nunca se entera, sin nada pendiente que lo
+    // corrija.
+    return db.transaction((txn) async {
+      final result = await _outboxWriter.crear(
+        txn,
+        entidad: 'Proveedor',
+        tabla: 'Proveedores',
+        values: data,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
 
-    await _auditoriaController.registrar(
-      tabla: 'Proveedores',
-      accion: 'CREATE',
-      idRegistro: result,
-      descripcion: 'Proveedor ${proveedor.nombre} creado',
-    );
+      await _auditoriaController.registrar(
+        tabla: 'Proveedores',
+        accion: 'CREATE',
+        idRegistro: result,
+        descripcion: 'Proveedor ${proveedor.nombre} creado',
+        executor: txn,
+      );
 
-    return result;
+      return result;
+    });
   }
 
   Future<List<Proveedores>> obtenerTodos() async {
@@ -47,26 +54,36 @@ class ProveedorController {
   Future<int> actualizar(Proveedores proveedor) async {
     final db = await DatabaseHelper().database;
 
-    final rows = await db.update(
-      'Proveedores',
-      proveedor.toMap(),
-      where: 'id_proveedor = ?',
-      whereArgs: [proveedor.idProveedor],
-    );
-
-    if (rows > 0) {
-      await _auditoriaController.registrar(
-        tabla: 'Proveedores',
-        accion: 'EDIT',
-        idRegistro: proveedor.idProveedor,
-        descripcion: 'Proveedor ${proveedor.nombre} actualizado',
+    // El cambio, su auditoría y su encolado van en UNA transacción: si se va
+    // la luz entre el UPDATE y el encolado, el cambio queda guardado
+    // localmente y el backend nunca se entera, sin nada pendiente que lo
+    // corrija.
+    return db.transaction((txn) async {
+      final rows = await txn.update(
+        'Proveedores',
+        proveedor.toMap(),
+        where: 'id_proveedor = ?',
+        whereArgs: [proveedor.idProveedor],
       );
-      if (proveedor.idProveedor != null) {
-        await _outboxWriter.actualizar(db, entidad: 'Proveedor', tabla: 'Proveedores', idLocal: proveedor.idProveedor!);
-      }
-    }
 
-    return rows;
+      if (rows > 0) {
+        await _auditoriaController.registrar(
+          tabla: 'Proveedores',
+          accion: 'EDIT',
+          idRegistro: proveedor.idProveedor,
+          descripcion: 'Proveedor ${proveedor.nombre} actualizado',
+          executor: txn,
+        );
+        if (proveedor.idProveedor != null) {
+          await _outboxWriter.actualizar(txn,
+              entidad: 'Proveedor',
+              tabla: 'Proveedores',
+              idLocal: proveedor.idProveedor!);
+        }
+      }
+
+      return rows;
+    });
   }
 
   Future<int> eliminar(int id) async {

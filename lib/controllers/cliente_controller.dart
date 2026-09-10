@@ -11,16 +11,27 @@ class ClienteController {
 
   Future<int> insertar(Cliente cliente) async {
     final db = await DatabaseHelper().database;
-    final id = await _outboxWriter.crear(db, entidad: 'Cliente', tabla: 'Clientes', values: cliente.toMap());
+    // El cambio, su auditoría y su encolado van en UNA transacción.
+    //
+    // Antes eran operaciones sueltas: si se iba la luz entre el UPDATE y el
+    // encolado, el cambio quedaba guardado localmente y el backend nunca se
+    // enteraba, sin nada pendiente que lo corrigiera. El propio
+    // `SyncOutboxWriter` documenta que su razón de ser es que ambas cosas
+    // ocurran juntas o no ocurran.
+    return db.transaction((txn) async {
+      final id = await _outboxWriter.crear(txn,
+          entidad: 'Cliente', tabla: 'Clientes', values: cliente.toMap());
 
-    await _auditoriaController.registrar(
-      tabla: 'Clientes',
-      accion: 'CREATE',
-      idRegistro: id,
-      descripcion: 'Cliente ${cliente.nombre} creado',
-    );
+      await _auditoriaController.registrar(
+        tabla: 'Clientes',
+        accion: 'CREATE',
+        idRegistro: id,
+        descripcion: 'Cliente ${cliente.nombre} creado',
+        executor: txn,
+      );
 
-    return id;
+      return id;
+    });
   }
 
   Future<List<Cliente>> obtenerTodos() async {
@@ -63,26 +74,37 @@ class ClienteController {
   Future<int> actualizar(Cliente cliente) async {
     final db = await DatabaseHelper().database;
 
-    final rows = await db.update(
-      'Clientes',
-      cliente.toMap(),
-      where: 'id_cliente = ?',
-      whereArgs: [cliente.idCliente],
-    );
-
-    if (rows > 0) {
-      await _auditoriaController.registrar(
-        tabla: 'Clientes',
-        accion: 'EDIT',
-        idRegistro: cliente.idCliente,
-        descripcion: 'Cliente ${cliente.nombre} actualizado',
+    // El cambio, su auditoría y su encolado van en UNA transacción.
+    //
+    // Antes eran operaciones sueltas: si se iba la luz entre el UPDATE y el
+    // encolado, el cambio quedaba guardado localmente y el backend nunca se
+    // enteraba, sin nada pendiente que lo corrigiera. El propio
+    // `SyncOutboxWriter` documenta que su razón de ser es que ambas cosas
+    // ocurran juntas o no ocurran.
+    return db.transaction((txn) async {
+      final rows = await txn.update(
+        'Clientes',
+        cliente.toMap(),
+        where: 'id_cliente = ?',
+        whereArgs: [cliente.idCliente],
       );
-      if (cliente.idCliente != null) {
-        await _outboxWriter.actualizar(db, entidad: 'Cliente', tabla: 'Clientes', idLocal: cliente.idCliente!);
-      }
-    }
 
-    return rows;
+      if (rows > 0) {
+        await _auditoriaController.registrar(
+          tabla: 'Clientes',
+          accion: 'EDIT',
+          idRegistro: cliente.idCliente,
+          descripcion: 'Cliente ${cliente.nombre} actualizado',
+          executor: txn,
+        );
+        if (cliente.idCliente != null) {
+          await _outboxWriter.actualizar(txn,
+              entidad: 'Cliente', tabla: 'Clientes', idLocal: cliente.idCliente!);
+        }
+      }
+
+      return rows;
+    });
   }
 
   Future<int> eliminar(int id) async {

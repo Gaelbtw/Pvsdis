@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../core/utils/mensaje_error.dart';
+import '../widgets/estado_vista.dart';
+
 import '../controllers/apartados_controller.dart';
 import '../core/theme/app_colors.dart';
 import '../core/config/app_config.dart';
@@ -24,6 +27,11 @@ class _ApartadosViewState extends State<ApartadosView> {
   List<Map<String, dynamic>> _filtrados = [];
   bool _cargando = true;
 
+  /// Mensaje del último fallo al cargar, o `null`. Con esto la pantalla
+  /// puede decir qué pasó y ofrecer reintentar, en vez de dejar la rueda
+  /// girando para siempre.
+  String? _errorCarga;
+
   @override
   void initState() {
     super.initState();
@@ -31,13 +39,24 @@ class _ApartadosViewState extends State<ApartadosView> {
   }
 
   Future<void> _cargar() async {
-    final data = await _controller.obtenerTodos();
-    if (!mounted) return;
-    setState(() {
-      _apartados = data;
-      _filtrados = data;
-      _cargando = false;
-    });
+    if (mounted) setState(() => _errorCarga = null);
+    try {
+      final data = await _controller.obtenerTodos();
+      if (!mounted) return;
+      setState(() {
+        _apartados = data;
+        _filtrados = data;
+        _cargando = false;
+      });
+    } catch (e) {
+      // Sin esto la bandera nunca se apagaba y la rueda giraba para
+      // siempre: el error solo llegaba a la consola.
+      if (!mounted) return;
+      setState(() {
+        _cargando = false;
+        _errorCarga = mensajeDeError(e);
+      });
+    }
   }
 
   void _buscar(String query) {
@@ -73,8 +92,8 @@ class _ApartadosViewState extends State<ApartadosView> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: CustomHeader(titulo: 'Apartados', mostrarVolver: true),
-      body: _cargando
-          ? const Center(child: CircularProgressIndicator())
+      body: (_cargando || _errorCarga != null)
+          ? EstadoVista(cargando: _cargando, error: _errorCarga, onReintentar: _cargar)
           : Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
               child: Container(

@@ -111,6 +111,49 @@ class Producto {
     return map;
   }
 
+  /// Copia el producto cambiando solo lo que se indique.
+  ///
+  /// Existe por un defecto concreto: el dialogo de edicion rapida construia un
+  /// `Producto` nuevo a mano con los tres campos que edita, y como [toMap]
+  /// escribe todas SUS claves, los demas se sobreescribian con lo que trajera
+  /// el objeto nuevo. Asi se perdian en silencio `precio_compra` (quedaba
+  /// NULL), `descripcion` (quedaba vacia) y `stock_minimo` (se pisaba con el
+  /// global de Configuracion) cada vez que alguien corregia un precio.
+  ///
+  /// El dialogo ya intentaba defenderse pasando a mano `codigo_barras`, `sku`
+  /// e `iva_tasa`, con un comentario que explicaba el peligro. Esa defensa no
+  /// escala: cada columna nueva es una oportunidad de olvidarla. Con esto, lo
+  /// que no se nombra viene de la fila original y no hay nada que recordar.
+  Producto copyWith({
+    int? idProducto,
+    String? nombre,
+    String? descripcion,
+    double? precio,
+    int? stockMinimo,
+    String? estado,
+    double? precioCompra,
+    int? categoriaId,
+    String? categoriaNombre,
+    String? codigoBarras,
+    String? sku,
+    double? ivaTasa,
+  }) {
+    return Producto(
+      idProducto: idProducto ?? this.idProducto,
+      nombre: nombre ?? this.nombre,
+      descripcion: descripcion ?? this.descripcion,
+      precio: precio ?? this.precio,
+      stockMinimo: stockMinimo ?? this.stockMinimo,
+      estado: estado ?? this.estado,
+      precioCompra: precioCompra ?? this.precioCompra,
+      categoriaId: categoriaId ?? this.categoriaId,
+      categoriaNombre: categoriaNombre ?? this.categoriaNombre,
+      codigoBarras: codigoBarras ?? this.codigoBarras,
+      sku: sku ?? this.sku,
+      ivaTasa: ivaTasa ?? this.ivaTasa,
+    );
+  }
+
   factory Producto.fromMap(Map<String, dynamic> map) {
     return Producto(
       idProducto: map["id_producto"],

@@ -142,7 +142,7 @@ Future<void> mostrarAutorizacionDescuentoDialog(
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
-                foregroundColor: Colors.black,
+                foregroundColor: AppColors.onPrimary,
               ),
               onPressed: verificando ? null : confirmar,
               child: Text(verificando ? 'Verificando…' : 'Confirmar'),

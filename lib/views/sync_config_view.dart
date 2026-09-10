@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/toast.dart';
+
+import '../core/utils/mensaje_error.dart';
+
 import '../core/config/backend_config.dart';
 import '../core/sync/auth_service.dart';
 import '../core/sync/models/sync_auth_models.dart';
@@ -52,53 +56,65 @@ class _SyncConfigViewState extends State<SyncConfigView> {
   }
 
   Future<void> _guardarUrl() async {
-    final url = _urlCtrl.text.trim();
+    try {
+      final url = _urlCtrl.text.trim();
 
-    final error = BackendConfig.validar(url);
-    if (error != null) {
-      await _aviso('Dirección inválida', error, esError: true);
-      return;
+      final error = BackendConfig.validar(url);
+      if (error != null) {
+        await _aviso('Dirección inválida', error, esError: true);
+        return;
+      }
+
+      setState(() => _guardandoUrl = true);
+      BackendConfig.actualizar(url);
+      await _prefs.guardarUrlBackend(BackendConfig.baseUrl);
+      SyncScheduler.instancia.marcarConfigurada();
+      if (!mounted) return;
+      setState(() {
+        _urlCtrl.text = BackendConfig.baseUrl; // refleja la URL ya normalizada
+        _guardandoUrl = false;
+      });
+
+      // Se guarda igual (muchas instalaciones sincronizan por LAN contra un
+      // servidor propio sin TLS), pero el usuario debe saber lo que implica.
+      final aviso = BackendConfig.esInseguro(BackendConfig.baseUrl)
+          ? '\n\n⚠ Esta dirección usa HTTP sin cifrar: la contraseña de '
+              'sincronización y los datos de ventas y clientes viajan en claro '
+              'por la red. Usa https:// si el servidor lo admite.'
+          : '';
+      await _aviso(
+        'URL guardada',
+        'Este dispositivo apuntará a:\n${BackendConfig.baseUrl}$aviso',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _guardandoUrl = false);
+      Toast.error(context, 'No se pudo guardar la dirección. ${mensajeDeError(e)}');
     }
-
-    setState(() => _guardandoUrl = true);
-    BackendConfig.actualizar(url);
-    await _prefs.guardarUrlBackend(BackendConfig.baseUrl);
-    SyncScheduler.instancia.marcarConfigurada();
-    if (!mounted) return;
-    setState(() {
-      _urlCtrl.text = BackendConfig.baseUrl; // refleja la URL ya normalizada
-      _guardandoUrl = false;
-    });
-
-    // Se guarda igual (muchas instalaciones sincronizan por LAN contra un
-    // servidor propio sin TLS), pero el usuario debe saber lo que implica.
-    final aviso = BackendConfig.esInseguro(BackendConfig.baseUrl)
-        ? '\n\n⚠ Esta dirección usa HTTP sin cifrar: la contraseña de '
-            'sincronización y los datos de ventas y clientes viajan en claro '
-            'por la red. Usa https:// si el servidor lo admite.'
-        : '';
-    await _aviso(
-      'URL guardada',
-      'Este dispositivo apuntará a:\n${BackendConfig.baseUrl}$aviso',
-    );
   }
 
   Future<void> _probarConexion() async {
-    // Guarda la URL primero para que la prueba use exactamente lo que el
-    // usuario ve en el campo, no una versión anterior.
-    BackendConfig.actualizar(_urlCtrl.text.trim());
-    setState(() => _probando = true);
-    final hay = await _probe.hayConexion();
-    if (!mounted) return;
-    setState(() => _probando = false);
-    if (hay) {
-      await _aviso('Conexión exitosa', 'El backend respondió correctamente.', esExito: true);
-    } else {
-      await _aviso(
-        'Sin respuesta',
-        'No se pudo contactar al backend en ${BackendConfig.baseUrl}. Revisa la URL y que el servidor esté encendido.',
-        esError: true,
-      );
+    try {
+      // Guarda la URL primero para que la prueba use exactamente lo que el
+      // usuario ve en el campo, no una versión anterior.
+      BackendConfig.actualizar(_urlCtrl.text.trim());
+      setState(() => _probando = true);
+      final hay = await _probe.hayConexion();
+      if (!mounted) return;
+      setState(() => _probando = false);
+      if (hay) {
+        await _aviso('Conexión exitosa', 'El backend respondió correctamente.', esExito: true);
+      } else {
+        await _aviso(
+          'Sin respuesta',
+          'No se pudo contactar al backend en ${BackendConfig.baseUrl}. Revisa la URL y que el servidor esté encendido.',
+          esError: true,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _probando = false);
+      Toast.error(context, 'No se pudo probar la conexión. ${mensajeDeError(e)}');
     }
   }
 
@@ -133,11 +149,17 @@ class _SyncConfigViewState extends State<SyncConfigView> {
   }
 
   Future<void> _cerrarSesion() async {
-    setState(() => _iniciandoSesion = true);
-    await AuthService.instancia.logout();
-    if (!mounted) return;
-    setState(() => _iniciandoSesion = false);
-    await _aviso('Sesión cerrada', 'Este dispositivo dejará de sincronizar hasta volver a iniciar sesión.');
+    try {
+      setState(() => _iniciandoSesion = true);
+      await AuthService.instancia.logout();
+      if (!mounted) return;
+      setState(() => _iniciandoSesion = false);
+      await _aviso('Sesión cerrada', 'Este dispositivo dejará de sincronizar hasta volver a iniciar sesión.');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _iniciandoSesion = false);
+      Toast.error(context, 'No se pudo cerrar la sesión de sincronización. ${mensajeDeError(e)}');
+    }
   }
 
   Future<void> _aviso(String titulo, String mensaje, {bool esExito = false, bool esError = false}) {

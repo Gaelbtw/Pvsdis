@@ -44,58 +44,80 @@ class PanelCobro extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: AppColors.border),
       ),
+      // El resumen se desplaza; el botón de cobrar NO.
+      //
+      // Antes esto era una columna rígida dentro de un contenedor de altura
+      // acotada, sin ningún scroll. Con la ventana en su tamaño mínimo
+      // (940x620) el contenido no cabía, y en 1280x800 entraba por unos pocos
+      // píxeles: bastaba aplicar un descuento --que agrega tres renglones-- o
+      // abrir un segundo método de pago para que desbordara. El síntoma eran
+      // las rayas amarillas y negras justo encima de "Confirmar venta", en el
+      // momento de cobrar.
+      //
+      // El botón queda fuera del área desplazable a propósito: es la acción
+      // que cierra la venta y nunca debe poder quedar fuera de la pantalla ni
+      // exigir que alguien adivine que hay que hacer scroll para llegar a él.
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          if (venta.descuentoTotal > 0) ...[
-            _lineaResumen("Subtotal", AppConfig.formatoMoneda(venta.subtotal)),
-            const SizedBox(height: 6),
-            _lineaResumen(
-              "Descuento",
-              "-${AppConfig.formatoMoneda(venta.descuentoTotal)}",
-              color: AppColors.error,
-            ),
-            const SizedBox(height: 12),
-            const Divider(height: 1, color: AppColors.border),
-            const SizedBox(height: 12),
-          ],
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Padding(
-                padding: EdgeInsets.only(bottom: 6),
-                child: Text(
-                  "TOTAL",
-                  style: TextStyle(
-                    fontSize: AppText.body,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ),
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    AppConfig.formatoMoneda(venta.total),
-                    style: const TextStyle(
-                      fontSize: AppText.hero,
-                      fontWeight: FontWeight.w900,
-                      height: 1.0,
-                      color: AppColors.textPrimary,
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  if (venta.descuentoTotal > 0) ...[
+                    _lineaResumen("Subtotal", AppConfig.formatoMoneda(venta.subtotal)),
+                    const SizedBox(height: 6),
+                    _lineaResumen(
+                      "Descuento",
+                      "-${AppConfig.formatoMoneda(venta.descuentoTotal)}",
+                      color: AppColors.error,
                     ),
+                    const SizedBox(height: 12),
+                    const Divider(height: 1, color: AppColors.border),
+                    const SizedBox(height: 12),
+                  ],
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          "TOTAL",
+                          style: TextStyle(
+                            fontSize: AppText.body,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                      Flexible(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            AppConfig.formatoMoneda(venta.total),
+                            style: const TextStyle(
+                              fontSize: AppText.hero,
+                              fontWeight: FontWeight.w900,
+                              height: 1.0,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                  const SizedBox(height: 18),
+                  PagosMixtosSection(
+                    key: ValueKey(ventaCounter),
+                    total: venta.total,
+                    onCambio: onCambioPagos,
+                  ),
+                ],
               ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          PagosMixtosSection(
-            key: ValueKey(ventaCounter),
-            total: venta.total,
-            onCambio: onCambioPagos,
+            ),
           ),
           const SizedBox(height: 18),
           SizedBox(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import '../core/theme/app_colors.dart';
+
 import '../core/utils/mensaje_error.dart';
+import '../widgets/estado_vista.dart';
+import '../core/theme/app_colors.dart';
 import '../controllers/proveedor_controller.dart';
 import '../models/proveedores_model.dart';
 import '../widgets/app_text_field.dart';
@@ -25,6 +27,11 @@ class _ProveedorViewState extends State<ProveedorView> {
   /// "todavía estoy cargando".
   bool _cargandoVista = true;
 
+  /// Mensaje del último fallo al cargar, o `null`. Con esto la pantalla
+  /// puede decir qué pasó y ofrecer reintentar, en vez de dejar la rueda
+  /// girando para siempre.
+  String? _errorCarga;
+
   final controller = ProveedorController();
 
   List<Proveedores> proveedores = [];
@@ -36,16 +43,29 @@ class _ProveedorViewState extends State<ProveedorView> {
     cargar();
   }
 
-  void cargar() async {
-    final data = await controller.obtenerTodos();
+  // `Future<void>` y no `void`: quien borra necesita esperar a que la
+  // lista se refresque antes de anunciar el éxito.
+  Future<void> cargar() async {
+    if (mounted) setState(() => _errorCarga = null);
+    try {
+      final data = await controller.obtenerTodos();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      proveedores = data;
-      filtrados = data;
-      _cargandoVista = false;
-    });
+      setState(() {
+        proveedores = data;
+        filtrados = data;
+        _cargandoVista = false;
+      });
+    } catch (e) {
+      // Sin esto la bandera nunca se apagaba y la rueda giraba para
+      // siempre: el error solo llegaba a la consola.
+      if (!mounted) return;
+      setState(() {
+        _cargandoVista = false;
+        _errorCarga = mensajeDeError(e);
+      });
+    }
   }
 
   void buscar(String query) {
@@ -201,15 +221,18 @@ void abrirFormulario({Proveedores? proveedor}) {
 }
 
   //  ELIMINAR
-  void eliminar(int id) async {
-    // Un proveedor con compras registradas no se puede borrar (FK RESTRICT).
-    try {
-      await controller.eliminar(id);
-      cargar();
-    } catch (e) {
-      if (!mounted) return;
-      Toast.error(context, mensajeDeError(e));
-    }
+  /// Devuelve un `Future` a propósito: `confirmarAccion` lo espera para saber
+  /// si de verdad se borró. Cuando esto era `void ... async`, el `await` del
+  /// helper regresaba de inmediato y el aviso de "eliminado exitosamente"
+  /// salía ANTES de que la base respondiera -- incluso cuando la base
+  /// rechazaba el borrado por tener registros asociados.
+  ///
+  /// El rechazo por compras registradas (FK RESTRICT) lo traduce y muestra
+  /// `confirmarAccion`; capturarlo aquí también producía dos avisos que se
+  /// contradecían.
+  Future<void> eliminar(int id) async {
+    await controller.eliminar(id);
+    await cargar();
   }
 
   @override
@@ -219,8 +242,8 @@ void abrirFormulario({Proveedores? proveedor}) {
 
       appBar: CustomHeader(titulo: "Proveedores", mostrarVolver: true),
 
-      body: _cargandoVista
-          ? const Center(child: CircularProgressIndicator())
+      body: (_cargandoVista || _errorCarga != null)
+          ? EstadoVista(cargando: _cargandoVista, error: _errorCarga, onReintentar: cargar)
           : Padding(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
 
@@ -284,7 +307,7 @@ void abrirFormulario({Proveedores? proveedor}) {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
 
-                      foregroundColor: Colors.black87,
+                      foregroundColor: AppColors.onPrimary,
 
                       elevation: 0,
 
@@ -477,9 +500,7 @@ void abrirFormulario({Proveedores? proveedor}) {
     mensajeConfirmar: "¿Seguro que deseas eliminar este proveedor?",
     iconoConfirmar: Icons.warning_amber_rounded,
     textoConfirmar: "Eliminar",
-    accion: () async {
-      eliminar(p.idProveedor!);
-    },
+    accion: () => eliminar(p.idProveedor!),
     tituloExito: "Proveedor eliminado",
     mensajeExito: "El proveedor ha sido eliminado exitosamente.",
   ),

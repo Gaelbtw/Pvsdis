@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../core/utils/mensaje_error.dart';
+import '../widgets/estado_vista.dart';
+
 import '../controllers/cuentas_por_pagar_controller.dart';
 import '../core/theme/app_colors.dart';
 import '../core/config/app_config.dart';
@@ -23,6 +26,15 @@ class _ProveedorDetalleViewState extends State<ProveedorDetalleView> {
   final _controller = CuentasPorPagarController();
 
   bool cargando = true;
+
+
+  /// Mensaje del último fallo al cargar, o `null`. Con esto la pantalla
+
+  /// puede decir qué pasó y ofrecer reintentar, en vez de dejar la rueda
+
+  /// girando para siempre.
+
+  String? _errorCarga;
   Map<String, dynamic> resumen = {};
   List<Map<String, dynamic>> historialReciente = [];
 
@@ -33,18 +45,29 @@ class _ProveedorDetalleViewState extends State<ProveedorDetalleView> {
   }
 
   Future<void> _cargar() async {
-    final idProveedor = widget.proveedor.idProveedor!;
-    final resultados = await Future.wait([
-      _controller.resumenProveedor(idProveedor),
-      _controller.obtenerCuentas(idProveedor: idProveedor),
-    ]);
+    if (mounted) setState(() => _errorCarga = null);
+    try {
+      final idProveedor = widget.proveedor.idProveedor!;
+      final resultados = await Future.wait([
+        _controller.resumenProveedor(idProveedor),
+        _controller.obtenerCuentas(idProveedor: idProveedor),
+      ]);
 
-    if (!mounted) return;
-    setState(() {
-      resumen = resultados[0] as Map<String, dynamic>;
-      historialReciente = resultados[1] as List<Map<String, dynamic>>;
-      cargando = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        resumen = resultados[0] as Map<String, dynamic>;
+        historialReciente = resultados[1] as List<Map<String, dynamic>>;
+        cargando = false;
+      });
+    } catch (e) {
+      // Sin esto la bandera nunca se apagaba y la rueda giraba para
+      // siempre: el error solo llegaba a la consola.
+      if (!mounted) return;
+      setState(() {
+        cargando = false;
+        _errorCarga = mensajeDeError(e);
+      });
+    }
   }
 
   @override
@@ -52,8 +75,8 @@ class _ProveedorDetalleViewState extends State<ProveedorDetalleView> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: CustomHeader(titulo: widget.proveedor.nombre, mostrarVolver: true),
-      body: cargando
-          ? const Center(child: CircularProgressIndicator())
+      body: (cargando || _errorCarga != null)
+          ? EstadoVista(cargando: cargando, error: _errorCarga, onReintentar: _cargar)
           : Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
               child: Container(

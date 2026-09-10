@@ -201,7 +201,7 @@ class _SetupAdminViewState extends State<SetupAdminView> {
                       onPressed: _guardando ? null : _crearAdministrador,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.black87,
+                        foregroundColor: AppColors.onPrimary,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(AppRadius.md),

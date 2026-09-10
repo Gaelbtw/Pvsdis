@@ -36,17 +36,26 @@ class _UsuariosViewState extends State<UsuariosView> {
   }
 
   void cargarTodo() async {
-    final usr = await usuariosController.obtenerTodos();
+    try {
+      final usr = await usuariosController.obtenerTodos();
 
-    // Sin esta guarda, salir de Usuarios mientras la consulta está en vuelo
-    // provoca "setState() called after dispose()".
-    if (!mounted) return;
+      // Sin esta guarda, salir de Usuarios mientras la consulta está en vuelo
+      // provoca "setState() called after dispose()".
+      if (!mounted) return;
 
-    setState(() {
-      usuarios = usr;
-      _nombresBusqueda = [for (final u in usr) u.nombre.toLowerCase()];
-      _recalcularFiltro();
-    });
+      setState(() {
+        usuarios = usr;
+        _nombresBusqueda = [for (final u in usr) u.nombre.toLowerCase()];
+        _recalcularFiltro();
+      });
+    } catch (e) {
+      // Sin este `catch`, un fallo de la consulta se tragaba en silencio: la
+      // lista quedaba vacía y la pantalla decía "no hay nada registrado", que
+      // es distinto de "no se pudo leer". Alguien daba de alta un registro que
+      // ya existía.
+      if (!mounted) return;
+      Toast.error(context, mensajeDeError(e));
+    }
   }
 
   // 🔥 FILTRO
@@ -366,7 +375,7 @@ class _UsuariosViewState extends State<UsuariosView> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
 
-                      foregroundColor: Colors.black87,
+                      foregroundColor: AppColors.onPrimary,
 
                       elevation: 0,
 

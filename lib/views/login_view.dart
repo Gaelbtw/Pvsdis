@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+import '../widgets/toast.dart';
+
+import '../core/utils/mensaje_error.dart';
 import '../controllers/auditoria_controller.dart';
 import '../core/config/app_info.dart';
 import '../controllers/auth_controller.dart';
@@ -117,22 +121,32 @@ class _LoginViewState extends State<LoginView> {
   /// Paso común tras autenticar (por contraseña o PIN): fija la sesión, carga
   /// la matriz de permisos del rol, deja registro y entra al inicio.
   Future<void> _entrar(Map<String, dynamic> user) async {
-    SessionManager.setUser(
-      id: user['id_usuario'] as int?,
-      nombre: user['nombre']?.toString() ?? '',
-      // Sin rol legible NO se asume administrador: se cae al rol de menor
-      // privilegio. Antes el default era 'Administrador'.
-      rol: user['rol']?.toString() ?? Roles.cajero,
-    );
-    await PermisosService.instancia.cargar();
-    await AuditoriaController().registrar(
-      tabla: 'Sesion',
-      accion: 'LOGIN',
-      descripcion: 'Inicio de sesión',
-    );
-    if (!mounted) return;
-    // Directo al inicio, sin modal de "bienvenido".
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeView()));
+    try {
+      SessionManager.setUser(
+        id: user['id_usuario'] as int?,
+        nombre: user['nombre']?.toString() ?? '',
+        // Sin rol legible NO se asume administrador: se cae al rol de menor
+        // privilegio. Antes el default era 'Administrador'.
+        rol: user['rol']?.toString() ?? Roles.cajero,
+      );
+      await PermisosService.instancia.cargar();
+      await AuditoriaController().registrar(
+        tabla: 'Sesion',
+        accion: 'LOGIN',
+        descripcion: 'Inicio de sesión',
+      );
+      if (!mounted) return;
+      // Directo al inicio, sin modal de "bienvenido".
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeView()));
+    } catch (e) {
+      // La bandera se llama `loading` en esta pantalla. Si falla cargar los
+      // permisos o registrar la bitácora, había que apagarla igual: si no, el
+      // botón se queda en gris y el usuario no puede ni reintentar ni saber
+      // por qué.
+      if (!mounted) return;
+      setState(() => loading = false);
+      Toast.error(context, 'No se pudo iniciar sesión. ${mensajeDeError(e)}');
+    }
   }
 
   @override

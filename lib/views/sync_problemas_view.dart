@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/toast.dart';
+
+import '../core/utils/mensaje_error.dart';
+import '../widgets/estado_vista.dart';
+
 import '../core/database/database_helper.dart';
 import '../core/sync/outbox/sync_outbox_inspector.dart';
 import '../core/sync/sync_scheduler.dart';
@@ -22,6 +27,15 @@ class _SyncProblemasViewState extends State<SyncProblemasView> {
   final _inspector = SyncOutboxInspector();
 
   bool _cargando = true;
+
+
+  /// Mensaje del último fallo al cargar, o `null`. Con esto la pantalla
+
+  /// puede decir qué pasó y ofrecer reintentar, en vez de dejar la rueda
+
+  /// girando para siempre.
+
+  String? _errorCarga;
   List<OutboxItem> _pendientes = const [];
   List<OutboxItem> _fallidas = const [];
 
@@ -32,45 +46,71 @@ class _SyncProblemasViewState extends State<SyncProblemasView> {
   }
 
   Future<void> _cargar() async {
-    setState(() => _cargando = true);
-    final datos = await _inspector.cargar();
-    if (!mounted) return;
-    setState(() {
-      _pendientes = datos.pendientes;
-      _fallidas = datos.fallidas;
-      _cargando = false;
-    });
+    if (mounted) setState(() => _errorCarga = null);
+    try {
+      setState(() => _cargando = true);
+      final datos = await _inspector.cargar();
+      if (!mounted) return;
+      setState(() {
+        _pendientes = datos.pendientes;
+        _fallidas = datos.fallidas;
+        _cargando = false;
+      });
+    } catch (e) {
+      // Sin esto la bandera nunca se apagaba y la rueda giraba para
+      // siempre: el error solo llegaba a la consola.
+      if (!mounted) return;
+      setState(() {
+        _cargando = false;
+        _errorCarga = mensajeDeError(e);
+      });
+    }
   }
 
   Future<void> _sincronizarAhora() async {
-    await SyncScheduler.instancia.sincronizarAhora();
-    await _cargar();
+    try {
+      await SyncScheduler.instancia.sincronizarAhora();
+      await _cargar();
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo sincronizar. ${mensajeDeError(e)}');
+    }
   }
 
   Future<void> _reintentar(OutboxItem item) async {
-    _inspector.reintentar(await DatabaseHelper().database, item.id);
-    await _cargar();
+    try {
+      _inspector.reintentar(await DatabaseHelper().database, item.id);
+      await _cargar();
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo reintentar el envío. ${mensajeDeError(e)}');
+    }
   }
 
   Future<void> _descartar(OutboxItem item) async {
-    final confirmado = await showDialog<bool>(
-      context: context,
-      builder: (_) => CustomAlert(
-        titulo: 'Descartar cambio',
-        mensaje:
-            'Este cambio (${item.entidad} · ${item.operacion}) no llegará a la nube. Esta acción no se puede deshacer. ¿Descartar?',
-        icono: Icons.delete_outline,
-        color: AppColors.error,
-        textoConfirmar: 'Descartar',
-        textoCancelar: 'Cancelar',
-        esDestructivo: true,
-        onConfirm: () => Navigator.pop(context, true),
-        onCancel: () => Navigator.pop(context, false),
-      ),
-    );
-    if (confirmado != true) return;
-    await _inspector.descartar(await DatabaseHelper().database, item.id);
-    await _cargar();
+    try {
+      final confirmado = await showDialog<bool>(
+        context: context,
+        builder: (_) => CustomAlert(
+          titulo: 'Descartar cambio',
+          mensaje:
+              'Este cambio (${item.entidad} · ${item.operacion}) no llegará a la nube. Esta acción no se puede deshacer. ¿Descartar?',
+          icono: Icons.delete_outline,
+          color: AppColors.error,
+          textoConfirmar: 'Descartar',
+          textoCancelar: 'Cancelar',
+          esDestructivo: true,
+          onConfirm: () => Navigator.pop(context, true),
+          onCancel: () => Navigator.pop(context, false),
+        ),
+      );
+      if (confirmado != true) return;
+      await _inspector.descartar(await DatabaseHelper().database, item.id);
+      await _cargar();
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo descartar el pendiente. ${mensajeDeError(e)}');
+    }
   }
 
   @override
@@ -78,8 +118,8 @@ class _SyncProblemasViewState extends State<SyncProblemasView> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: const CustomHeader(titulo: 'Pendientes y problemas de sincronización', mostrarVolver: true),
-      body: _cargando
-          ? const Center(child: CircularProgressIndicator())
+      body: (_cargando || _errorCarga != null)
+          ? EstadoVista(cargando: _cargando, error: _errorCarga, onReintentar: _cargar)
           : Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 720),

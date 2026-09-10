@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../core/utils/mensaje_error.dart';
+import '../widgets/estado_vista.dart';
 import '../core/config/app_config.dart';
 import '../core/licencia/guarda_licencia.dart';
 import '../core/licencia/licencia_service.dart';
@@ -32,6 +35,11 @@ class _ProductosViewState extends State<ProductosView> {
   /// "todavía estoy cargando".
   bool _cargandoVista = true;
 
+  /// Mensaje del último fallo al cargar, o `null`. Con esto la pantalla
+  /// puede decir qué pasó y ofrecer reintentar, en vez de dejar la rueda
+  /// girando para siempre.
+  String? _errorCarga;
+
   final controller = ProductoController();
   final categoriaController = CategoriaController();
 
@@ -61,18 +69,31 @@ class _ProductosViewState extends State<ProductosView> {
     cargar();
   }
 
-  void cargar() async {
-    final data = await controller.obtenerTodos();
-    final cat = await categoriaController.obtenerTodos();
+  // `Future<void>` y no `void`: quien borra necesita esperar a que la
+  // lista se refresque antes de anunciar el éxito.
+  Future<void> cargar() async {
+    if (mounted) setState(() => _errorCarga = null);
+    try {
+      final data = await controller.obtenerTodos();
+      final cat = await categoriaController.obtenerTodos();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      productos = data;
-      filtrados = data;
-      categorias = cat;
-      _cargandoVista = false;
-    });
+      setState(() {
+        productos = data;
+        filtrados = data;
+        categorias = cat;
+        _cargandoVista = false;
+      });
+    } catch (e) {
+      // Sin esto la bandera nunca se apagaba y la rueda giraba para
+      // siempre: el error solo llegaba a la consola.
+      if (!mounted) return;
+      setState(() {
+        _cargandoVista = false;
+        _errorCarga = mensajeDeError(e);
+      });
+    }
   }
 
   void buscar(String query) {
@@ -316,9 +337,14 @@ class _ProductosViewState extends State<ProductosView> {
     );
   }
 
-  void eliminar(int id) async {
+  /// Devuelve un `Future` a propósito: `confirmarAccion` lo espera para saber
+  /// si de verdad se borró. Cuando esto era `void ... async`, el `await` del
+  /// helper regresaba de inmediato y el aviso de "eliminado exitosamente"
+  /// salía ANTES de que la base respondiera -- incluso cuando la base
+  /// rechazaba el borrado por tener registros asociados.
+  Future<void> eliminar(int id) async {
     await controller.eliminar(id);
-    cargar();
+    await cargar();
   }
 
   @override
@@ -340,8 +366,8 @@ class _ProductosViewState extends State<ProductosView> {
 
       appBar: CustomHeader(titulo: "Productos", mostrarVolver: true),
 
-      body: _cargandoVista
-          ? const Center(child: CircularProgressIndicator())
+      body: (_cargandoVista || _errorCarga != null)
+          ? EstadoVista(cargando: _cargandoVista, error: _errorCarga, onReintentar: cargar)
           : Padding(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
 
@@ -413,7 +439,7 @@ class _ProductosViewState extends State<ProductosView> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
 
-                        foregroundColor: Colors.black87,
+                        foregroundColor: AppColors.onPrimary,
 
                         elevation: 0,
 
@@ -471,14 +497,33 @@ class _ProductosViewState extends State<ProductosView> {
               const SizedBox(height: 24),
 
               Expanded(
-                child: GridView.builder(
+                child: filtrados.isEmpty
+                    ? PanelVacio(
+                        icono: Icons.inventory_2_outlined,
+                        // Sin catálogo o sin coincidencias son dos cosas
+                        // distintas, y el mensaje tiene que decir cuál.
+                        mensaje: productos.isEmpty
+                            ? 'Todavía no hay productos'
+                            : 'Ningún producto coincide',
+                        detalle: productos.isEmpty
+                            ? 'Da de alta el primero con el botón de arriba.'
+                            : 'Revisa el nombre, el código de barras o el SKU.',
+                      )
+                    : GridView.builder(
                   itemCount: filtrados.length,
 
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 4,
+                  // Ancho máximo por tarjeta y ALTO FIJO, en vez de cuatro
+                  // columnas con proporción fija. Con `crossAxisCount: 4` la
+                  // celda se angostaba con la ventana y su alto bajaba con
+                  // ella: a 940 px quedaban 197x116 para un contenido que
+                  // necesita ~160 de alto, y la tarjeta salía rayada de
+                  // amarillo y negro. El alto que hace falta no depende del
+                  // ancho, así que se fija y las columnas se acomodan.
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 260,
                     crossAxisSpacing: 18,
                     mainAxisSpacing: 18,
-                    childAspectRatio: 1.7,
+                    mainAxisExtent: 172,
                   ),
 
                   itemBuilder: (_, i) {
@@ -504,6 +549,13 @@ class _ProductosViewState extends State<ProductosView> {
                               Expanded(
                                 child: Text(
                                   p.nombre,
+
+                                  // "Coca Cola 600ml Retornable Pack 12
+                                  // piezas" se partía en tres renglones y
+                                  // empujaba todo lo de abajo fuera de la
+                                  // tarjeta.
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
 
                                   style: const TextStyle(
                                     fontWeight: FontWeight.w800,
@@ -534,9 +586,7 @@ class _ProductosViewState extends State<ProductosView> {
                                                 "¿Seguro que deseas eliminar este producto?",
                                             iconoConfirmar: Icons.warning_amber_rounded,
                                             textoConfirmar: "Eliminar",
-                                            accion: () async {
-                                              eliminar(p.idProducto!);
-                                            },
+                                            accion: () => eliminar(p.idProducto!),
                                             tituloExito: "Producto eliminado",
                                             mensajeExito:
                                                 "El producto ha sido eliminado exitosamente.",

@@ -114,7 +114,7 @@ Future<void> mostrarDescuentoDialog(
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.black,
+                    foregroundColor: AppColors.onPrimary,
                   ),
                   onPressed: (error == null && valor > 0)
                       ? () {

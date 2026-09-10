@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import '../core/theme/app_colors.dart';
+
 import '../core/utils/mensaje_error.dart';
+import '../widgets/estado_vista.dart';
+import '../core/theme/app_colors.dart';
 import '../views/ventas_view.dart';
 import '../controllers/cliente_controller.dart';
 import '../models/cliente_model.dart';
@@ -27,6 +29,11 @@ class _ClientesViewState extends State<ClientesView> {
   /// "todavía estoy cargando".
   bool _cargandoVista = true;
 
+  /// Mensaje del último fallo al cargar, o `null`. Con esto la pantalla
+  /// puede decir qué pasó y ofrecer reintentar, en vez de dejar la rueda
+  /// girando para siempre.
+  String? _errorCarga;
+
   final controller = ClienteController();
 
   List<Cliente> clientes = [];
@@ -40,19 +47,32 @@ class _ClientesViewState extends State<ClientesView> {
     cargar();
   }
 
-  void cargar() async {
-    final data = await controller.obtenerTodos();
+  // `Future<void>` y no `void`: quien borra necesita esperar a que la
+  // lista se refresque antes de anunciar el éxito.
+  Future<void> cargar() async {
+    if (mounted) setState(() => _errorCarga = null);
+    try {
+      final data = await controller.obtenerTodos();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      clientes = data;
-      _cargandoVista = false;
+      setState(() {
+        clientes = data;
+        _cargandoVista = false;
 
-      if (selectedIndex != null && selectedIndex! >= clientes.length) {
-        selectedIndex = null;
-      }
-    });
+        if (selectedIndex != null && selectedIndex! >= clientes.length) {
+          selectedIndex = null;
+        }
+      });
+    } catch (e) {
+      // Sin esto la bandera nunca se apagaba y la rueda giraba para
+      // siempre: el error solo llegaba a la consola.
+      if (!mounted) return;
+      setState(() {
+        _cargandoVista = false;
+        _errorCarga = mensajeDeError(e);
+      });
+    }
   }
 
   void buscar(String query) async {
@@ -73,17 +93,19 @@ class _ClientesViewState extends State<ClientesView> {
     }
   }
 
-  void eliminar(int id) async {
-    // Un cliente con ventas no se puede borrar (FK RESTRICT). El controlador
-    // convierte ese error de SQLite en un mensaje claro -- que antes se
-    // perdía porque aquí no se capturaba nada.
-    try {
-      await controller.eliminar(id);
-      cargar();
-    } catch (e) {
-      if (!mounted) return;
-      Toast.error(context, mensajeDeError(e));
-    }
+  /// Devuelve un `Future` a propósito: `confirmarAccion` lo espera para saber
+  /// si de verdad se borró. Cuando esto era `void ... async`, el `await` del
+  /// helper regresaba de inmediato y el aviso de "eliminado exitosamente"
+  /// salía ANTES de que la base respondiera -- incluso cuando la base
+  /// rechazaba el borrado por tener registros asociados.
+  ///
+  /// El error NO se captura aquí: un cliente con ventas no se puede borrar
+  /// (FK RESTRICT) y `confirmarAccion` ya traduce y muestra ese rechazo.
+  /// Atraparlo también aquí hacía que salieran dos avisos contradictorios,
+  /// uno de éxito y otro de error.
+  Future<void> eliminar(int id) async {
+    await controller.eliminar(id);
+    await cargar();
   }
 
   // FORMULARIO MODAL (crear si [cliente] es null, editar si no)
@@ -161,7 +183,14 @@ class _ClientesViewState extends State<ClientesView> {
           );
         },
       ),
-    );
+    ).whenComplete(() {
+      // Creados por esta función, no por un State: sin esto no se liberan
+      // nunca, tampoco si el diálogo se descarta sin guardar.
+      nombreCtrl.dispose();
+      direccionCtrl.dispose();
+      telefonoCtrl.dispose();
+      correoCtrl.dispose();
+    });
   }
 
   @override
@@ -177,8 +206,8 @@ class _ClientesViewState extends State<ClientesView> {
 
       appBar: CustomHeader(titulo: "Clientes", mostrarVolver: true),
 
-      body: _cargandoVista
-          ? const Center(child: CircularProgressIndicator())
+      body: (_cargandoVista || _errorCarga != null)
+          ? EstadoVista(cargando: _cargandoVista, error: _errorCarga, onReintentar: cargar)
           : Padding(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
 
@@ -314,7 +343,7 @@ class _ClientesViewState extends State<ClientesView> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary,
 
-                            foregroundColor: Colors.black87,
+                            foregroundColor: AppColors.onPrimary,
 
                             elevation: 0,
 
@@ -611,7 +640,7 @@ class _ClientesViewState extends State<ClientesView> {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
 
-              foregroundColor: Colors.black87,
+              foregroundColor: AppColors.onPrimary,
 
               elevation: 0,
 
@@ -660,9 +689,7 @@ class _ClientesViewState extends State<ClientesView> {
     mensajeConfirmar: "¿Seguro que deseas eliminar este cliente?",
     iconoConfirmar: Icons.warning_amber_rounded,
     textoConfirmar: "Eliminar",
-    accion: () async {
-      eliminar(c.idCliente!);
-    },
+    accion: () => eliminar(c.idCliente!),
     tituloExito: "Cliente eliminado",
     mensajeExito: "El cliente ha sido eliminado exitosamente.",
   ),

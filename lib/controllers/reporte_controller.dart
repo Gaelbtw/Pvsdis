@@ -4,6 +4,7 @@ import '../core/database/database_helper.dart';
 import '../core/utils/motivo_ajuste_inventario.dart';
 import '../core/utils/pagos_mixtos.dart';
 import 'cuentas_por_pagar_controller.dart';
+import '../core/utils/money.dart';
 
 /// Resumen de ventas para un rango de fechas: totales + top productos +
 /// listado reciente. Mismas columnas que ya consumía `reporte_view.dart`.
@@ -61,7 +62,7 @@ class ReporteUtilidadResumen {
     required this.porProducto,
   });
 
-  double get utilidad => ingresos - costos;
+  double get utilidad => redondearMoneda(ingresos - costos);
 
   /// Margen sobre el ingreso, en porcentaje. `0` si no hubo ingresos (evita
   /// una división por cero que se mostraría como NaN).
@@ -425,13 +426,19 @@ class ReporteController {
     // tercera consulta: así el encabezado NUNCA puede contradecir a la tabla
     // que tiene debajo (un riesgo real si dos consultas divergen al editar
     // una y olvidar la otra).
+    // Se redondea en CADA paso, no solo al final: es la regla del proyecto
+    // (ver `money.dart`) y este archivo era el único financiero que no la
+    // seguía. Sumando cientos de filas sin redondear, el encabezado podía
+    // diferir en centavos de la suma de la tabla que tiene debajo -- justo lo
+    // que el comentario de arriba dice querer evitar.
     var ingresos = 0.0;
     var costos = 0.0;
     var devoluciones = 0.0;
     for (final fila in porProducto) {
-      ingresos += (fila['ingresos'] as num?)?.toDouble() ?? 0;
-      costos += (fila['costos'] as num?)?.toDouble() ?? 0;
-      devoluciones += (fila['devoluciones'] as num?)?.toDouble() ?? 0;
+      ingresos = redondearMoneda(ingresos + ((fila['ingresos'] as num?)?.toDouble() ?? 0));
+      costos = redondearMoneda(costos + ((fila['costos'] as num?)?.toDouble() ?? 0));
+      devoluciones =
+          redondearMoneda(devoluciones + ((fila['devoluciones'] as num?)?.toDouble() ?? 0));
     }
 
     return ReporteUtilidadResumen(
@@ -686,13 +693,22 @@ class ReporteController {
       totales[metodo] = (totales[metodo] ?? 0) + (row['total'] as num).toDouble();
     }
 
+    // Las devoluciones se filtran por usuario igual que las ventas.
+    //
+    // Antes no: al pedir el reporte de UN cajero se le restaban las
+    // devoluciones de TODA la tienda. Un cajero con $800 vendidos en efectivo
+    // cargaba con la cancelación de $2,000 que hizo otro en la caja de al
+    // lado, y su reporte salía en ceros.
+    final filtroUsuarioDevoluciones =
+        filtrarPorUsuario ? 'AND Devoluciones.id_usuario = ?' : '';
     final devolucionesRes = await db.rawQuery(
       '''
       SELECT IFNULL(SUM(Devoluciones.importe), 0) as total
       FROM Devoluciones
       WHERE date(Devoluciones.fecha_hora) BETWEEN date(?) AND date(?)
+      $filtroUsuarioDevoluciones
       ''',
-      [fechaInicio, fechaFin],
+      params,
     );
     final devoluciones = (devolucionesRes.first['total'] as num).toDouble();
 
@@ -700,8 +716,16 @@ class ReporteController {
       esMetodoEfectivo,
       orElse: () => 'Efectivo',
     );
-    totales[claveEfectivo] = (totales[claveEfectivo] ?? 0) - devoluciones;
-    if (totales[claveEfectivo]! < 0) totales[claveEfectivo] = 0;
+
+    // El resultado NO se aplasta a cero cuando sale negativo.
+    //
+    // Aplastarlo convertía un dato que no cuadra en un día que parece sin
+    // ventas, que es la peor mentira posible en un reporte de dinero: se ve
+    // normal. Un negativo aquí es información real -- se devolvió más
+    // efectivo del que entró, algo que pasa de verdad cuando se cancela una
+    // venta de ayer -- y quien lo lea tiene que poder verlo para investigarlo.
+    totales[claveEfectivo] =
+        redondearMoneda((totales[claveEfectivo] ?? 0) - devoluciones);
 
     return totales;
   }
@@ -864,7 +888,10 @@ class ReporteController {
       [fechaInicio, fechaFin],
     );
 
-    final ahorroTotal = filas.fold<double>(0, (s, f) => s + (f['ahorro'] as num).toDouble());
+    final ahorroTotal = filas.fold<double>(
+      0,
+      (s, f) => redondearMoneda(s + (f['ahorro'] as num).toDouble()),
+    );
 
     return ReportePromocionesResumen(ahorroTotal: ahorroTotal, porPromocion: filas);
   }

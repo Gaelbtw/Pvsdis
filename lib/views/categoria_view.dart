@@ -20,6 +20,13 @@ class CategoriasView extends StatefulWidget {
 class _CategoriasViewState extends State<CategoriasView> {
   final controller = CategoriaController();
 
+  /// Campo de alta rápida del encabezado. Existía en pantalla desde siempre
+  /// pero sin controlador ni acción: era decorativo. Quien escribía ahí el
+  /// nombre y presionaba Enter no obtenía nada, y lo intentaba dos o tres
+  /// veces antes de encontrar el botón que sí abre el formulario.
+  final _nuevaCtrl = TextEditingController();
+  final _nuevaFoco = FocusNode();
+
   List<Categoria> categorias = [];
 
   @override
@@ -28,26 +35,62 @@ class _CategoriasViewState extends State<CategoriasView> {
     cargar();
   }
 
-  void cargar() async {
-    final data = await controller.obtenerTodos();
-
-    if (!mounted) return;
-
-    setState(() {
-      categorias = data;
-    });
+  @override
+  void dispose() {
+    _nuevaCtrl.dispose();
+    _nuevaFoco.dispose();
+    super.dispose();
   }
 
-  void eliminar(int id) async {
-    // El controlador ya traduce el fallo de llave foránea a un mensaje
-    // legible; sin este try ese mensaje nunca llegaba a la pantalla.
+  /// Alta desde el campo del encabezado. Deja el foco donde está y limpia el
+  /// campo, porque las categorías se dan de alta en tandas: al montar la
+  /// tienda se capturan diez seguidas, y abrir un diálogo para cada una es
+  /// diez veces el mismo viaje.
+  Future<void> _altaRapida() async {
+    final nombre = _nuevaCtrl.text.trim();
+    if (nombre.isEmpty) return;
+
     try {
-      await controller.eliminar(id);
-      cargar();
+      await controller.insertar(Categoria(nombre: nombre));
     } catch (e) {
       if (!mounted) return;
       Toast.error(context, mensajeDeError(e));
+      return;
     }
+
+    if (!mounted) return;
+    _nuevaCtrl.clear();
+    _nuevaFoco.requestFocus();
+    cargar();
+    Toast.exito(context, 'Categoría "$nombre" agregada');
+  }
+
+  void cargar() async {
+    try {
+      final data = await controller.obtenerTodos();
+
+      if (!mounted) return;
+
+      setState(() {
+        categorias = data;
+      });
+    } catch (e) {
+      // Sin este `catch`, un fallo de la consulta se tragaba en silencio: la
+      // lista quedaba vacía y la pantalla decía "no hay nada registrado", que
+      // es distinto de "no se pudo leer". Alguien daba de alta un registro que
+      // ya existía.
+      if (!mounted) return;
+      Toast.error(context, mensajeDeError(e));
+    }
+  }
+
+  /// Devuelve un `Future` a propósito: `confirmarAccion` lo espera para saber
+  /// si de verdad se borró, y ya traduce y muestra el rechazo por llave
+  /// foránea. Con `void ... async` el aviso de éxito salía antes de que la
+  /// base respondiera, aunque el borrado se hubiera rechazado.
+  Future<void> eliminar(int id) async {
+    await controller.eliminar(id);
+    cargar();
   }
 
   void mostrarFormulario({Categoria? categoria}) {
@@ -168,8 +211,12 @@ class _CategoriasViewState extends State<CategoriasView> {
                     width: 320,
 
                     child: TextField(
+                      controller: _nuevaCtrl,
+                      focusNode: _nuevaFoco,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _altaRapida(),
                       decoration: InputDecoration(
-                        hintText: "Nueva categoría",
+                        hintText: "Nueva categoría y Enter",
 
                         prefixIcon: const Icon(Icons.category_outlined),
 
@@ -198,7 +245,7 @@ class _CategoriasViewState extends State<CategoriasView> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
 
-                      foregroundColor: Colors.black87,
+                      foregroundColor: AppColors.onPrimary,
 
                       elevation: 0,
 
@@ -325,9 +372,7 @@ class _CategoriasViewState extends State<CategoriasView> {
                                                 "¿Seguro que deseas eliminar esta categoría?",
                                             iconoConfirmar: Icons.warning_amber_rounded,
                                             textoConfirmar: "Eliminar",
-                                            accion: () async {
-                                              eliminar(c.idCategoria!);
-                                            },
+                                            accion: () => eliminar(c.idCategoria!),
                                             tituloExito: "Categoría eliminada",
                                             mensajeExito:
                                                 "La categoría ha sido eliminada exitosamente.",

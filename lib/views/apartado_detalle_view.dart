@@ -2,6 +2,9 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../core/utils/mensaje_error.dart';
+import '../widgets/estado_vista.dart';
+
 import '../controllers/apartados_controller.dart';
 import '../core/theme/app_colors.dart';
 import '../core/config/app_config.dart';
@@ -30,6 +33,11 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
   Map<String, dynamic>? _detalle;
   bool _cargando = true;
 
+  /// Mensaje del último fallo al cargar, o `null`. Con esto la pantalla
+  /// puede decir qué pasó y ofrecer reintentar, en vez de dejar la rueda
+  /// girando para siempre.
+  String? _errorCarga;
+
   @override
   void initState() {
     super.initState();
@@ -37,13 +45,24 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
   }
 
   Future<void> _cargar() async {
-    setState(() => _cargando = true);
-    final detalle = await _controller.obtenerDetalle(widget.idApartado);
-    if (!mounted) return;
-    setState(() {
-      _detalle = detalle;
-      _cargando = false;
-    });
+    if (mounted) setState(() => _errorCarga = null);
+    try {
+      setState(() => _cargando = true);
+      final detalle = await _controller.obtenerDetalle(widget.idApartado);
+      if (!mounted) return;
+      setState(() {
+        _detalle = detalle;
+        _cargando = false;
+      });
+    } catch (e) {
+      // Sin esto la bandera nunca se apagaba y la rueda giraba para
+      // siempre: el error solo llegaba a la consola.
+      if (!mounted) return;
+      setState(() {
+        _cargando = false;
+        _errorCarga = mensajeDeError(e);
+      });
+    }
   }
 
   double get _saldoPendiente => (_detalle!['saldo_pendiente'] as num).toDouble();
@@ -158,7 +177,21 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
         await _controller.registrarAbono(idApartado: widget.idApartado, montoAbono: monto, pagos: pagos);
       }
 
-      await _imprimirRecibo(montoAbono: monto, pagos: pagos, cambio: resultado.cambio);
+      // Imprimir va en su PROPIO try, después de que el pago ya se registró.
+      //
+      // Antes iba dentro de este mismo bloque: con la impresora sin papel, el
+      // abono quedaba guardado pero el cajero leía "No se pudo procesar el
+      // pago", la pantalla no se refrescaba, y el cliente podía terminar
+      // pagando dos veces. Un papel que no salió no deshace un cobro.
+      try {
+        await _imprimirRecibo(montoAbono: monto, pagos: pagos, cambio: resultado.cambio);
+      } catch (e) {
+        if (mounted) {
+          Toast.error(context, 'El pago quedó registrado, pero no se pudo '
+              'imprimir el recibo. ${mensajeDeError(e)}');
+        }
+      }
+
       await _cargar();
 
       if (!mounted) return;
@@ -202,48 +235,53 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
   }
 
   Future<void> _cancelar() async {
-    final motivoCtrl = TextEditingController();
+    try {
+      final motivoCtrl = TextEditingController();
 
-    final motivo = await showDialog<String>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Cancelar apartado'),
-        content: TextField(
-          controller: motivoCtrl,
-          decoration: const InputDecoration(hintText: 'Motivo de la cancelación'),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, motivoCtrl.text),
-            child: const Text('Continuar'),
+      final motivo = await showDialog<String>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Cancelar apartado'),
+          content: TextField(
+            controller: motivoCtrl,
+            decoration: const InputDecoration(hintText: 'Motivo de la cancelación'),
+            autofocus: true,
           ),
-        ],
-      ),
-    ).whenComplete(() {
-      // Creados por esta función, no por un State: sin esto no se
-      // liberan nunca (tampoco si el diálogo se descarta sin guardar).
-      motivoCtrl.dispose();
-    });
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, motivoCtrl.text),
+              child: const Text('Continuar'),
+            ),
+          ],
+        ),
+      ).whenComplete(() {
+        // Creados por esta función, no por un State: sin esto no se
+        // liberan nunca (tampoco si el diálogo se descarta sin guardar).
+        motivoCtrl.dispose();
+      });
 
-    if (motivo == null || motivo.trim().isEmpty || !mounted) return;
+      if (motivo == null || motivo.trim().isEmpty || !mounted) return;
 
-    await confirmarAccion(
-      context: context,
-      tituloConfirmar: 'Cancelar apartado',
-      mensajeConfirmar:
-          '¿Seguro que deseas cancelar este apartado? El inventario reservado se liberará. '
-          'Si el cliente ya pagó abonos, el reembolso (si aplica) se maneja fuera del sistema.',
-      iconoConfirmar: Icons.warning_amber_rounded,
-      textoConfirmar: 'Cancelar apartado',
-      accion: () async {
-        await _controller.cancelar(idApartado: widget.idApartado, motivo: motivo.trim());
-        await _cargar();
-      },
-      tituloExito: 'Apartado cancelado',
-      mensajeExito: 'Apartado cancelado y el inventario reservado fue liberado.',
-    );
+      await confirmarAccion(
+        context: context,
+        tituloConfirmar: 'Cancelar apartado',
+        mensajeConfirmar:
+            '¿Seguro que deseas cancelar este apartado? El inventario reservado se liberará. '
+            'Si el cliente ya pagó abonos, el reembolso (si aplica) se maneja fuera del sistema.',
+        iconoConfirmar: Icons.warning_amber_rounded,
+        textoConfirmar: 'Cancelar apartado',
+        accion: () async {
+          await _controller.cancelar(idApartado: widget.idApartado, motivo: motivo.trim());
+          await _cargar();
+        },
+        tituloExito: 'Apartado cancelado',
+        mensajeExito: 'Apartado cancelado y el inventario reservado fue liberado.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo cancelar el apartado. ${mensajeDeError(e)}');
+    }
   }
 
   @override
@@ -251,8 +289,8 @@ class _ApartadoDetalleViewState extends State<ApartadoDetalleView> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: CustomHeader(titulo: 'Apartado #${widget.idApartado}', mostrarVolver: true),
-      body: _cargando
-          ? const Center(child: CircularProgressIndicator())
+      body: (_cargando || _errorCarga != null)
+          ? EstadoVista(cargando: _cargando, error: _errorCarga, onReintentar: _cargar)
           : _buildContenido(),
     );
   }

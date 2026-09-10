@@ -2,6 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../widgets/toast.dart';
+
+import '../core/utils/mensaje_error.dart';
+
 import '../controllers/auditoria_controller.dart';
 import '../controllers/caja_controller.dart';
 import '../controllers/producto_controller.dart';
@@ -180,38 +184,43 @@ class _HomeViewState extends State<HomeView> {
   }
 
   Future<void> _cerrarSesion() async {
-    // Si el usuario tiene una caja abierta, primero debe hacer el corte de
-    // caja: no se le deja cerrar sesión (ni cambiar de cuenta) con el efectivo
-    // sin cuadrar. Este aviso SÍ es importante y se mantiene como modal.
-    final idUsuario = SessionManager.currentUserId;
-    if (idUsuario != null) {
-      final caja = await _caja.obtenerCajaAbierta(idUsuario);
-      if (caja != null) {
-        if (!mounted) return;
-        showDialog(
-          context: context,
-          builder: (_) => CustomAlert(
-            titulo: 'Tienes una caja abierta',
-            mensaje: 'Antes de cerrar sesión debes hacer el corte de caja.',
-            icono: Icons.point_of_sale_outlined,
-            color: AppColors.warning,
-            textoCancelar: 'Ahora no',
-            textoConfirmar: 'Ir a caja',
-            onConfirm: () => _abrir((_) => const CajaView()),
-          ),
-        );
-        return;
+    try {
+      // Si el usuario tiene una caja abierta, primero debe hacer el corte de
+      // caja: no se le deja cerrar sesión (ni cambiar de cuenta) con el efectivo
+      // sin cuadrar. Este aviso SÍ es importante y se mantiene como modal.
+      final idUsuario = SessionManager.currentUserId;
+      if (idUsuario != null) {
+        final caja = await _caja.obtenerCajaAbierta(idUsuario);
+        if (caja != null) {
+          if (!mounted) return;
+          showDialog(
+            context: context,
+            builder: (_) => CustomAlert(
+              titulo: 'Tienes una caja abierta',
+              mensaje: 'Antes de cerrar sesión debes hacer el corte de caja.',
+              icono: Icons.point_of_sale_outlined,
+              color: AppColors.warning,
+              textoCancelar: 'Ahora no',
+              textoConfirmar: 'Ir a caja',
+              onConfirm: () => _abrir((_) => const CajaView()),
+            ),
+          );
+          return;
+        }
       }
-    }
 
-    await AuditoriaController().registrar(tabla: 'Sesion', accion: 'LOGOUT', descripcion: 'Cierre de sesión');
-    SessionManager.clear();
-    // La matriz cargada en memoria pertenece al usuario que se va: si no se
-    // descarta, el siguiente login la hereda hasta que `cargar()` la
-    // reemplace.
-    PermisosService.instancia.limpiar();
-    if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginView()), (r) => false);
+      await AuditoriaController().registrar(tabla: 'Sesion', accion: 'LOGOUT', descripcion: 'Cierre de sesión');
+      SessionManager.clear();
+      // La matriz cargada en memoria pertenece al usuario que se va: si no se
+      // descarta, el siguiente login la hereda hasta que `cargar()` la
+      // reemplace.
+      PermisosService.instancia.limpiar();
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginView()), (r) => false);
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo cerrar la sesión. ${mensajeDeError(e)}');
+    }
   }
 
   List<_Modulo> get _modulos => _esAdmin

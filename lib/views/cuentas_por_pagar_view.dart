@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../core/utils/mensaje_error.dart';
+import '../widgets/estado_vista.dart';
+
 import '../controllers/cuentas_por_pagar_controller.dart';
 import '../controllers/proveedor_controller.dart';
 import '../core/session/session_manager.dart';
@@ -32,6 +35,15 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
   final _proveedorController = ProveedorController();
 
   bool cargando = true;
+
+
+  /// Mensaje del último fallo al cargar, o `null`. Con esto la pantalla
+
+  /// puede decir qué pasó y ofrecer reintentar, en vez de dejar la rueda
+
+  /// girando para siempre.
+
+  String? _errorCarga;
   double deudaTotal = 0;
   List<Map<String, dynamic>> cuentas = [];
   List<Proveedores> proveedores = [];
@@ -52,27 +64,38 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
   }
 
   Future<void> _cargar() async {
-    setState(() => cargando = true);
+    if (mounted) setState(() => _errorCarga = null);
+    try {
+      setState(() => cargando = true);
 
-    final resultados = await Future.wait([
-      _proveedorController.obtenerTodos(),
-      _controller.deudaTotal(),
-      _controller.obtenerCuentas(
-        idProveedor: filtroProveedorId,
-        estado: filtroEstado == 'Todas' ? null : filtroEstado,
-        desde: filtroDesde,
-        hasta: filtroHasta,
-        soloVencidas: soloVencidas,
-      ),
-    ]);
+      final resultados = await Future.wait([
+        _proveedorController.obtenerTodos(),
+        _controller.deudaTotal(),
+        _controller.obtenerCuentas(
+          idProveedor: filtroProveedorId,
+          estado: filtroEstado == 'Todas' ? null : filtroEstado,
+          desde: filtroDesde,
+          hasta: filtroHasta,
+          soloVencidas: soloVencidas,
+        ),
+      ]);
 
-    if (!mounted) return;
-    setState(() {
-      proveedores = resultados[0] as List<Proveedores>;
-      deudaTotal = resultados[1] as double;
-      cuentas = resultados[2] as List<Map<String, dynamic>>;
-      cargando = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        proveedores = resultados[0] as List<Proveedores>;
+        deudaTotal = resultados[1] as double;
+        cuentas = resultados[2] as List<Map<String, dynamic>>;
+        cargando = false;
+      });
+    } catch (e) {
+      // Sin esto la bandera nunca se apagaba y la rueda giraba para
+      // siempre: el error solo llegaba a la consola.
+      if (!mounted) return;
+      setState(() {
+        cargando = false;
+        _errorCarga = mensajeDeError(e);
+      });
+    }
   }
 
   @override
@@ -97,8 +120,8 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: const CustomHeader(titulo: "Cuentas por pagar", mostrarVolver: true),
-      body: cargando
-          ? const Center(child: CircularProgressIndicator())
+      body: (cargando || _errorCarga != null)
+          ? EstadoVista(cargando: cargando, error: _errorCarga, onReintentar: _cargar)
           : Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
               child: Container(
@@ -265,7 +288,7 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
       firstDate: desde,
       lastDate: DateTime.now(),
     );
-    if (hasta == null) return;
+    if (hasta == null || !mounted) return;
 
     setState(() {
       filtroDesde = desde;
@@ -416,43 +439,48 @@ class _CuentasPorPagarViewState extends State<CuentasPorPagarView> {
   }
 
   Future<void> _mostrarHistorial(int idCompra, String proveedor) async {
-    final historial = await _controller.obtenerHistorialPagos(idCompra);
+    try {
+      final historial = await _controller.obtenerHistorialPagos(idCompra);
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: Text('Historial de pagos · $proveedor'),
-        content: SizedBox(
-          width: 420,
-          child: historial.isEmpty
-              ? const Text('Todavía no hay abonos registrados para esta compra.')
-              : ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: historial.length,
-                  separatorBuilder: (_, _) => const Divider(),
-                  itemBuilder: (_, i) {
-                    final abono = historial[i];
-                    final fecha = DateTime.tryParse(abono['fecha']?.toString() ?? '');
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text('${AppConfig.formatoMoneda((abono['monto'] as num))}'
-                          '  ·  ${abono['metodos'] ?? ''}'),
-                      subtitle: Text(
-                        '${fecha == null ? '' : _formatDate(fecha)}'
-                        '${abono['usuario'] == null ? '' : '  ·  ${abono['usuario']}'}'
-                        '${abono['referencia'] == null ? '' : '  ·  Ref: ${abono['referencia']}'}',
-                      ),
-                    );
-                  },
-                ),
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: Text('Historial de pagos · $proveedor'),
+          content: SizedBox(
+            width: 420,
+            child: historial.isEmpty
+                ? const Text('Todavía no hay abonos registrados para esta compra.')
+                : ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: historial.length,
+                    separatorBuilder: (_, _) => const Divider(),
+                    itemBuilder: (_, i) {
+                      final abono = historial[i];
+                      final fecha = DateTime.tryParse(abono['fecha']?.toString() ?? '');
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('${AppConfig.formatoMoneda((abono['monto'] as num))}'
+                            '  ·  ${abono['metodos'] ?? ''}'),
+                        subtitle: Text(
+                          '${fecha == null ? '' : _formatDate(fecha)}'
+                          '${abono['usuario'] == null ? '' : '  ·  ${abono['usuario']}'}'
+                          '${abono['referencia'] == null ? '' : '  ·  Ref: ${abono['referencia']}'}',
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
-        ],
-      ),
-    );
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo abrir el historial de pagos. ${mensajeDeError(e)}');
+    }
   }
 
   Future<void> _mostrarDialogoAbono(int idCompra, String proveedor, double saldoPendiente) async {

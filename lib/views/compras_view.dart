@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../core/utils/mensaje_error.dart';
+import '../widgets/estado_vista.dart';
 import '../core/theme/app_colors.dart';
 import '../core/config/app_config.dart';
 import '../core/utils/pagos_mixtos.dart';
@@ -39,6 +42,11 @@ class _ComprasViewState extends State<ComprasView> {
   String busqueda = "";
   bool cargando = true;
 
+  /// Mensaje del último fallo al cargar, o `null`. Con esto la pantalla
+  /// puede decir qué pasó y ofrecer reintentar, en vez de dejar la rueda
+  /// girando para siempre.
+  String? _errorCarga;
+
   // 💳 Forma de pago de la compra (de contado no es un caso especial: es
   // simplemente un pago inicial igual al total; a crédito puede llevar un
   // pago inicial parcial, o ninguno).
@@ -55,16 +63,27 @@ class _ComprasViewState extends State<ComprasView> {
   }
 
   Future<void> cargarDatos() async {
-    productos = await productoController.obtenerProductosConPrecioCompra();
-    proveedores = await proveedorController.obtenerTodos();
+    if (mounted) setState(() => _errorCarga = null);
+    try {
+      productos = await productoController.obtenerProductosConPrecioCompra();
+      proveedores = await proveedorController.obtenerTodos();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      _nombresBusqueda = [for (final p in productos) p.nombre.toLowerCase()];
-      _recalcularFiltro();
-      cargando = false;
-    });
+      setState(() {
+        _nombresBusqueda = [for (final p in productos) p.nombre.toLowerCase()];
+        _recalcularFiltro();
+        cargando = false;
+      });
+    } catch (e) {
+      // Sin esto la bandera nunca se apagaba y la rueda giraba para
+      // siempre: el error solo llegaba a la consola.
+      if (!mounted) return;
+      setState(() {
+        cargando = false;
+        _errorCarga = mensajeDeError(e);
+      });
+    }
   }
 
   // 🟢 AGREGAR PRODUCTO
@@ -150,7 +169,18 @@ class _ComprasViewState extends State<ComprasView> {
         pagosIniciales: pagosIniciales,
       );
 
-      await imprimirTicket();
+      // En su propio try: la compra YA se guardó. Antes, un fallo de la
+      // impresora caía en el catch de abajo, el carrito no se limpiaba y el
+      // usuario volvía a registrar la misma compra -- duplicando el
+      // inventario y la cuenta por pagar.
+      try {
+        await imprimirTicket();
+      } catch (e) {
+        if (mounted) {
+          Toast.error(context, 'La compra quedó registrada, pero no se pudo '
+              'imprimir el ticket. ${mensajeDeError(e)}');
+        }
+      }
 
       if (!mounted) return;
       setState(() {
@@ -187,8 +217,8 @@ class _ComprasViewState extends State<ComprasView> {
 
       appBar: const CustomHeader(titulo: "Compras", mostrarVolver: true),
 
-      body: cargando
-          ? const Center(child: CircularProgressIndicator())
+      body: (cargando || _errorCarga != null)
+          ? EstadoVista(cargando: cargando, error: _errorCarga, onReintentar: cargarDatos)
           : Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
 
@@ -687,7 +717,7 @@ class _ComprasViewState extends State<ComprasView> {
 
                                 backgroundColor: AppColors.primary,
 
-                                foregroundColor: Colors.black,
+                                foregroundColor: AppColors.onPrimary,
 
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(AppRadius.md),

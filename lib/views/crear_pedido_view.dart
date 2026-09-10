@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+
+import '../core/utils/mensaje_error.dart';
+
+import '../widgets/estado_vista.dart';
 import '../core/theme/app_colors.dart';
 import '../core/config/app_config.dart';
 import '../controllers/pedidos_controller.dart';
@@ -45,13 +49,22 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
   }
 
   Future<void> cargarProductos() async {
-    final prods = await productoService.obtenerTodos();
-    final stock = await productoService.obtenerStockMap();
-    if (!mounted) return;
-    setState(() {
-      productos = prods;
-      _stock = stock;
-    });
+    try {
+      final prods = await productoService.obtenerTodos();
+      final stock = await productoService.obtenerStockMap();
+      if (!mounted) return;
+      setState(() {
+        productos = prods;
+        _stock = stock;
+      });
+    } catch (e) {
+      // Sin este `catch`, un fallo de la consulta se tragaba en silencio: la
+      // lista quedaba vacía y la pantalla decía "no hay nada registrado", que
+      // es distinto de "no se pudo leer". Alguien daba de alta un registro que
+      // ya existía.
+      if (!mounted) return;
+      Toast.error(context, mensajeDeError(e));
+    }
   }
 
   void agregarProducto(Producto producto) {
@@ -101,47 +114,52 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
   }
 
   Future<void> guardarPedido() async {
-    if (widget.idCliente == null) {
-      Toast.error(context, 'Selecciona un cliente para el pedido.');
-      return;
+    try {
+      if (widget.idCliente == null) {
+        Toast.error(context, 'Selecciona un cliente para el pedido.');
+        return;
+      }
+
+      if (carrito.isEmpty) {
+        Toast.error(context, 'Agrega productos al pedido.');
+        return;
+      }
+
+      if (_fechaEntrega == null) {
+        Toast.error(context, 'Selecciona una fecha de entrega.');
+        return;
+      }
+
+      if (tipoEntrega == 'Domicilio' && direccionCtrl.text.trim().isEmpty) {
+        Toast.error(context, 'Ingresa la dirección de entrega.');
+        return;
+      }
+
+      final fechaStr =
+          '${_fechaEntrega!.day}/${_fechaEntrega!.month}/${_fechaEntrega!.year}';
+
+      final pedido = Pedidos(
+        idCliente: widget.idCliente!,
+        fecha: DateTime.now().toIso8601String(),
+        fechaEntrega: fechaStr,
+        tipoEntrega: tipoEntrega,
+        estado: 'Pendiente',
+        total: total,
+        direccion:
+            tipoEntrega == 'Domicilio' ? direccionCtrl.text.trim() : null,
+      );
+
+      await controller.crearPedidoCompleto(pedido, _carrito.paraGuardar());
+
+      if (!mounted) return;
+
+      Toast.exito(context, 'Pedido guardado correctamente');
+      Navigator.pop(context);
+      Navigator.pop(context);
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo guardar el pedido. ${mensajeDeError(e)}');
     }
-
-    if (carrito.isEmpty) {
-      Toast.error(context, 'Agrega productos al pedido.');
-      return;
-    }
-
-    if (_fechaEntrega == null) {
-      Toast.error(context, 'Selecciona una fecha de entrega.');
-      return;
-    }
-
-    if (tipoEntrega == 'Domicilio' && direccionCtrl.text.trim().isEmpty) {
-      Toast.error(context, 'Ingresa la dirección de entrega.');
-      return;
-    }
-
-    final fechaStr =
-        '${_fechaEntrega!.day}/${_fechaEntrega!.month}/${_fechaEntrega!.year}';
-
-    final pedido = Pedidos(
-      idCliente: widget.idCliente!,
-      fecha: DateTime.now().toIso8601String(),
-      fechaEntrega: fechaStr,
-      tipoEntrega: tipoEntrega,
-      estado: 'Pendiente',
-      total: total,
-      direccion:
-          tipoEntrega == 'Domicilio' ? direccionCtrl.text.trim() : null,
-    );
-
-    await controller.crearPedidoCompleto(pedido, _carrito.paraGuardar());
-
-    if (!mounted) return;
-
-    Toast.exito(context, 'Pedido guardado correctamente');
-    Navigator.pop(context);
-    Navigator.pop(context);
   }
 
   @override
@@ -261,6 +279,16 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
 
                     const SizedBox(height: 20),
 
+                    if (productos.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 40),
+                        child: PanelVacio(
+                          icono: Icons.search_off_outlined,
+                          mensaje: 'Ningún producto coincide',
+                          detalle: 'Revisa el nombre o prueba con el código.',
+                        ),
+                      )
+                    else
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -535,7 +563,7 @@ class _CrearPedidoViewState extends State<CrearPedidoView> {
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.black,
+                        foregroundColor: AppColors.onPrimary,
                         padding: const EdgeInsets.symmetric(vertical: 18),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(AppRadius.md),

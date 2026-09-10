@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/toast.dart';
+
+import '../core/utils/mensaje_error.dart';
+
 import '../controllers/devoluciones_controller.dart';
 import '../core/config/app_config.dart';
 import '../core/security/permisos.dart';
@@ -42,16 +46,22 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
   }
 
   Future<void> _cargar() async {
-    setState(() => cargando = true);
+    try {
+      setState(() => cargando = true);
 
-    final d = await _controller.obtenerDetalleVenta(widget.idVenta);
+      final d = await _controller.obtenerDetalleVenta(widget.idVenta);
 
-    if (!mounted) return;
-    setState(() {
-      detalle = d;
-      seleccion.clear();
-      cargando = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        detalle = d;
+        seleccion.clear();
+        cargando = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => cargando = false);
+      Toast.error(context, 'No se pudo cargar el detalle de la venta. ${mensajeDeError(e)}');
+    }
   }
 
   int get totalUnidadesSeleccionadas =>
@@ -248,10 +258,19 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
         icono: Icons.check_circle_outline,
         textoCancelar: 'Cerrar',
         textoConfirmar: 'Imprimir',
+        // `onConfirm` se dispara sin que nadie espere su Future: sin este
+        // try, un fallo de impresión se perdía como error asíncrono no
+        // atendido y el usuario no veía absolutamente nada.
         onConfirm: () async {
-          final comprobante = await _controller.obtenerComprobante(idDevolucion);
-          final pdf = await TicketDevolucionService.generarTicket(comprobante);
-          await ImpresionService.imprimir(pdf);
+          try {
+            final comprobante = await _controller.obtenerComprobante(idDevolucion);
+            final pdf = await TicketDevolucionService.generarTicket(comprobante);
+            await ImpresionService.imprimir(pdf);
+          } catch (e) {
+            if (!mounted) return;
+            Toast.error(context, 'La devolución quedó registrada, pero no se '
+                'pudo imprimir el comprobante. ${mensajeDeError(e)}');
+          }
         },
       ),
     );
@@ -593,7 +612,7 @@ class _DetalleVentaViewState extends State<DetalleVentaView> {
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
-              foregroundColor: Colors.black,
+              foregroundColor: AppColors.onPrimary,
               elevation: 0,
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),

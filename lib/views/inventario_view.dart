@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+
+import '../widgets/toast.dart';
+
+import '../core/utils/mensaje_error.dart';
+import '../widgets/estado_vista.dart';
 import '../core/theme/app_colors.dart';
 import '../controllers/auditoria_controller.dart';
 import '../controllers/producto_controller.dart';
@@ -35,6 +40,15 @@ class _InventarioViewState extends State<InventarioView> {
 
   bool cargando = true;
 
+
+  /// Mensaje del último fallo al cargar, o `null`. Con esto la pantalla
+
+  /// puede decir qué pasó y ofrecer reintentar, en vez de dejar la rueda
+
+  /// girando para siempre.
+
+  String? _errorCarga;
+
   List<Map<String, dynamic>> productos = [];
   List<Categoria> categorias = [];
   List<Auditoria> cambios = [];
@@ -60,26 +74,42 @@ class _InventarioViewState extends State<InventarioView> {
   }
 
   Future<void> inicializar() async {
-    config = await ConfiguracionService().obtener();
+    if (mounted) setState(() => _errorCarga = null);
+    try {
+      config = await ConfiguracionService().obtener();
 
-    await cargarTodo();
+      await cargarTodo();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      cargando = false;
-    });
+      setState(() {
+        cargando = false;
+      });
+    } catch (e) {
+      // Sin esto la bandera nunca se apagaba y la rueda giraba para
+      // siempre: el error solo llegaba a la consola.
+      if (!mounted) return;
+      setState(() {
+        cargando = false;
+        _errorCarga = mensajeDeError(e);
+      });
+    }
   }
 
   Future<void> cargarTodo() async {
-    final prod = await productoController.obtenerConStock();
-    final cat = await categoriaController.obtenerTodos();
-    final audit =
-        await auditoriaController.obtenerPorTablas(['Productos', 'Inventario']);
+    try {
+      final prod = await productoController.obtenerConStock();
+      final cat = await categoriaController.obtenerTodos();
+      final audit =
+          await auditoriaController.obtenerPorTablas(['Productos', 'Inventario']);
 
-    productos = prod;
-    categorias = cat;
-    cambios = audit;
+      productos = prod;
+      categorias = cat;
+      cambios = audit;
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo cargar el inventario. ${mensajeDeError(e)}');
+    }
   }
 
   List<Map<String, dynamic>> get filtrados {
@@ -117,17 +147,22 @@ class _InventarioViewState extends State<InventarioView> {
   }
 
   Future<void> mostrarCambiosInventario() async {
-    await cargarTodo();
-    if (!mounted) return;
-    setState(() {});
+    try {
+      await cargarTodo();
+      if (!mounted) return;
+      setState(() {});
 
-    if (!mounted) return;
-    await mostrarHistorialCambios(
-      context,
-      titulo: "Cambios de inventario",
-      subtitulo: "Consulta quién creó, modificó o eliminó productos e inventario.",
-      cambios: cambios,
-    );
+      if (!mounted) return;
+      await mostrarHistorialCambios(
+        context,
+        titulo: "Cambios de inventario",
+        subtitulo: "Consulta quién creó, modificó o eliminó productos e inventario.",
+        cambios: cambios,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo abrir el historial de cambios. ${mensajeDeError(e)}');
+    }
   }
 
   void mostrarEditarProducto(Map<String, dynamic> p) {
@@ -136,15 +171,19 @@ class _InventarioViewState extends State<InventarioView> {
       producto: p,
       puedeEditarProducto: puedeGestionarProductos,
       puedeAjustarInventario: puedeAjustarInventario,
-      config: config,
       productoController: productoController,
       onGuardado: inicializar,
     );
   }
 
   Future<void> _agregarStockRapido(Map<String, dynamic> p, int cantidad) async {
-    await productoController.agregarStock(p['id_producto'], cantidad);
-    await inicializar();
+    try {
+      await productoController.agregarStock(p['id_producto'], cantidad);
+      await inicializar();
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo agregar la existencia. ${mensajeDeError(e)}');
+    }
   }
 
   @override
@@ -165,8 +204,8 @@ class _InventarioViewState extends State<InventarioView> {
             ),
         ],
       ),
-      body: cargando
-          ? const Center(child: CircularProgressIndicator())
+      body: (cargando || _errorCarga != null)
+          ? EstadoVista(cargando: cargando, error: _errorCarga, onReintentar: inicializar)
           : Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
               child: Container(
@@ -318,7 +357,7 @@ class _InventarioViewState extends State<InventarioView> {
             style: ElevatedButton.styleFrom(
               elevation: 0,
               backgroundColor: AppColors.primary,
-              foregroundColor: Colors.black87,
+              foregroundColor: AppColors.onPrimary,
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
             ),

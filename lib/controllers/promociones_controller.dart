@@ -82,24 +82,32 @@ class PromocionesController {
 
   Future<int> _cambiarActivo(int id, bool activo) async {
     final db = await DatabaseHelper().database;
-    final rows = await db.update(
-      'Promociones',
-      {'activo': activo ? 1 : 0},
-      where: 'id_promocion = ?',
-      whereArgs: [id],
-    );
-
-    if (rows > 0) {
-      await _auditoriaController.registrar(
-        tabla: 'Promociones',
-        accion: activo ? 'ACTIVAR' : 'DESACTIVAR',
-        idRegistro: id,
-        descripcion: 'Promoción #$id ${activo ? 'activada' : 'desactivada'}',
+    // El cambio, su auditoría y su encolado van en UNA transacción: si se va
+    // la luz entre el UPDATE y el encolado, el cambio queda guardado
+    // localmente y el backend nunca se entera, sin nada pendiente que lo
+    // corrija.
+    return db.transaction((txn) async {
+      final rows = await txn.update(
+        'Promociones',
+        {'activo': activo ? 1 : 0},
+        where: 'id_promocion = ?',
+        whereArgs: [id],
       );
-      await _outboxWriter.actualizar(db, entidad: 'Promocion', tabla: 'Promociones', idLocal: id);
-    }
 
-    return rows;
+      if (rows > 0) {
+        await _auditoriaController.registrar(
+          tabla: 'Promociones',
+          accion: activo ? 'ACTIVAR' : 'DESACTIVAR',
+          idRegistro: id,
+          descripcion: 'Promoción #$id ${activo ? 'activada' : 'desactivada'}',
+          executor: txn,
+        );
+        await _outboxWriter.actualizar(txn,
+            entidad: 'Promocion', tabla: 'Promociones', idLocal: id);
+      }
+
+      return rows;
+    });
   }
 
   /// Borra la definición de la promoción. Las ventas ya cerradas no se ven

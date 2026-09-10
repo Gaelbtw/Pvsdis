@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../widgets/estado_vista.dart';
 import '../core/theme/app_colors.dart';
 import '../core/utils/mensaje_error.dart';
 import '../core/config/app_config.dart';
@@ -38,18 +40,36 @@ class _PedidosViewState extends State<PedidosView> {
   }
 
   Future<void> cargarClientes() async {
-    final data = await clienteService.obtenerTodos();
-    if (!mounted) return;
-    setState(() {
-      clientes = data;
-      filtrados = data;
-    });
+    try {
+      final data = await clienteService.obtenerTodos();
+      if (!mounted) return;
+      setState(() {
+        clientes = data;
+        filtrados = data;
+      });
+    } catch (e) {
+      // Sin este `catch`, un fallo de la consulta se tragaba en silencio: la
+      // lista quedaba vacía y la pantalla decía "no hay nada registrado", que
+      // es distinto de "no se pudo leer". Alguien daba de alta un registro que
+      // ya existía.
+      if (!mounted) return;
+      Toast.error(context, mensajeDeError(e));
+    }
   }
 
   Future<void> cargarPedidos() async {
-    final data = await pedidosController.obtenerPedidosConCliente();
-    if (!mounted) return;
-    setState(() => _pedidos = data);
+    try {
+      final data = await pedidosController.obtenerPedidosConCliente();
+      if (!mounted) return;
+      setState(() => _pedidos = data);
+    } catch (e) {
+      // Sin este `catch`, un fallo de la consulta se tragaba en silencio: la
+      // lista quedaba vacía y la pantalla decía "no hay nada registrado", que
+      // es distinto de "no se pudo leer". Alguien daba de alta un registro que
+      // ya existía.
+      if (!mounted) return;
+      Toast.error(context, mensajeDeError(e));
+    }
   }
 
   void buscar(String value) {
@@ -168,14 +188,29 @@ class _PedidosViewState extends State<PedidosView> {
                 ),
                 const SizedBox(height: 24),
                 Expanded(
-                  child: GridView.builder(
+                  child: filtrados.isEmpty
+                      ? PanelVacio(
+                          icono: Icons.person_search_outlined,
+                          mensaje: clientes.isEmpty
+                              ? 'Todavía no hay clientes'
+                              : 'Ningún cliente coincide',
+                          detalle: clientes.isEmpty
+                              ? 'Los pedidos se levantan a nombre de un cliente.'
+                              : 'Revisa el nombre o el teléfono.',
+                        )
+                      : GridView.builder(
                     itemCount: filtrados.length,
+                    // Alto fijo y columnas que se acomodan. Con cuatro
+                    // columnas fijas y el panel derecho ocupando 388 px
+                    // inamovibles, a 940 de ancho la tarjeta quedaba en
+                    // 112x94 para un contenido que necesita ~195 de alto:
+                    // salía rayada, y el nombre del cliente ni cabía.
                     gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 4,
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 300,
                       mainAxisSpacing: 18,
                       crossAxisSpacing: 18,
-                      childAspectRatio: 1.2,
+                      mainAxisExtent: 200,
                     ),
                     itemBuilder: (context, index) {
                       final cliente = filtrados[index];

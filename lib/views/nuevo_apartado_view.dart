@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../core/utils/mensaje_error.dart';
+import '../widgets/estado_vista.dart';
+
 import '../controllers/apartados_controller.dart';
 import '../controllers/cliente_controller.dart';
 import '../controllers/producto_controller.dart';
@@ -53,6 +56,15 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
   ResultadoValidacionPagos _resultadoPagos = validarPagosMixtos(total: 0, pagos: const []);
 
   bool _cargando = true;
+
+
+  /// Mensaje del último fallo al cargar, o `null`. Con esto la pantalla
+
+  /// puede decir qué pasó y ofrecer reintentar, en vez de dejar la rueda
+
+  /// girando para siempre.
+
+  String? _errorCarga;
   bool _guardando = false;
 
   @override
@@ -62,31 +74,42 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
   }
 
   Future<void> _cargar() async {
-    final clientes = await _clienteController.obtenerTodos();
-    final productosData = await _productoController.obtenerConStock();
-    final promociones = await _promocionesController.obtenerActivasVigentes();
+    if (mounted) setState(() => _errorCarga = null);
+    try {
+      final clientes = await _clienteController.obtenerTodos();
+      final productosData = await _productoController.obtenerConStock();
+      final promociones = await _promocionesController.obtenerActivasVigentes();
 
-    final stock = <int, int>{};
-    final productos = <Producto>[];
-    for (final row in productosData) {
-      final p = Producto.fromMap(row);
-      productos.add(p);
-      if (p.idProducto != null) {
-        stock[p.idProducto!] = (row['disponible'] as int?) ?? 0;
+      final stock = <int, int>{};
+      final productos = <Producto>[];
+      for (final row in productosData) {
+        final p = Producto.fromMap(row);
+        productos.add(p);
+        if (p.idProducto != null) {
+          stock[p.idProducto!] = (row['disponible'] as int?) ?? 0;
+        }
       }
-    }
 
-    if (!mounted) return;
-    setState(() {
-      _clientes = clientes;
-      _clientesFiltrados = clientes;
-      _productos = productos;
-      _nombresBusqueda = [for (final p in productos) p.nombre.toLowerCase()];
-      _recalcularFiltroProductos();
-      _stockDisponible = stock;
-      _promocionesActivas = promociones;
-      _cargando = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        _clientes = clientes;
+        _clientesFiltrados = clientes;
+        _productos = productos;
+        _nombresBusqueda = [for (final p in productos) p.nombre.toLowerCase()];
+        _recalcularFiltroProductos();
+        _stockDisponible = stock;
+        _promocionesActivas = promociones;
+        _cargando = false;
+      });
+    } catch (e) {
+      // Sin esto la bandera nunca se apagaba y la rueda giraba para
+      // siempre: el error solo llegaba a la consola.
+      if (!mounted) return;
+      setState(() {
+        _cargando = false;
+        _errorCarga = mensajeDeError(e);
+      });
+    }
   }
 
   void _buscarCliente(String query) {
@@ -194,8 +217,8 @@ class _NuevoApartadoViewState extends State<NuevoApartadoView> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: CustomHeader(titulo: 'Nuevo apartado', mostrarVolver: true),
-      body: _cargando
-          ? const Center(child: CircularProgressIndicator())
+      body: (_cargando || _errorCarga != null)
+          ? EstadoVista(cargando: _cargando, error: _errorCarga, onReintentar: _cargar)
           : Padding(
               padding: const EdgeInsets.all(24),
               child: Row(

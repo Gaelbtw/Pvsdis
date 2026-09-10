@@ -152,11 +152,15 @@ void main() {
 
     // La venta cancelada se excluye del agregado por método (mismo criterio
     // que el resumen de ventas), así que Tarjeta ya no aparece con 100; el
-    // punto central de esta prueba es que el reembolso NO resta del bucket
-    // Tarjeta (quedaría negativo) sino que el bucket Efectivo, sin ventas en
-    // efectivo ese día, se queda en 0 (nunca negativo).
+    // punto central de esta prueba es que el reembolso resta del bucket
+    // Efectivo, no del de Tarjeta, sin importar cómo se cobró la venta.
+    //
+    // El bucket queda en -100 y eso es correcto: ese día salieron $100 del
+    // cajón y no entró nada en efectivo. Aplastarlo a 0 borraba del reporte
+    // una salida de dinero real y dejaba el desglose sin cuadrar contra el
+    // corte de caja.
     expect(totales['Tarjeta'] ?? 0, 0);
-    expect(totales['Efectivo'] ?? 0, 0);
+    expect(totales['Efectivo'], -100.0);
   });
 
   test('una devolución parcial resta del bucket Efectivo cuando la venta sí sigue activa', () async {
@@ -200,6 +204,8 @@ void main() {
     );
 
     expect(totales['Tarjeta'], 200.0); // Venta_Pagos no se toca, sigue "Activa"
-    expect(totales['Efectivo'], 0.0); // 20 recibidos - 100 devueltos, nunca negativo
+    // 20 recibidos - 100 devueltos: el cajón terminó $80 abajo y el reporte
+    // lo dice. Ver el comentario de la prueba anterior.
+    expect(totales['Efectivo'], -80.0);
   });
 }

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../core/utils/mensaje_error.dart';
+import '../widgets/estado_vista.dart';
+
 import '../core/security/permisos.dart';
 import '../core/security/permisos_service.dart';
 import '../core/theme/app_colors.dart';
-import '../core/utils/mensaje_error.dart';
 import '../widgets/toast.dart';
 import '../widgets/nav_bar.dart';
 
@@ -22,6 +24,11 @@ class _PermisosViewState extends State<PermisosView> {
   final _servicio = PermisosService.instancia;
   bool _cargando = true;
 
+  /// Mensaje del último fallo al cargar, o `null`. Con esto la pantalla
+  /// puede decir qué pasó y ofrecer reintentar, en vez de dejar la rueda
+  /// girando para siempre.
+  String? _errorCarga;
+
   static const double _anchoColumnaRol = 118;
 
   @override
@@ -31,9 +38,20 @@ class _PermisosViewState extends State<PermisosView> {
   }
 
   Future<void> _cargar() async {
-    await _servicio.cargar();
-    if (!mounted) return;
-    setState(() => _cargando = false);
+    if (mounted) setState(() => _errorCarga = null);
+    try {
+      await _servicio.cargar();
+      if (!mounted) return;
+      setState(() => _cargando = false);
+    } catch (e) {
+      // Sin esto la bandera nunca se apagaba y la rueda giraba para
+      // siempre: el error solo llegaba a la consola.
+      if (!mounted) return;
+      setState(() {
+        _cargando = false;
+        _errorCarga = mensajeDeError(e);
+      });
+    }
   }
 
   Future<void> _cambiar(String rol, Permiso permiso, bool valor) async {
@@ -57,8 +75,8 @@ class _PermisosViewState extends State<PermisosView> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: CustomHeader(titulo: "Permisos por rol", mostrarVolver: true),
-      body: _cargando
-          ? const Center(child: CircularProgressIndicator())
+      body: (_cargando || _errorCarga != null)
+          ? EstadoVista(cargando: _cargando, error: _errorCarga, onReintentar: _cargar)
           : Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
               child: Container(

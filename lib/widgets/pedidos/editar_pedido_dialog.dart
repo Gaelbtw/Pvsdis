@@ -125,7 +125,7 @@ void mostrarEditarPedidoDialog(
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primary,
-              foregroundColor: Colors.black,
+              foregroundColor: AppColors.onPrimary,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.sm)),
             ),
             onPressed: () async {

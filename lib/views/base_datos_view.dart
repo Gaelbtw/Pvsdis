@@ -1,6 +1,8 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../core/utils/mensaje_error.dart';
+
 import '../controllers/database_backup_controller.dart';
 import '../core/config/app_config.dart';
 import '../core/session/session_manager.dart';
@@ -41,9 +43,14 @@ class _BaseDatosViewState extends State<BaseDatosView> {
   }
 
   Future<void> cargarBackups() async {
-    final data = await controller.obtenerBackups();
-    if (!mounted) return;
-    setState(() => backups = data);
+    try {
+      final data = await controller.obtenerBackups();
+      if (!mounted) return;
+      setState(() => backups = data);
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudieron listar los respaldos. ${mensajeDeError(e)}');
+    }
   }
 
 Future<void> hacerBackup() async {

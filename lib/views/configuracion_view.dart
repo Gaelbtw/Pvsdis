@@ -7,6 +7,8 @@ import 'package:printing/printing.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../core/utils/mensaje_error.dart';
+
 import '../controllers/auditoria_controller.dart';
 import '../controllers/database_backup_controller.dart';
 import '../core/config/app_config.dart';
@@ -113,16 +115,6 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
   String? logoPath;
   late Color colorSeleccionado;
 
-  static const _paletaColores = [
-    Color(0xFFF2C500), // dorado (default)
-    Color(0xFF2563EB), // azul
-    Color(0xFF16A34A), // verde
-    Color(0xFFDC2626), // rojo
-    Color(0xFF9333EA), // morado
-    Color(0xFFEA580C), // naranja
-    Color(0xFF0D9488), // verde azulado
-    Color(0xFF334155), // gris azulado oscuro
-  ];
 
   @override
   void initState() {
@@ -132,48 +124,53 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
   }
 
   Future<void> cargarConfig() async {
-    final config = await _configuracionService.obtener();
+    try {
+      final config = await _configuracionService.obtener();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    setState(() {
-      stockCtrl.text = config.stockMinimo.toString();
-      fondoCtrl.text = config.fondoCaja.toString();
+      setState(() {
+        stockCtrl.text = config.stockMinimo.toString();
+        fondoCtrl.text = config.fondoCaja.toString();
 
-      matutinoInicio = _parseHora(config.horaInicioMatutino);
-      matutinoFin = _parseHora(config.horaFinMatutino);
-      vespertinoInicio = _parseHora(config.horaInicioVespertino);
-      vespertinoFin = _parseHora(config.horaFinVespertino);
+        matutinoInicio = _parseHora(config.horaInicioMatutino);
+        matutinoFin = _parseHora(config.horaFinMatutino);
+        vespertinoInicio = _parseHora(config.horaInicioVespertino);
+        vespertinoFin = _parseHora(config.horaFinVespertino);
 
-      nombreCtrl.text = config.nombreNegocio;
-      direccionCtrl.text = config.direccion ?? '';
-      telefonoCtrl.text = config.telefono ?? '';
-      correoCtrl.text = config.correo ?? '';
-      rfcCtrl.text = config.rfc ?? '';
-      monedaCtrl.text = config.simboloMoneda;
-      ivaCtrl.text = config.tasaImpuestoPorcentaje == 0
-          ? ''
-          : config.tasaImpuestoPorcentaje.toString();
-      mostrarIvaDesglosado = config.mostrarIvaDesglosado;
-      tamanoPapel = config.tamanoPapel;
-      autoImprimirTicket = config.autoImprimirTicket;
-      abrirCajonEfectivo = config.abrirCajonEfectivo;
-      // Un puerto guardado que ya no esté en la lista (por ejemplo COM12, si se
-      // configuró a mano) se agrega para no perderlo al abrir esta pantalla.
-      cajonPuerto = config.cajonPuerto;
-      cajonBaudiosCtrl.text = config.cajonBaudios.toString();
-      impresoraUrl = config.impresoraUrl;
-      impresoraNombre = config.impresoraNombre;
-      mensajeTicketCtrl.text = config.mensajeTicket;
-      logoPath = config.logoPath;
-      colorSeleccionado = Color(config.colorPrimario);
+        nombreCtrl.text = config.nombreNegocio;
+        direccionCtrl.text = config.direccion ?? '';
+        telefonoCtrl.text = config.telefono ?? '';
+        correoCtrl.text = config.correo ?? '';
+        rfcCtrl.text = config.rfc ?? '';
+        monedaCtrl.text = config.simboloMoneda;
+        ivaCtrl.text = config.tasaImpuestoPorcentaje == 0
+            ? ''
+            : config.tasaImpuestoPorcentaje.toString();
+        mostrarIvaDesglosado = config.mostrarIvaDesglosado;
+        tamanoPapel = config.tamanoPapel;
+        autoImprimirTicket = config.autoImprimirTicket;
+        abrirCajonEfectivo = config.abrirCajonEfectivo;
+        // Un puerto guardado que ya no esté en la lista (por ejemplo COM12, si se
+        // configuró a mano) se agrega para no perderlo al abrir esta pantalla.
+        cajonPuerto = config.cajonPuerto;
+        cajonBaudiosCtrl.text = config.cajonBaudios.toString();
+        impresoraUrl = config.impresoraUrl;
+        impresoraNombre = config.impresoraNombre;
+        mensajeTicketCtrl.text = config.mensajeTicket;
+        logoPath = config.logoPath;
+        colorSeleccionado = Color(config.colorPrimario);
 
-      descuentoMaximoCtrl.text = config.descuentoMaximoPorcentaje.toString();
-      descuentoCajeroPuedeAplicar = config.descuentoCajeroPuedeAplicar;
-      descuentoCajeroRequiereAutorizacion = config.descuentoCajeroRequiereAutorizacion;
+        descuentoMaximoCtrl.text = config.descuentoMaximoPorcentaje.toString();
+        descuentoCajeroPuedeAplicar = config.descuentoCajeroPuedeAplicar;
+        descuentoCajeroRequiereAutorizacion = config.descuentoCajeroRequiereAutorizacion;
 
-      cargando = false;
-    });
+        cargando = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo cargar la configuración. ${mensajeDeError(e)}');
+    }
   }
 
   Future<void> seleccionarLogo() async {
@@ -229,92 +226,107 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
   }
 
   Future<void> _seleccionarImpresora() async {
-    final printer = await Printing.pickPrinter(context: context);
-    if (printer == null || !mounted) return;
-    setState(() {
-      impresoraUrl = printer.url;
-      impresoraNombre = printer.name;
-    });
+    try {
+      final printer = await Printing.pickPrinter(context: context);
+      if (printer == null || !mounted) return;
+      setState(() {
+        impresoraUrl = printer.url;
+        impresoraNombre = printer.name;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo abrir la lista de impresoras. ${mensajeDeError(e)}');
+    }
   }
 
   /// Manda el pulso de apertura con la configuración YA GUARDADA (CajonService
   /// lee de `AppConfig`, no de estos campos): así lo que se prueba es
   /// exactamente lo que hará la app al cobrar, no un ajuste a medio capturar.
   Future<void> _probarCajon() async {
-    final abrio = await CajonService.abrir();
+    try {
+      final abrio = await CajonService.abrir();
 
-    if (!mounted) return;
-    if (abrio) {
-      Toast.exito(context, "Pulso enviado. Si el cajón no abrió, revisa el cable y el puerto.");
-    } else {
-      Toast.error(
-        context,
-        "No se pudo enviar el pulso. Revisa que la impresora esté encendida "
-        "y que la conexión configurada sea la correcta.",
-      );
+      if (!mounted) return;
+      if (abrio) {
+        Toast.exito(context, "Pulso enviado. Si el cajón no abrió, revisa el cable y el puerto.");
+      } else {
+        Toast.error(
+          context,
+          "No se pudo enviar el pulso. Revisa que la impresora esté encendida "
+          "y que la conexión configurada sea la correcta.",
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo probar el cajón. ${mensajeDeError(e)}');
     }
   }
 
   Future<void> guardar() async {
-    if (stockCtrl.text.trim().isEmpty ||
-        fondoCtrl.text.trim().isEmpty ||
-        nombreCtrl.text.trim().isEmpty) {
-      Toast.error(context, "Faltan datos: el nombre del negocio, el inventario mínimo y el fondo de caja son obligatorios.");
-      return;
+    try {
+      if (stockCtrl.text.trim().isEmpty ||
+          fondoCtrl.text.trim().isEmpty ||
+          nombreCtrl.text.trim().isEmpty) {
+        Toast.error(context, "Faltan datos: el nombre del negocio, el inventario mínimo y el fondo de caja son obligatorios.");
+        return;
+      }
+
+      final nuevaConfig = Configuracion(
+        horaInicioMatutino: format(matutinoInicio),
+        horaFinMatutino: format(matutinoFin),
+        horaInicioVespertino: format(vespertinoInicio),
+        horaFinVespertino: format(vespertinoFin),
+        stockMinimo: int.parse(stockCtrl.text),
+        fondoCaja: double.parse(fondoCtrl.text),
+        nombreNegocio: nombreCtrl.text.trim(),
+        logoPath: logoPath,
+        direccion: direccionCtrl.text.trim().isEmpty ? null : direccionCtrl.text.trim(),
+        telefono: telefonoCtrl.text.trim().isEmpty ? null : telefonoCtrl.text.trim(),
+        correo: correoCtrl.text.trim().isEmpty ? null : correoCtrl.text.trim(),
+        rfc: rfcCtrl.text.trim().isEmpty ? null : rfcCtrl.text.trim(),
+        simboloMoneda: monedaCtrl.text.trim().isEmpty ? r'$' : monedaCtrl.text.trim(),
+        tasaImpuestoPorcentaje: double.tryParse(ivaCtrl.text.trim()) ?? 0,
+        mostrarIvaDesglosado: mostrarIvaDesglosado,
+        tamanoPapel: tamanoPapel,
+        autoImprimirTicket: autoImprimirTicket,
+        abrirCajonEfectivo: abrirCajonEfectivo,
+        cajonPuerto: cajonPuerto,
+        // Una velocidad vacía o absurda vuelve al valor de fábrica en vez de
+        // guardar un 0 que dejaría el puerto inutilizable.
+        cajonBaudios: int.tryParse(cajonBaudiosCtrl.text.trim()) ?? 9600,
+        impresoraUrl: impresoraUrl,
+        impresoraNombre: impresoraNombre,
+        mensajeTicket: mensajeTicketCtrl.text.trim().isEmpty
+            ? Configuracion.porDefecto().mensajeTicket
+            : mensajeTicketCtrl.text.trim(),
+        colorPrimario: colorSeleccionado.toARGB32(),
+        descuentoMaximoPorcentaje:
+            (double.tryParse(descuentoMaximoCtrl.text.trim()) ?? 20).clamp(0, 100).toDouble(),
+        descuentoCajeroPuedeAplicar: descuentoCajeroPuedeAplicar,
+        descuentoCajeroRequiereAutorizacion: descuentoCajeroRequiereAutorizacion,
+      );
+
+      await _configuracionService.guardar(nuevaConfig);
+      AppConfig.actualizar(nuevaConfig);
+
+      await AuditoriaController().registrar(
+        tabla: 'Configuracion',
+        accion: 'EDIT',
+        descripcion: 'Configuración del negocio actualizada',
+      );
+
+      if (!mounted) return;
+
+      Toast.exito(
+        context,
+        colorSeleccionado.toARGB32() != AppColors.primary.toARGB32()
+            ? "Configuración guardada. El nuevo color de marca se aplicará al reiniciar la app."
+            : "Configuración guardada.",
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo guardar la configuración. ${mensajeDeError(e)}');
     }
-
-    final nuevaConfig = Configuracion(
-      horaInicioMatutino: format(matutinoInicio),
-      horaFinMatutino: format(matutinoFin),
-      horaInicioVespertino: format(vespertinoInicio),
-      horaFinVespertino: format(vespertinoFin),
-      stockMinimo: int.parse(stockCtrl.text),
-      fondoCaja: double.parse(fondoCtrl.text),
-      nombreNegocio: nombreCtrl.text.trim(),
-      logoPath: logoPath,
-      direccion: direccionCtrl.text.trim().isEmpty ? null : direccionCtrl.text.trim(),
-      telefono: telefonoCtrl.text.trim().isEmpty ? null : telefonoCtrl.text.trim(),
-      correo: correoCtrl.text.trim().isEmpty ? null : correoCtrl.text.trim(),
-      rfc: rfcCtrl.text.trim().isEmpty ? null : rfcCtrl.text.trim(),
-      simboloMoneda: monedaCtrl.text.trim().isEmpty ? r'$' : monedaCtrl.text.trim(),
-      tasaImpuestoPorcentaje: double.tryParse(ivaCtrl.text.trim()) ?? 0,
-      mostrarIvaDesglosado: mostrarIvaDesglosado,
-      tamanoPapel: tamanoPapel,
-      autoImprimirTicket: autoImprimirTicket,
-      abrirCajonEfectivo: abrirCajonEfectivo,
-      cajonPuerto: cajonPuerto,
-      // Una velocidad vacía o absurda vuelve al valor de fábrica en vez de
-      // guardar un 0 que dejaría el puerto inutilizable.
-      cajonBaudios: int.tryParse(cajonBaudiosCtrl.text.trim()) ?? 9600,
-      impresoraUrl: impresoraUrl,
-      impresoraNombre: impresoraNombre,
-      mensajeTicket: mensajeTicketCtrl.text.trim().isEmpty
-          ? Configuracion.porDefecto().mensajeTicket
-          : mensajeTicketCtrl.text.trim(),
-      colorPrimario: colorSeleccionado.toARGB32(),
-      descuentoMaximoPorcentaje:
-          (double.tryParse(descuentoMaximoCtrl.text.trim()) ?? 20).clamp(0, 100).toDouble(),
-      descuentoCajeroPuedeAplicar: descuentoCajeroPuedeAplicar,
-      descuentoCajeroRequiereAutorizacion: descuentoCajeroRequiereAutorizacion,
-    );
-
-    await _configuracionService.guardar(nuevaConfig);
-    AppConfig.actualizar(nuevaConfig);
-
-    await AuditoriaController().registrar(
-      tabla: 'Configuracion',
-      accion: 'EDIT',
-      descripcion: 'Configuración del negocio actualizada',
-    );
-
-    if (!mounted) return;
-
-    Toast.exito(
-      context,
-      colorSeleccionado.toARGB32() != AppColors.primary.toARGB32()
-          ? "Configuración guardada. El nuevo color de marca se aplicará al reiniciar la app."
-          : "Configuración guardada.",
-    );
   }
 
   String format(TimeOfDay t) {
@@ -629,7 +641,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
     return Wrap(
       spacing: 12,
       runSpacing: 12,
-      children: _paletaColores.map((color) {
+      children: AppColors.paletaMarca.map((color) {
         final seleccionado = color.toARGB32() == colorSeleccionado.toARGB32();
         return InkWell(
           borderRadius: BorderRadius.circular(AppRadius.lg),
@@ -640,13 +652,18 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
+              // Las muestras sin elegir llevan un aro tenue en vez de un borde
+              // transparente: sin el, la muestra blanca es un circulo blanco
+              // sobre tarjeta blanca, o sea nada.
               border: Border.all(
-                color: seleccionado ? AppColors.textPrimary : Colors.transparent,
-                width: 3,
+                color: seleccionado ? AppColors.textPrimary : AppColors.borderLight,
+                width: seleccionado ? 3 : 1,
               ),
             ),
+            // La paloma se dibujaba siempre blanca, asi que sobre el dorado se
+            // veia a medias y sobre el blanco desaparecia por completo.
             child: seleccionado
-                ? const Icon(Icons.check, color: Colors.white, size: 18)
+                ? Icon(Icons.check, color: AppColors.tintaSobre(color), size: 18)
                 : null,
           ),
         );

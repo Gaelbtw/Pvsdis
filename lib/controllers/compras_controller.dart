@@ -91,6 +91,34 @@ class ComprasController {
           motivo: 'Compra #$idCompra',
           referenciaTipo: 'Compra',
         );
+
+        // ACTUALIZAR EL COSTO DEL PRODUCTO
+        //
+        // Hasta aqui esto no se hacia, y era un hueco grande: `precio_compra`
+        // solo se escribia al dar de alta o editar el producto a mano. Un
+        // producto dado de alta a $12 hace un año seguia diciendo $12 aunque
+        // llevara seis compras a $18, y el reporte de utilidad mostraba un
+        // margen que no existe -- sin marcarlo como dudoso, porque la linea
+        // SI tenia costo.
+        //
+        // Se guarda el ULTIMO costo, no un promedio ponderado. El promedio es
+        // mas correcto contablemente, pero aqui gana poder responder la
+        // pregunta que de verdad hace el dueño ("¿a como me costo?") con el
+        // numero de su ultima factura. El historial completo no se pierde:
+        // cada compra deja su precio en `Detalle_Compra`, que es el registro
+        // permanente de a como se compro cada vez.
+        //
+        // Solo si la linea trae un costo real: una compra capturada sin precio
+        // no debe borrar el costo que ya se conocia.
+        final costoDeEstaCompra = (item['precio_compra'] as num?)?.toDouble() ?? 0;
+        if (costoDeEstaCompra > 0) {
+          await txn.update(
+            'Producto',
+            {'precio_compra': costoDeEstaCompra},
+            where: 'id_producto = ?',
+            whereArgs: [item['id_producto']],
+          );
+        }
       }
 
       // 2. PAGO INICIAL (si lo hay), atómico con la compra recién creada.

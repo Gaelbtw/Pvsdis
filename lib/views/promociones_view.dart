@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../core/utils/mensaje_error.dart';
+import '../widgets/estado_vista.dart';
+
 import '../core/theme/app_colors.dart';
 import '../core/utils/descuento_utils.dart';
 import '../controllers/categoria_controller.dart';
@@ -51,6 +54,11 @@ class _PromocionesViewState extends State<PromocionesView> {
   /// "todavía estoy cargando".
   bool _cargandoVista = true;
 
+  /// Mensaje del último fallo al cargar, o `null`. Con esto la pantalla
+  /// puede decir qué pasó y ofrecer reintentar, en vez de dejar la rueda
+  /// girando para siempre.
+  String? _errorCarga;
+
   final controller = PromocionesController();
   final productoController = ProductoController();
   final categoriaController = CategoriaController();
@@ -81,18 +89,29 @@ class _PromocionesViewState extends State<PromocionesView> {
   }
 
   Future<void> cargar() async {
-    final p = await controller.obtenerTodas();
-    final prod = await productoController.obtenerTodos();
-    final cat = await categoriaController.obtenerTodos();
+    if (mounted) setState(() => _errorCarga = null);
+    try {
+      final p = await controller.obtenerTodas();
+      final prod = await productoController.obtenerTodos();
+      final cat = await categoriaController.obtenerTodos();
 
-    if (!mounted) return;
-    setState(() {
-      promociones = p;
-      filtradas = p;
-      productos = prod;
-      categorias = cat;
-      _cargandoVista = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        promociones = p;
+        filtradas = p;
+        productos = prod;
+        categorias = cat;
+        _cargandoVista = false;
+      });
+    } catch (e) {
+      // Sin esto la bandera nunca se apagaba y la rueda giraba para
+      // siempre: el error solo llegaba a la consola.
+      if (!mounted) return;
+      setState(() {
+        _cargandoVista = false;
+        _errorCarga = mensajeDeError(e);
+      });
+    }
   }
 
   void buscar(String query) {
@@ -141,7 +160,7 @@ class _PromocionesViewState extends State<PromocionesView> {
               firstDate: DateTime(2020),
               lastDate: DateTime(2100),
             );
-            if (elegida == null) return;
+            if (elegida == null || !mounted) return;
             setStateDialog(() {
               if (esInicio) {
                 fechaInicio = elegida;
@@ -473,18 +492,28 @@ class _PromocionesViewState extends State<PromocionesView> {
     );
   }
 
-  void eliminar(int id) async {
+  /// Devuelve un `Future` a propósito: `confirmarAccion` lo espera para saber
+  /// si de verdad se borró. Cuando esto era `void ... async`, el `await` del
+  /// helper regresaba de inmediato y el aviso de "eliminado exitosamente"
+  /// salía ANTES de que la base respondiera -- incluso cuando la base
+  /// rechazaba el borrado por tener registros asociados.
+  Future<void> eliminar(int id) async {
     await controller.eliminar(id);
-    cargar();
+    await cargar();
   }
 
   void cambiarActivo(Promocion promocion) async {
-    if (promocion.activo) {
-      await controller.desactivar(promocion.idPromocion!);
-    } else {
-      await controller.activar(promocion.idPromocion!);
+    try {
+      if (promocion.activo) {
+        await controller.desactivar(promocion.idPromocion!);
+      } else {
+        await controller.activar(promocion.idPromocion!);
+      }
+      cargar();
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo cambiar el estado de la promoción. ${mensajeDeError(e)}');
     }
-    cargar();
   }
 
   @override
@@ -492,8 +521,8 @@ class _PromocionesViewState extends State<PromocionesView> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: CustomHeader(titulo: "Promociones", mostrarVolver: true),
-      body: _cargandoVista
-          ? const Center(child: CircularProgressIndicator())
+      body: (_cargandoVista || _errorCarga != null)
+          ? EstadoVista(cargando: _cargandoVista, error: _errorCarga, onReintentar: cargar)
           : Padding(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
         child: Container(
@@ -535,7 +564,7 @@ class _PromocionesViewState extends State<PromocionesView> {
                       label: const Text("Nueva promoción"),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.black87,
+                        foregroundColor: AppColors.onPrimary,
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
@@ -637,7 +666,7 @@ class _PromocionesViewState extends State<PromocionesView> {
                                                   "¿Seguro que deseas eliminar esta promoción? Las ventas ya registradas no se verán afectadas.",
                                               iconoConfirmar: Icons.warning_amber_rounded,
                                               textoConfirmar: "Eliminar",
-                                              accion: () async => eliminar(p.idPromocion!),
+                                              accion: () => eliminar(p.idPromocion!),
                                               tituloExito: "Promoción eliminada",
                                               mensajeExito: "La promoción ha sido eliminada exitosamente.",
                                             );

@@ -6,6 +6,9 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import '../core/utils/mensaje_error.dart';
+import '../widgets/estado_vista.dart';
+
 import '../controllers/auditoria_controller.dart';
 import '../core/utils/auditoria_helpers.dart';
 import '../models/auditoria_model.dart';
@@ -38,6 +41,11 @@ class _AuditoriasViewState extends State<AuditoriasView> {
   int _total = 0;
   bool _hayMas = false;
   bool _cargando = true;
+
+  /// Mensaje del último fallo al cargar, o `null`. Con esto la pantalla
+  /// puede decir qué pasó y ofrecer reintentar, en vez de dejar la rueda
+  /// girando para siempre.
+  String? _errorCarga;
   bool _cargandoMas = false;
 
   /// Conteo por acción sobre el filtro completo (ver [_contarAccion]).
@@ -63,71 +71,87 @@ class _AuditoriasViewState extends State<AuditoriasView> {
   /// Recarga desde la primera página. Se llama al entrar y cada vez que
   /// cambia un filtro.
   Future<void> cargar() async {
-    setState(() => _cargando = true);
+    if (mounted) setState(() => _errorCarga = null);
+    try {
+      setState(() => _cargando = true);
 
-    // Las dos consultas van en paralelo: son independientes y así el reporte
-    // no tarda el doble.
-    final resultados = await Future.wait([
-      controller.obtenerPagina(
-        busqueda: busqueda,
-        accion: accionFiltro,
-        limite: _porPagina,
-      ),
-      // El conteo por acción se pide SIN el filtro de acción: si no, al
-      // seleccionar "Altas" las demás tarjetas se irían a cero y no se
-      // podría comparar.
-      controller.conteoPorAccion(busqueda: busqueda),
-    ]);
+      // Las dos consultas van en paralelo: son independientes y así el reporte
+      // no tarda el doble.
+      final resultados = await Future.wait([
+        controller.obtenerPagina(
+          busqueda: busqueda,
+          accion: accionFiltro,
+          limite: _porPagina,
+        ),
+        // El conteo por acción se pide SIN el filtro de acción: si no, al
+        // seleccionar "Altas" las demás tarjetas se irían a cero y no se
+        // podría comparar.
+        controller.conteoPorAccion(busqueda: busqueda),
+      ]);
 
-    if (!mounted) return;
-    final pagina = resultados[0] as PaginaAuditorias;
+      if (!mounted) return;
+      final pagina = resultados[0] as PaginaAuditorias;
 
-    setState(() {
-      auditorias = pagina.registros;
-      _total = pagina.total;
-      _hayMas = pagina.hayMas;
-      _conteoPorAccion = resultados[1] as Map<String, int>;
-      _cargando = false;
-    });
+      setState(() {
+        auditorias = pagina.registros;
+        _total = pagina.total;
+        _hayMas = pagina.hayMas;
+        _conteoPorAccion = resultados[1] as Map<String, int>;
+        _cargando = false;
+      });
+    } catch (e) {
+      // Sin esto la bandera nunca se apagaba y la rueda giraba para
+      // siempre: el error solo llegaba a la consola.
+      if (!mounted) return;
+      setState(() {
+        _cargando = false;
+        _errorCarga = mensajeDeError(e);
+      });
+    }
   }
 
   /// Añade la siguiente página al final de la lista ya cargada.
   Future<void> _cargarMas() async {
-    if (_cargandoMas || !_hayMas) return;
-    setState(() => _cargandoMas = true);
+    try {
+      if (_cargandoMas || !_hayMas) return;
+      setState(() => _cargandoMas = true);
 
-    final pagina = await controller.obtenerPagina(
-      busqueda: busqueda,
-      accion: accionFiltro,
-      limite: _porPagina,
-      desplazamiento: auditorias.length,
-    );
-
-    if (!mounted) return;
-    setState(() {
-      // Se filtran los que ya están en pantalla.
-      //
-      // La paginación por OFFSET asume una tabla quieta, y `Auditorias` NO lo
-      // está: cada venta, cada movimiento de caja y cada login insertan filas
-      // mientras el usuario mira el listado. Como el orden es `fecha_hora
-      // DESC`, si entran 5 registros nuevos entre una página y la siguiente,
-      // el OFFSET queda desplazado y esas 5 filas vuelven a aparecer
-      // duplicadas.
-      //
-      // Deduplicar por id es una curita, no la cura: lo correcto sería
-      // paginación por cursor (`WHERE (fecha_hora, id_auditoria) < (?, ?)`).
-      // Se deja así porque no cambia el SQL ni introduce un modo de fallo
-      // nuevo; si algún día el listado se usa de forma intensiva, ese es el
-      // cambio que toca.
-      final yaVisibles = {for (final a in auditorias) a.idAuditoria};
-      auditorias.addAll(
-        pagina.registros.where((r) => !yaVisibles.contains(r.idAuditoria)),
+      final pagina = await controller.obtenerPagina(
+        busqueda: busqueda,
+        accion: accionFiltro,
+        limite: _porPagina,
+        desplazamiento: auditorias.length,
       );
 
-      _total = pagina.total;
-      _hayMas = pagina.hayMas;
-      _cargandoMas = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        // Se filtran los que ya están en pantalla.
+        //
+        // La paginación por OFFSET asume una tabla quieta, y `Auditorias` NO lo
+        // está: cada venta, cada movimiento de caja y cada login insertan filas
+        // mientras el usuario mira el listado. Como el orden es `fecha_hora
+        // DESC`, si entran 5 registros nuevos entre una página y la siguiente,
+        // el OFFSET queda desplazado y esas 5 filas vuelven a aparecer
+        // duplicadas.
+        //
+        // Deduplicar por id es una curita, no la cura: lo correcto sería
+        // paginación por cursor (`WHERE (fecha_hora, id_auditoria) < (?, ?)`).
+        // Se deja así porque no cambia el SQL ni introduce un modo de fallo
+        // nuevo; si algún día el listado se usa de forma intensiva, ese es el
+        // cambio que toca.
+        final yaVisibles = {for (final a in auditorias) a.idAuditoria};
+        auditorias.addAll(
+          pagina.registros.where((r) => !yaVisibles.contains(r.idAuditoria)),
+        );
+
+        _total = pagina.total;
+        _hayMas = pagina.hayMas;
+        _cargandoMas = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudieron cargar más movimientos. ${mensajeDeError(e)}');
+    }
   }
 
   void _onBusquedaChanged(String valor) {
@@ -173,8 +197,8 @@ class _AuditoriasViewState extends State<AuditoriasView> {
               _tablaHeader(),
               const SizedBox(height: 10),
               Expanded(
-                child: _cargando
-                    ? const Center(child: CircularProgressIndicator())
+                child: (_cargando || _errorCarga != null)
+                    ? EstadoVista(cargando: _cargando, error: _errorCarga, onReintentar: cargar)
                     : auditorias.isEmpty
                         ? _emptyState()
                         : ListView.separated(
@@ -285,7 +309,7 @@ class _AuditoriasViewState extends State<AuditoriasView> {
           style: ElevatedButton.styleFrom(
             elevation: 0,
             backgroundColor: AppColors.primary,
-            foregroundColor: Colors.black,
+            foregroundColor: AppColors.onPrimary,
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppRadius.md),
@@ -494,71 +518,76 @@ class _AuditoriasViewState extends State<AuditoriasView> {
   static const int _maxFilasPdf = 5000;
 
   Future<void> _exportAuditoriasPDF() async {
-    final pagina = await controller.obtenerPagina(
-      busqueda: busqueda,
-      accion: accionFiltro,
-      limite: _maxFilasPdf,
-    );
-    final datos = pagina.registros;
-
-    if (datos.isEmpty) {
-      if (!mounted) return;
-      Toast.info(context, 'No hay auditorías para exportar.');
-      return;
-    }
-
-    if (pagina.total > _maxFilasPdf) {
-      if (!mounted) return;
-      Toast.info(
-        context,
-        'Se exportan los $_maxFilasPdf más recientes de ${pagina.total}. '
-        'Acota el filtro para incluir el resto.',
+    try {
+      final pagina = await controller.obtenerPagina(
+        busqueda: busqueda,
+        accion: accionFiltro,
+        limite: _maxFilasPdf,
       );
-    }
+      final datos = pagina.registros;
 
-    final pdf = pw.Document();
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        build: (context) {
-          return [
-            pw.Header(level: 0, text: 'Auditoría del sistema'),
-            pw.Paragraph(text: 'Generado el ${formatearFechaHora(DateTime.now().toIso8601String())}'),
-            pw.SizedBox(height: 10),
-            pw.TableHelper.fromTextArray(
-              headers: [
-                'Fecha y hora',
-                'Usuario',
-                'Módulo',
-                'Acción',
-                'Folio',
-                'Descripción',
-              ],
-              data: datos.map((auditoria) {
-                return [
-                  formatearFechaHora(auditoria.fechaHora),
-                  auditoria.usuario,
-                  etiquetaModuloAuditoria(auditoria.tabla),
-                  etiquetaAccionAuditoria(auditoria.accion),
-                  auditoria.idRegistro?.toString() ?? '-',
-                  auditoria.descripcion,
-                ];
-              }).toList(),
-              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-              cellAlignment: pw.Alignment.centerLeft,
-              headerDecoration: const pw.BoxDecoration(
-                color: PdfColors.amber100,
+      if (datos.isEmpty) {
+        if (!mounted) return;
+        Toast.info(context, 'No hay auditorías para exportar.');
+        return;
+      }
+
+      if (pagina.total > _maxFilasPdf) {
+        if (!mounted) return;
+        Toast.info(
+          context,
+          'Se exportan los $_maxFilasPdf más recientes de ${pagina.total}. '
+          'Acota el filtro para incluir el resto.',
+        );
+      }
+
+      final pdf = pw.Document();
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          build: (context) {
+            return [
+              pw.Header(level: 0, text: 'Auditoría del sistema'),
+              pw.Paragraph(text: 'Generado el ${formatearFechaHora(DateTime.now().toIso8601String())}'),
+              pw.SizedBox(height: 10),
+              pw.TableHelper.fromTextArray(
+                headers: [
+                  'Fecha y hora',
+                  'Usuario',
+                  'Módulo',
+                  'Acción',
+                  'Folio',
+                  'Descripción',
+                ],
+                data: datos.map((auditoria) {
+                  return [
+                    formatearFechaHora(auditoria.fechaHora),
+                    auditoria.usuario,
+                    etiquetaModuloAuditoria(auditoria.tabla),
+                    etiquetaAccionAuditoria(auditoria.accion),
+                    auditoria.idRegistro?.toString() ?? '-',
+                    auditoria.descripcion,
+                  ];
+                }).toList(),
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                cellAlignment: pw.Alignment.centerLeft,
+                headerDecoration: const pw.BoxDecoration(
+                  color: PdfColors.amber100,
+                ),
+                cellStyle: const pw.TextStyle(fontSize: AppText.overline),
               ),
-              cellStyle: const pw.TextStyle(fontSize: AppText.overline),
-            ),
-          ];
-        },
-      ),
-    );
+            ];
+          },
+        ),
+      );
 
-    await Printing.layoutPdf(
-      onLayout: (PdfPageFormat format) async => pdf.save(),
-    );
+      await Printing.layoutPdf(
+        onLayout: (PdfPageFormat format) async => pdf.save(),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo exportar la bitácora. ${mensajeDeError(e)}');
+    }
   }
 
 }

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../controllers/producto_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/motivo_ajuste_inventario.dart';
-import '../../models/configuracion_model.dart';
 import '../../models/producto_model.dart';
 import '../app_text_field.dart';
 import '../form_dialog.dart';
@@ -23,7 +22,6 @@ void mostrarEditarProductoDialog(
   required Map<String, dynamic> producto,
   required bool puedeEditarProducto,
   required bool puedeAjustarInventario,
-  required Configuracion config,
   required ProductoController productoController,
   required Future<void> Function() onGuardado,
 }) {
@@ -92,21 +90,16 @@ void mostrarEditarProductoDialog(
       ],
       onGuardar: () async {
         if (puedeEditarProducto) {
+          // Se parte de la fila real y solo se cambian los dos campos que
+          // este diálogo edita. Antes se construía un `Producto` desde cero
+          // enumerando a mano lo que había que conservar, y tres campos se
+          // quedaron fuera: `precio_compra` se iba a NULL, `descripcion` a
+          // vacío y `stock_minimo` se pisaba con el global de Configuración.
+          // Nadie se enteraba: no hay error, y el dato correcto ya no existe.
           await productoController.actualizar(
-            Producto(
-              idProducto: producto['id_producto'],
+            Producto.fromMap(producto).copyWith(
               nombre: nombreCtrl.text,
-              descripcion: "",
               precio: double.parse(precioCtrl.text),
-              categoriaId: producto['id_categoria'],
-              estado: producto['estado'] ?? "Activo",
-              stockMinimo: config.stockMinimo,
-              // Preserva los datos que este diálogo no edita: `toMap()`
-              // sobrescribe la fila COMPLETA al guardar, así que omitirlos
-              // aquí los borraría de la base de datos.
-              codigoBarras: producto['codigo_barras'],
-              sku: producto['sku'],
-              ivaTasa: (producto['iva_tasa'] as num?)?.toDouble(),
             ),
           );
         }
@@ -121,6 +114,11 @@ void mostrarEditarProductoDialog(
               producto['id_producto'],
               nuevoStock,
               motivo: motivo,
+              // Lo que el usuario tenía enfrente al abrir el diálogo. Con
+              // esto se aplica la diferencia que quiso hacer y no el número
+              // absoluto, así que una venta ocurrida mientras el diálogo
+              // estaba abierto no se borra del inventario.
+              stockVisto: stockOriginal,
             );
           }
         }

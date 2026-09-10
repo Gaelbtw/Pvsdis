@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 
 import '../../core/config/app_config.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/utils/mensaje_error.dart';
+import '../toast.dart';
 
 /// Pantalla que aparece justo después de cobrar una venta. Reemplaza al
 /// antiguo diálogo genérico de "¿confirmar venta?": la venta ya se cobró, así
@@ -63,6 +65,20 @@ class _VentaExitosaDialogState extends State<VentaExitosaDialog> {
     setState(() => _imprimiendo = true);
     try {
       await widget.onImprimir();
+    } catch (e) {
+      // Había un `finally` pero ningún `catch`, y este método se dispara
+      // desde `onPressed` sin que nadie espere su Future: la excepción se
+      // perdía como error asíncrono no atendido. Sin papel, sin impresora o
+      // con el spooler caído, el cajero picaba "Imprimir", el spinner se
+      // apagaba y NO PASABA NADA -- ni ticket ni explicación. Volvía a picar
+      // y otra vez nada.
+      //
+      // La venta ya está cobrada y guardada en este punto: que no salga el
+      // papel es un problema de impresión, no de la venta, y así hay que
+      // decirlo.
+      if (!mounted) return;
+      Toast.error(context, 'La venta quedó registrada, pero no se pudo '
+          'imprimir el ticket. ${mensajeDeError(e)}');
     } finally {
       if (mounted) setState(() => _imprimiendo = false);
     }

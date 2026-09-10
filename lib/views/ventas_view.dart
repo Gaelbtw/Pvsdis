@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import '../core/utils/mensaje_error.dart';
 import '../core/config/app_config.dart';
 import '../core/session/session_manager.dart';
 import '../core/session/ventas_en_espera_store.dart';
@@ -170,20 +172,30 @@ class _VentasViewState extends State<VentasView> {
   }
 
   Future<void> cargarPromociones() async {
-    final promociones = await promocionesController.obtenerActivasVigentes();
-    if (!mounted) return;
-    setState(() => _promocionesActivas = promociones);
+    try {
+      final promociones = await promocionesController.obtenerActivasVigentes();
+      if (!mounted) return;
+      setState(() => _promocionesActivas = promociones);
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudieron cargar las promociones; la venta sigue, pero sin descuentos automáticos. ${mensajeDeError(e)}');
+    }
   }
 
   // 🔐 CAJA
   Future<void> cargarCaja() async {
-    // Sin sesión no hay caja que buscar (ver el mismo criterio en CajaView).
-    final idUsuario = SessionManager.currentUserId;
-    final caja =
-        idUsuario == null ? null : await cajaController.obtenerCajaAbierta(idUsuario);
+    try {
+      // Sin sesión no hay caja que buscar (ver el mismo criterio en CajaView).
+      final idUsuario = SessionManager.currentUserId;
+      final caja =
+          idUsuario == null ? null : await cajaController.obtenerCajaAbierta(idUsuario);
 
-    if (!mounted) return;
-    setState(() => _cajaAbierta = caja);
+      if (!mounted) return;
+      setState(() => _cajaAbierta = caja);
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo verificar el estado de la caja. ${mensajeDeError(e)}');
+    }
   }
 
   Future<void> irAAbrirCaja() async {
@@ -196,32 +208,37 @@ class _VentasViewState extends State<VentasView> {
 
   // 🔥 CARGAR PRODUCTOS
   Future<void> cargarProductos() async {
-    final data = await productoController.obtenerConStock();
+    try {
+      final data = await productoController.obtenerConStock();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    final Map<int, int> stock = {};
-    final List<Producto> lista = [];
-    final List<_ProductoBuscable> indice = [];
+      final Map<int, int> stock = {};
+      final List<Producto> lista = [];
+      final List<_ProductoBuscable> indice = [];
 
-    for (final row in data) {
-      final p = Producto.fromMap(row);
-      lista.add(p);
-      indice.add(_ProductoBuscable(p));
-      if (p.idProducto != null) {
-        // "disponible" (física - reservada por Apartados), no la existencia
-        // física a secas: una unidad ya apartada no debe ofrecerse aquí.
-        stock[p.idProducto!] = (row['disponible'] as int?) ?? 0;
+      for (final row in data) {
+        final p = Producto.fromMap(row);
+        lista.add(p);
+        indice.add(_ProductoBuscable(p));
+        if (p.idProducto != null) {
+          // "disponible" (física - reservada por Apartados), no la existencia
+          // física a secas: una unidad ya apartada no debe ofrecerse aquí.
+          stock[p.idProducto!] = (row['disponible'] as int?) ?? 0;
+        }
       }
-    }
 
-    setState(() {
-      productos = lista;
-      _indiceBusqueda = indice;
-      stockProductos = stock;
-      cargando = false;
-      _recalcularFiltro();
-    });
+      setState(() {
+        productos = lista;
+        _indiceBusqueda = indice;
+        stockProductos = stock;
+        cargando = false;
+        _recalcularFiltro();
+      });
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo cargar el catálogo. ${mensajeDeError(e)}');
+    }
   }
 
   // 🔍 FILTRO
@@ -572,22 +589,27 @@ class _VentasViewState extends State<VentasView> {
   // llegaba desde la pantalla de Clientes, así que registrar la venta a nombre
   // de alguien a medio cobro obligaba a cancelarla y volver a empezar.
   Future<void> _elegirCliente() async {
-    final seleccion = await mostrarSeleccionarClienteDialog(
-      context,
-      cargarClientes: _clienteController.obtenerTodos,
-      actual: clienteSeleccionado,
-    );
+    try {
+      final seleccion = await mostrarSeleccionarClienteDialog(
+        context,
+        cargarClientes: _clienteController.obtenerTodos,
+        actual: clienteSeleccionado,
+      );
 
-    if (seleccion == null || !mounted) return;
+      if (seleccion == null || !mounted) return;
 
-    setState(() => clienteSeleccionado = seleccion.cliente);
+      setState(() => clienteSeleccionado = seleccion.cliente);
 
-    Toast.exito(
-      context,
-      seleccion.cliente == null
-          ? 'Venta sin cliente (consumidor final).'
-          : 'Cliente asignado: ${seleccion.cliente!.nombre}.',
-    );
+      Toast.exito(
+        context,
+        seleccion.cliente == null
+            ? 'Venta sin cliente (consumidor final).'
+            : 'Cliente asignado: ${seleccion.cliente!.nombre}.',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Toast.error(context, 'No se pudo abrir la lista de clientes. ${mensajeDeError(e)}');
+    }
   }
 
   void _quitarCliente() {
@@ -761,8 +783,33 @@ class _VentasViewState extends State<VentasView> {
                             tooltip: 'Descartar',
                             icon: const Icon(Icons.delete_outline,
                                 color: AppColors.error),
-                            onPressed: () {
-                              VentasEnEsperaStore.instancia.eliminar(v);
+                            // Confirma antes de tirar.
+                            //
+                            // Las ventas en espera viven solo en memoria: no
+                            // hay deshacer ni quedan guardadas en ningún
+                            // lado. Y este botón está a milímetros del
+                            // renglón que RETOMA la venta, así que un clic
+                            // desviado borraba el ticket pausado del cliente
+                            // que fue por su cartera, y había que reescanear
+                            // todo. Vaciar el carrito ya confirmaba; esto no,
+                            // aun siendo igual de definitivo.
+                            onPressed: () async {
+                              await confirmarAccion(
+                                context: context,
+                                tituloConfirmar: 'Descartar venta en espera',
+                                mensajeConfirmar:
+                                    'Se va a tirar el ticket de $cliente con '
+                                    '${v.totalUnidades} artículo(s). No se '
+                                    'puede recuperar.',
+                                iconoConfirmar: Icons.delete_outline,
+                                textoConfirmar: 'Descartar',
+                                accion: () async {
+                                  VentasEnEsperaStore.instancia.eliminar(v);
+                                },
+                                tituloExito: 'Venta descartada',
+                                mensajeExito:
+                                    'El ticket en espera se eliminó.',
+                              );
                               setDialogState(() {});
                               setState(() {});
                             },

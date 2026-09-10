@@ -8,7 +8,19 @@ class CategoriaController {
 
   Future<int> insertar(Categoria categoria) async {
     final db = await DatabaseHelper().database;
-    return await _outboxWriter.crear(db, entidad: 'CategoriaProducto', tabla: 'Categorias', values: categoria.toMap());
+    // El cambio, su auditoría y su encolado van en UNA transacción.
+    //
+    // Antes eran operaciones sueltas: si se iba la luz entre el UPDATE y el
+    // encolado, el cambio quedaba guardado localmente y el backend nunca se
+    // enteraba, sin nada pendiente que lo corrigiera. El propio
+    // `SyncOutboxWriter` documenta que su razón de ser es que ambas cosas
+    // ocurran juntas o no ocurran.
+    return db.transaction((txn) => _outboxWriter.crear(
+          txn,
+          entidad: 'CategoriaProducto',
+          tabla: 'Categorias',
+          values: categoria.toMap(),
+        ));
   }
 
   Future<List<Categoria>> obtenerTodos() async {
@@ -50,18 +62,30 @@ class CategoriaController {
   Future<int> actualizar(Categoria categoria) async {
     final db = await DatabaseHelper().database;
 
-    final rows = await db.update(
-      'Categorias',
-      categoria.toMap(),
-      where: 'id_categoria = ?',
-      whereArgs: [categoria.idCategoria],
-    );
+    // El cambio, su auditoría y su encolado van en UNA transacción.
+    //
+    // Antes eran operaciones sueltas: si se iba la luz entre el UPDATE y el
+    // encolado, el cambio quedaba guardado localmente y el backend nunca se
+    // enteraba, sin nada pendiente que lo corrigiera. El propio
+    // `SyncOutboxWriter` documenta que su razón de ser es que ambas cosas
+    // ocurran juntas o no ocurran.
+    return db.transaction((txn) async {
+      final rows = await txn.update(
+        'Categorias',
+        categoria.toMap(),
+        where: 'id_categoria = ?',
+        whereArgs: [categoria.idCategoria],
+      );
 
-    if (rows > 0 && categoria.idCategoria != null) {
-      await _outboxWriter.actualizar(db, entidad: 'CategoriaProducto', tabla: 'Categorias', idLocal: categoria.idCategoria!);
-    }
+      if (rows > 0 && categoria.idCategoria != null) {
+        await _outboxWriter.actualizar(txn,
+            entidad: 'CategoriaProducto',
+            tabla: 'Categorias',
+            idLocal: categoria.idCategoria!);
+      }
 
-    return rows;
+      return rows;
+    });
   }
 
   Future<int> eliminar(int id) async {
