@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../widgets/toast.dart';
 
@@ -42,9 +43,17 @@ class _Modulo {
   final WidgetBuilder builder;
 }
 
-/// Inicio en formato **tablero del día**: saludo, buscador, indicadores con
-/// datos reales (ventas de hoy, caja, inventario bajo), acción principal de
-/// Ventas y la parrilla de módulos.
+/// Inicio en formato **tablero del día**.
+///
+/// El orden de la pantalla es el orden de uso real, no el del organigrama:
+/// primero las dos cosas que se hacen todos los días (vender y cortar caja),
+/// luego los tres números que se miran de reojo, y hasta el final la parrilla
+/// de módulos, que se visita cuando hay algo que administrar.
+///
+/// Antes, Ventas era una tarjeta alta a la izquierda de una parrilla de diez
+/// módulos: ocupaba un tercio de la pantalla y competía visualmente con
+/// "Proveedores". Ahora es una banda ancha arriba de todo, con el estado de
+/// la caja escrito dentro y Enter como atajo real.
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
 
@@ -248,22 +257,35 @@ class _HomeViewState extends State<HomeView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(28, 22, 28, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _header(),
-              const SizedBox(height: 20),
-              _buscador(),
-              const SizedBox(height: 20),
-              _franjaKpis(),
-              const SizedBox(height: 20),
-              _cuerpo(),
-            ],
+    // Enter abre Ventas. La banda de arriba anuncia el atajo, y un atajo
+    // anunciado que no funciona es peor que no anunciarlo: se prueba una vez,
+    // no pasa nada, y a partir de ahi no se le vuelve a creer a ninguna
+    // etiqueta de la app.
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.enter): _irAVender,
+        const SingleActivator(LogicalKeyboardKey.numpadEnter): _irAVender,
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          backgroundColor: AppColors.background,
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(28, 22, 28, 28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _header(),
+                  const SizedBox(height: 20),
+                  _accionesPrincipales(),
+                  const SizedBox(height: 16),
+                  _franjaKpis(),
+                  const SizedBox(height: 20),
+                  _modulosGrid(),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -273,20 +295,38 @@ class _HomeViewState extends State<HomeView> {
   // ------------------------------------------------------------- header
 
   Widget _header() {
-    final h = DateTime.now().hour;
-    final saludo = h < 12 ? 'Buenos días' : (h < 19 ? 'Buenas tardes' : 'Buenas noches');
-    final inicial = (SessionManager.currentUserName.isNotEmpty ? SessionManager.currentUserName[0] : '?').toUpperCase();
+    final inicial = (SessionManager.currentUserName.isNotEmpty
+            ? SessionManager.currentUserName[0]
+            : '?')
+        .toUpperCase();
 
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        // El nombre del negocio, no el saludo. En una pantalla que el dueño
+        // ve cincuenta veces al día, "Buenas tardes, Miguel" es ruido: ya
+        // sabe quién es. Lo que sí sirve es que la pantalla se identifique
+        // sola cuando hay dos computadoras en el mostrador.
+        Container(
+          width: 20,
+          height: 20,
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            shape: BoxShape.circle,
+            border: AppColors.primaryNecesitaBorde
+                ? Border.all(color: AppColors.bordePrimario)
+                : null,
+          ),
+        ),
+        const SizedBox(width: 10),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('$saludo, ${SessionManager.currentUserName}',
-                  style: const TextStyle(fontSize: AppText.heading, fontWeight: FontWeight.w900, color: AppColors.textPrimary)),
-            ],
+          child: Text(
+            AppConfig.actual.nombreNegocio,
+            style: const TextStyle(
+              fontSize: AppText.titleLg,
+              fontWeight: FontWeight.w900,
+              color: AppColors.textPrimary,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
         Wrap(
@@ -361,25 +401,149 @@ class _HomeViewState extends State<HomeView> {
         ],
       );
 
-  // ----------------------------------------------------------- buscador
+  // ------------------------------------------------ acciones principales
 
-  Widget _buscador() {
-    return GestureDetector(
-      onTap: () => _abrir((_) => const VentasView()),
-      child: Container(
-        height: 52,
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.border)),
+  /// Vender y cortar caja, lo único que se hace todos los días.
+  ///
+  /// Antes aquí había un buscador falso: una caja con lupa que no buscaba
+  /// nada, solo abría Ventas. Prometía una función que no existe y costaba un
+  /// clic averiguarlo.
+  Widget _accionesPrincipales() {
+    return LayoutBuilder(builder: (context, c) {
+      final angosto = c.maxWidth < 720;
+      final vender = _accionVender();
+      final corte = _accionCorte();
+
+      if (angosto) {
+        return Column(children: [vender, const SizedBox(height: 14), corte]);
+      }
+      return Row(children: [
+        Expanded(child: vender),
+        const SizedBox(width: 16),
+        SizedBox(width: 300, child: corte),
+      ]);
+    });
+  }
+
+  Widget _accionVender() {
+    final abierta = _cajaAbierta != null;
+    final desde = abierta ? _horaDe(_cajaAbierta!.fechaApertura) : null;
+    final tinta = AppColors.onPrimary;
+
+    return _Hoverable(
+      onTap: _irAVender,
+      builder: (hover) => AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        height: 104,
+        padding: const EdgeInsets.symmetric(horizontal: 26),
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: AppColors.primaryNecesitaBorde
+              ? Border.all(color: AppColors.bordePrimario)
+              : null,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: hover ? 0.42 : 0.30),
+              blurRadius: hover ? 24 : 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
         child: Row(children: [
-          const Icon(Icons.search, size: 22, color: AppColors.textSecondary),
+          Icon(Icons.point_of_sale_outlined, size: 38, color: tinta),
+          const SizedBox(width: 20),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('Vender',
+                    style: TextStyle(
+                        fontSize: AppText.heading,
+                        fontWeight: FontWeight.w900,
+                        color: tinta,
+                        height: 1.1)),
+                const SizedBox(height: 2),
+                Text(
+                  // El estado de la caja va DENTRO del botón que lo necesita.
+                  // Abrir Ventas sin caja abierta termina en un error a media
+                  // venta, con el cliente enfrente.
+                  abierta
+                      ? 'Caja abierta${desde != null ? ' desde $desde' : ''}'
+                      : 'Sin caja abierta — se abre al entrar',
+                  style: TextStyle(
+                      fontSize: AppText.body,
+                      color: tinta.withValues(alpha: 0.78)),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
           const SizedBox(width: 12),
-          const Expanded(
-            child: Text('Buscar producto, cliente o ticket…', style: TextStyle(fontSize: AppText.body, color: AppColors.textSecondary)),
+          Container(
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: tinta.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+            ),
+            // El atajo esta escrito porque de verdad funciona: ver el
+            // `CallbackShortcuts` de `build`.
+            child: Text('Enter',
+                style: TextStyle(
+                    fontSize: AppText.small,
+                    fontWeight: FontWeight.w800,
+                    color: tinta)),
           ),
         ]),
       ),
     );
   }
+
+  Widget _accionCorte() {
+    return _Hoverable(
+      onTap: () => _abrir((_) => const CajaView()),
+      builder: (hover) => AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        height: 104,
+        padding: const EdgeInsets.symmetric(horizontal: 22),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(
+              color: hover ? AppColors.borderLight : AppColors.border),
+          boxShadow: hover ? AppColors.cardShadow : const [],
+        ),
+        child: Row(children: [
+          const Icon(Icons.calculate_outlined,
+              size: 28, color: AppColors.textStrong),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('Corte de caja',
+                    style: TextStyle(
+                        fontSize: AppText.bodyLg,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary)),
+                const SizedBox(height: 2),
+                Text(_cajaAbierta != null ? 'Cerrar turno' : 'Abrir turno',
+                    style: const TextStyle(
+                        fontSize: AppText.small,
+                        color: AppColors.textSecondary)),
+              ],
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  void _irAVender() => _abrir((_) => const VentasView());
 
   // --------------------------------------------------------------- KPIs
 
@@ -494,99 +658,51 @@ class _HomeViewState extends State<HomeView> {
     );
   }
 
-  // -------------------------------------------------------------- cuerpo
+  // ------------------------------------------------------------ modulos
 
-  Widget _cuerpo() => _modulosGrid();
-
+  /// La parrilla, ya sin la tarjeta gigante de Ventas al lado.
+  ///
+  /// `mainAxisExtent` (altura fija por tarjeta) y no `childAspectRatio`: con
+  /// una proporcion, la altura depende del ancho, y al angostar la ventana
+  /// las tarjetas crecian hasta desbordar su contenido.
   Widget _modulosGrid() {
-    final resto = _modulos;
+    final modulos = _modulos;
     return LayoutBuilder(builder: (context, c) {
-      final cols = c.maxWidth >= 900 ? 3 : (c.maxWidth >= 560 ? 2 : 1);
-      // El hero (con Spacer) necesita altura acotada → altura fija.
-      // El GridView usa `mainAxisExtent` (altura fija por tarjeta) en vez de
-      // `childAspectRatio`: así la altura de la tarjeta NO depende del ancho.
-      // Esto evita el overflow del contenido y mantiene la parrilla compacta,
-      // para que todo el dashboard quepa sin cortarse abajo.
-      return Row(
+      final cols = c.maxWidth >= 1080
+          ? 5
+          : c.maxWidth >= 860
+              ? 4
+              : c.maxWidth >= 620
+                  ? 3
+                  : c.maxWidth >= 420
+                      ? 2
+                      : 1;
+      return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(flex: 5, child: SizedBox(height: 300, child: _heroVentas())),
-          const SizedBox(width: 16),
-          Expanded(
-            flex: 7,
-            child: GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: resto.length,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: cols,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                mainAxisExtent: 132,
-              ),
-              itemBuilder: (_, i) => _tarjetaModulo(resto[i]),
+          const Text('MÓDULOS',
+              style: TextStyle(
+                  fontSize: AppText.overline,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.7,
+                  color: AppColors.textSecondary)),
+          const SizedBox(height: 12),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: modulos.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: cols,
+              mainAxisSpacing: 14,
+              crossAxisSpacing: 14,
+              mainAxisExtent: 124,
             ),
+            itemBuilder: (_, i) => _tarjetaModulo(modulos[i]),
           ),
         ],
       );
     });
   }
-
-  Widget _heroVentas() {
-    return _Hoverable(
-      onTap: () => _abrir((_) => const VentasView()),
-      builder: (hover) => AnimatedContainer(
-        duration: const Duration(milliseconds: 140),
-        transform: Matrix4.translationValues(0, hover ? -3 : 0, 0),
-        constraints: const BoxConstraints(minHeight: 300),
-        padding: const EdgeInsets.all(26),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [AppColors.primary, AppColors.primaryDark]),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [BoxShadow(color: AppColors.primary.withValues(alpha: hover ? 0.45 : 0.30), blurRadius: 30, offset: const Offset(0, 16))],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Container(
-                width: 56, height: 56,
-                decoration: BoxDecoration(color: AppColors.onPrimary.withValues(alpha: 0.18), borderRadius: BorderRadius.circular(16)),
-                child: Icon(Icons.point_of_sale_outlined, size: 30, color: AppColors.onPrimary),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: AppColors.onPrimary.withValues(alpha: 0.20), borderRadius: BorderRadius.circular(999)),
-                child: Text('MÁS USADO', style: TextStyle(color: AppColors.onPrimary, fontSize: AppText.overline, fontWeight: FontWeight.w800, letterSpacing: 0.5)),
-              ),
-            ]),
-            const Spacer(),
-            Text('Ventas', style: TextStyle(color: AppColors.onPrimary, fontSize: AppText.display + 6, fontWeight: FontWeight.w900, height: 1.0)),
-            const SizedBox(height: 6),
-            Text('Registrar una nueva venta', style: TextStyle(color: AppColors.onPrimary.withValues(alpha: 0.88), fontSize: AppText.body)),
-            const SizedBox(height: 18),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              decoration: BoxDecoration(color: AppColors.onPrimary, borderRadius: BorderRadius.circular(AppRadius.sm)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Text('Nueva venta', style: TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.w800, fontSize: AppText.body)),
-                const SizedBox(width: 8),
-                _chipEnHero('F1'),
-                const SizedBox(width: 8),
-                Icon(Icons.arrow_forward, size: 19, color: AppColors.primaryDark),
-              ]),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _chipEnHero(String t) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-        decoration: BoxDecoration(color: AppColors.primaryDark.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6)),
-        child: Text(t, style: TextStyle(color: AppColors.primaryDark, fontWeight: FontWeight.w800, fontSize: AppText.overline)),
-      );
 
   Widget _tarjetaModulo(_Modulo m) {
     final mostrarBadge = m.titulo == 'Inventario' && _stockBajo > 0;

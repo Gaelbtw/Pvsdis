@@ -19,6 +19,7 @@ import '../core/licencia/licencia_service.dart';
 import '../services/soporte_service.dart';
 import '../services/cajon_service.dart';
 import '../core/theme/app_colors.dart';
+import '../widgets/estado_vista.dart';
 import '../models/configuracion_model.dart';
 import '../services/configuracion_service.dart';
 import '../widgets/menu_card.dart';
@@ -44,6 +45,14 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
   final _configuracionService = ConfiguracionService();
 
   bool cargando = true;
+
+  /// Mensaje del último fallo al cargar, o `null`.
+  ///
+  /// Sin esto, un error dejaba `cargando` en `true` para siempre: la rueda
+  /// giraba sin fin y el único aviso era un Toast que se iba solo a los pocos
+  /// segundos. Quien llegaba tarde a la pantalla no veía ningún error, solo
+  /// una configuración que "no abre".
+  String? _errorCarga;
 
   TimeOfDay matutinoInicio = const TimeOfDay(hour: 7, minute: 0);
   TimeOfDay matutinoFin = const TimeOfDay(hour: 14, minute: 0);
@@ -124,6 +133,7 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
   }
 
   Future<void> cargarConfig() async {
+    if (mounted) setState(() => _errorCarga = null);
     try {
       final config = await _configuracionService.obtener();
 
@@ -169,7 +179,10 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
       });
     } catch (e) {
       if (!mounted) return;
-      Toast.error(context, 'No se pudo cargar la configuración. ${mensajeDeError(e)}');
+      setState(() {
+        cargando = false;
+        _errorCarga = mensajeDeError(e);
+      });
     }
   }
 
@@ -713,8 +726,12 @@ class _ConfiguracionViewState extends State<ConfiguracionView> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: CustomHeader(titulo: "Configuración", mostrarVolver: Navigator.canPop(context), mostrarInfo: false),
-      body: cargando
-          ? const Center(child: CircularProgressIndicator())
+      body: (cargando || _errorCarga != null)
+          ? EstadoVista(
+              cargando: cargando,
+              error: _errorCarga,
+              onReintentar: cargarConfig,
+            )
           : SafeArea(
               // El cuerpo scrollea y las columnas se alinean arriba con altura
               // natural: así el panel se ajusta a su contenido y las secciones

@@ -66,12 +66,14 @@ class InventarioTabla extends StatelessWidget {
       ),
       child: const Row(
         children: [
-          Expanded(flex: 22, child: Text("PRODUCTO", style: auditoriaHeaderStyle)),
-          Expanded(flex: 18, child: Text("CATEGORÍA", style: auditoriaHeaderStyle)),
-          Expanded(flex: 12, child: Text("PRECIO", style: auditoriaHeaderStyle)),
-          Expanded(flex: 12, child: Text("INVENTARIO", style: auditoriaHeaderStyle)),
-          Expanded(flex: 16, child: Text("ESTADO", style: auditoriaHeaderStyle)),
-          Expanded(flex: 20, child: Text("ACCIONES", style: auditoriaHeaderStyle)),
+          Expanded(flex: 24, child: Text("PRODUCTO", style: auditoriaHeaderStyle)),
+          Expanded(flex: 14, child: Text("CATEGORÍA", style: auditoriaHeaderStyle)),
+          Expanded(flex: 11, child: Text("COSTO", style: auditoriaHeaderStyle)),
+          Expanded(flex: 11, child: Text("PRECIO", style: auditoriaHeaderStyle)),
+          Expanded(flex: 10, child: Text("MARGEN", style: auditoriaHeaderStyle)),
+          Expanded(flex: 10, child: Text("EXIST.", style: auditoriaHeaderStyle)),
+          Expanded(flex: 15, child: Text("ESTADO", style: auditoriaHeaderStyle)),
+          Expanded(flex: 19, child: Text("ACCIONES", style: auditoriaHeaderStyle)),
         ],
       ),
     );
@@ -81,12 +83,23 @@ class InventarioTabla extends StatelessWidget {
     final stock = p['cantidad'] as int;
     final estado = clasificarStock(stock, stockMinimo);
 
+    final precio = (p['precio'] as num?)?.toDouble() ?? 0;
+    final costoCrudo = (p['precio_compra'] as num?)?.toDouble();
+
+    // Sin costo capturado NO se inventa un margen. Tomar el costo como cero
+    // daria 100% en cada producto sin dato: un margen falso y ademas
+    // halagador, que es la peor combinacion posible en la pantalla donde se
+    // deciden los precios.
+    final costo = (costoCrudo == null || costoCrudo <= 0) ? null : costoCrudo;
+    final margen =
+        (costo == null || precio <= 0) ? null : (precio - costo) / precio * 100;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       child: Row(
         children: [
           Expanded(
-            flex: 22,
+            flex: 24,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
@@ -107,17 +120,52 @@ class InventarioTabla extends StatelessWidget {
               ],
             ),
           ),
-          Expanded(flex: 18, child: Text(p['categoria_nombre'] ?? 'Sin categoría')),
           Expanded(
-            flex: 12,
+            flex: 14,
+            child: Text(p['categoria_nombre'] ?? 'Sin categoría',
+                overflow: TextOverflow.ellipsis),
+          ),
+          Expanded(
+            flex: 11,
             child: Text(
-              AppConfig.formatoMoneda((p['precio'] as num?) ?? 0),
+              costo == null ? '—' : AppConfig.formatoMoneda(costo),
+              style: const TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          Expanded(
+            flex: 11,
+            child: Text(
+              AppConfig.formatoMoneda(precio),
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
           ),
-          Expanded(flex: 12, child: Text("$stock")),
           Expanded(
-            flex: 16,
+            flex: 10,
+            child: Text(
+              margen == null ? '—' : '${margen.toStringAsFixed(1)}%',
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: AppText.small,
+                // Rojo si se vende por debajo del costo. Ese caso existe y no
+                // se nota: alguien sube el costo al capturar la compra y
+                // nadie vuelve a mirar el precio de venta.
+                color: margen == null
+                    ? AppColors.textSecondary
+                    : margen < 0
+                        ? AppColors.error
+                        : margen < 20
+                            ? AppColors.warning
+                            : AppColors.success,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 10,
+            child: Text("$stock",
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+          ),
+          Expanded(
+            flex: 15,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
@@ -145,7 +193,7 @@ class InventarioTabla extends StatelessWidget {
             ),
           ),
           Expanded(
-            flex: 20,
+            flex: 19,
             child: Row(
               children: [
                 if (puedeAjustarInventario)

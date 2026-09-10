@@ -4,6 +4,7 @@ import '../widgets/toast.dart';
 
 import '../core/utils/mensaje_error.dart';
 import '../widgets/estado_vista.dart';
+import '../core/config/app_config.dart';
 import '../core/theme/app_colors.dart';
 import '../controllers/auditoria_controller.dart';
 import '../controllers/producto_controller.dart';
@@ -13,7 +14,6 @@ import '../models/auditoria_model.dart';
 import '../models/categoria_model.dart';
 import '../widgets/confirm_action.dart';
 import '../widgets/nav_bar.dart';
-import '../widgets/stat_card.dart';
 import '../widgets/historial_cambios_dialog.dart';
 import '../widgets/inventario/editar_producto_dialog.dart';
 import '../widgets/inventario/inventario_tabla.dart';
@@ -51,6 +51,13 @@ class _InventarioViewState extends State<InventarioView> {
 
   int? categoriaSeleccionada;
   String busqueda = "";
+
+  /// Filtro por nivel de existencia: `null` es "todos".
+  ///
+  /// Antes esto no existia y arriba habia cuatro recuadros que solo decian
+  /// numeros. Ver "Inventario bajo: 7" no sirve de nada si para saber CUALES
+  /// hay que recorrer la tabla a ojo. Los mismos numeros, ahora, filtran.
+  EstadoStock? estadoSeleccionado;
 
   /// Editar el producto en sí (nombre, precio) y ver su historial de
   /// cambios. Antes ambas cosas y el ajuste de stock colgaban de un único
@@ -120,7 +127,11 @@ class _InventarioViewState extends State<InventarioView> {
       final matchCategoria = categoriaSeleccionada == null ||
           p['id_categoria'] == categoriaSeleccionada;
 
-      return matchBusqueda && matchCategoria;
+      final matchEstado = estadoSeleccionado == null ||
+          clasificarStock(p['cantidad'] as int, config.stockMinimo) ==
+              estadoSeleccionado;
+
+      return matchBusqueda && matchCategoria && matchEstado;
     }).toList();
   }
 
@@ -214,15 +225,8 @@ class _InventarioViewState extends State<InventarioView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      "Administra tus productos y sus niveles de inventario.",
-                      style: TextStyle(color: AppColors.textSecondary, fontSize: AppText.small),
-                    ),
-                    const SizedBox(height: 24),
-                    _metricas(resumen),
-                    const SizedBox(height: 24),
-                    _filtros(),
-                    const SizedBox(height: 24),
+                    _filtros(resumen),
+                    const SizedBox(height: 20),
                     Expanded(
                       child: InventarioTabla(
                         productos: filtrados,
@@ -234,6 +238,7 @@ class _InventarioViewState extends State<InventarioView> {
                         onEliminar: confirmarEliminar,
                       ),
                     ),
+                    _pieTabla(),
                   ],
                 ),
               ),
@@ -241,124 +246,190 @@ class _InventarioViewState extends State<InventarioView> {
     );
   }
 
-  Widget _metricas(ResumenStock resumen) {
-    return Row(
+  /// Pastillas de estado: informan y filtran a la vez.
+  ///
+  /// Reemplazan a cuatro tarjetas que solo informaban. "Inventario bajo: 7"
+  /// obliga a recorrer la tabla a ojo para saber cuales son los siete; la
+  /// pastilla los deja en pantalla de un clic. Y el numero sigue ahi.
+  Widget _pastillasEstado(ResumenStock resumen) {
+    return Wrap(
+      spacing: 7,
+      runSpacing: 7,
       children: [
-        Expanded(
-          child: StatCard(
-            title: "Productos",
-            value: productos.length.toString(),
-            icon: Icons.inventory_2,
-            color: AppColors.primary,
-          ),
+        _pastilla(
+          etiqueta: 'Todos',
+          cuenta: productos.length,
+          color: AppColors.textPrimary,
+          activa: estadoSeleccionado == null,
+          onTap: () => setState(() => estadoSeleccionado = null),
         ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: StatCard(
-            title: "Agotados",
-            value: resumen.agotados.toString(),
-            icon: Icons.error_outline,
-            color: AppColors.error,
-          ),
+        _pastilla(
+          etiqueta: 'Bajos',
+          cuenta: resumen.bajos,
+          color: AppColors.warning,
+          activa: estadoSeleccionado == EstadoStock.bajo,
+          onTap: () => setState(() => estadoSeleccionado =
+              estadoSeleccionado == EstadoStock.bajo ? null : EstadoStock.bajo),
         ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: StatCard(
-            title: "Inventario bajo",
-            value: resumen.bajos.toString(),
-            icon: Icons.warning_amber,
-            color: AppColors.warning,
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: StatCard(
-            title: "Disponibles",
-            value: resumen.ok.toString(),
-            icon: Icons.check_circle,
-            color: AppColors.success,
-          ),
+        _pastilla(
+          etiqueta: 'Agotados',
+          cuenta: resumen.agotados,
+          color: AppColors.error,
+          activa: estadoSeleccionado == EstadoStock.agotado,
+          onTap: () => setState(() => estadoSeleccionado =
+              estadoSeleccionado == EstadoStock.agotado
+                  ? null
+                  : EstadoStock.agotado),
         ),
       ],
     );
   }
 
-  Widget _filtros() {
-    return Row(
+  Widget _pastilla({
+    required String etiqueta,
+    required int cuenta,
+    required Color color,
+    required bool activa,
+    required VoidCallback onTap,
+  }) {
+    // Activa: relleno solido con la tinta que le toque encima. Inactiva: el
+    // color al 10%, que deja leer la cuenta sin gritar.
+    final tinta = activa ? AppColors.tintaSobre(color) : color;
+    return Material(
+      color: activa ? color : color.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(AppRadius.pill),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        child: Container(
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 15),
+          alignment: Alignment.center,
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Text(etiqueta,
+                style: TextStyle(
+                    fontSize: AppText.small,
+                    fontWeight: FontWeight.w800,
+                    color: tinta)),
+            const SizedBox(width: 6),
+            Text('$cuenta',
+                style: TextStyle(
+                    fontSize: AppText.small,
+                    fontWeight: FontWeight.w800,
+                    color: tinta.withValues(alpha: 0.62))),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  /// Cuantos se ven de cuantos hay, y cuanto dinero esta parado en la bodega.
+  ///
+  /// El valor del inventario se calcula a COSTO, no a precio de venta: es el
+  /// dinero que el negocio ya desembolso y todavia no recupera. A precio de
+  /// venta saldria un numero mas grande y mas bonito que no corresponde a
+  /// nada que exista.
+  Widget _pieTabla() {
+    final valor = productos.fold<double>(0, (a, p) {
+      final costo = (p['precio_compra'] as num?)?.toDouble() ?? 0;
+      final cantidad = (p['cantidad'] as num?)?.toDouble() ?? 0;
+      return a + costo * cantidad;
+    });
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: Row(children: [
+        Text(
+          filtrados.length == productos.length
+              ? 'Mostrando ${productos.length}'
+              : 'Mostrando ${filtrados.length} de ${productos.length}',
+          style: const TextStyle(
+              fontSize: AppText.caption, color: AppColors.textSecondary),
+        ),
+        const Spacer(),
+        const Text('Valor del inventario, a costo  ',
+            style: TextStyle(
+                fontSize: AppText.caption,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textStrong)),
+        Text(AppConfig.formatoMoneda(valor),
+            style: const TextStyle(
+                fontSize: AppText.body,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary)),
+      ]),
+    );
+  }
+
+  /// Una sola fila: buscar, filtrar por existencia, filtrar por categoria.
+  ///
+  /// Antes el buscador y las categorias se repartian el ancho a la mitad
+  /// (flex 4 / flex 5) y las categorias vivian en un ListView horizontal que
+  /// se desplazaba a ciegas: con ocho categorias, la novena no existia para
+  /// quien no supiera que ahi se podia arrastrar.
+  Widget _filtros(ResumenStock resumen) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          flex: 4,
-          child: TextField(
-            onChanged: (v) => setState(() => busqueda = v),
-            decoration: InputDecoration(
-              hintText: "Buscar por nombre, clave o código...",
-              prefixIcon: const Icon(Icons.search),
-              filled: true,
-              fillColor: AppColors.surface,
-              contentPadding: const EdgeInsets.symmetric(vertical: 16),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                borderSide: BorderSide.none,
+        Row(children: [
+          Expanded(
+            child: TextField(
+              onChanged: (v) => setState(() => busqueda = v),
+              decoration: InputDecoration(
+                hintText: 'Buscar por nombre, clave o código…',
+                prefixIcon: const Icon(Icons.search),
+                filled: true,
+                fillColor: AppColors.surface,
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(vertical: 16),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          flex: 5,
-          child: SizedBox(
-            height: 50,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                ChoiceChip(
-                  label: const Text("Todos"),
-                  selected: categoriaSeleccionada == null,
-                  selectedColor: AppColors.primary,
-                  labelStyle: TextStyle(
-                    color: categoriaSeleccionada == null ? Colors.black : Colors.black87,
-                  ),
-                  onSelected: (_) {
-                    setState(() => categoriaSeleccionada = null);
-                  },
-                ),
-                ...categorias.map((cat) {
-                  final selected = categoriaSeleccionada == cat.idCategoria;
-
-                  return Padding(
-                    padding: const EdgeInsets.only(left: 10),
-                    child: ChoiceChip(
-                      label: Text(cat.nombre),
-                      selected: selected,
-                      selectedColor: AppColors.primary,
-                      labelStyle: TextStyle(
-                        color: selected ? Colors.black : Colors.black87,
-                      ),
-                      onSelected: (_) {
-                        setState(() => categoriaSeleccionada = cat.idCategoria);
-                      },
-                    ),
-                  );
-                }),
-              ],
-            ),
+          const SizedBox(width: 12),
+          _pastillasEstado(resumen),
+        ]),
+        if (categorias.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          // Wrap y no un carrusel horizontal: las categorias caben, y las que
+          // no caben bajan de renglon en vez de esconderse.
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _chipCategoria('Todas', null),
+              for (final c in categorias) _chipCategoria(c.nombre, c.idCategoria),
+            ],
           ),
-        ),
-        const SizedBox(width: 16),
-        if (puedeGestionarProductos)
-          ElevatedButton.icon(
-            onPressed: mostrarCambiosInventario,
-            icon: const Icon(Icons.history, size: 18),
-            label: const Text("Cambios"),
-            style: ElevatedButton.styleFrom(
-              elevation: 0,
-              backgroundColor: AppColors.primary,
-              foregroundColor: AppColors.onPrimary,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
-            ),
-          ),
+        ],
       ],
+    );
+  }
+
+  Widget _chipCategoria(String etiqueta, int? id) {
+    final activa = categoriaSeleccionada == id;
+    return ChoiceChip(
+      label: Text(etiqueta),
+      selected: activa,
+      showCheckmark: false,
+      selectedColor: AppColors.primary,
+      backgroundColor: AppColors.surface,
+      side: BorderSide(
+        color: activa && AppColors.primaryNecesitaBorde
+            ? AppColors.bordePrimario
+            : AppColors.border,
+      ),
+      labelStyle: TextStyle(
+        fontSize: AppText.small,
+        fontWeight: FontWeight.w700,
+        // La tinta se calcula del color de marca, no se escribe a mano: con
+        // una marca oscura, el negro fijo de antes quedaba ilegible.
+        color: activa ? AppColors.onPrimary : AppColors.textPrimary,
+      ),
+      onSelected: (_) => setState(() => categoriaSeleccionada = id),
     );
   }
 }
