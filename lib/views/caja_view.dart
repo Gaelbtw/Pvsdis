@@ -66,13 +66,9 @@ class _CajaViewState extends State<CajaView> {
 
   bool cargando = true;
 
-
   /// Mensaje del último fallo al cargar, o `null`. Con esto la pantalla
-
   /// puede decir qué pasó y ofrecer reintentar, en vez de dejar la rueda
-
   /// girando para siempre.
-
   String? _errorCarga;
   Caja? cajaAbierta;
   ResumenCaja? resumen;

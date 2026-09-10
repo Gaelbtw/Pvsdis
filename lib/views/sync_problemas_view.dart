@@ -28,13 +28,9 @@ class _SyncProblemasViewState extends State<SyncProblemasView> {
 
   bool _cargando = true;
 
-
   /// Mensaje del último fallo al cargar, o `null`. Con esto la pantalla
-
   /// puede decir qué pasó y ofrecer reintentar, en vez de dejar la rueda
-
   /// girando para siempre.
-
   String? _errorCarga;
   List<OutboxItem> _pendientes = const [];
   List<OutboxItem> _fallidas = const [];
