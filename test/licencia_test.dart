@@ -10,6 +10,7 @@ import 'dart:math';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:pvapp/core/licencia/clave_publica.dart';
 import 'package:pvapp/core/licencia/huella_equipo.dart';
 import 'package:pvapp/core/licencia/licencia.dart';
 import 'package:pvapp/core/licencia/licencia_service.dart';
@@ -264,10 +265,29 @@ void main() {
 
     tearDown(servicio.reiniciarParaPruebas);
 
-    test('sin clave pública compilada, el licenciamiento está apagado', () {
+    test('la clave compilada mide exactamente 32 bytes', () {
       servicio.reiniciarParaPruebas();
-      expect(servicio.activo, isFalse,
-          reason: 'el repo no debe traer una clave de producción');
+
+      // El interruptor del licenciamiento es la LONGITUD de la clave, no un
+      // booleano: `activo => _clavePublica.length == 32`. Un byte de más o de
+      // menos al pegarla no rompe la compilación ni truena en el arranque:
+      // apaga el licenciamiento en silencio, y nadie se entera hasta que un
+      // cliente lleva medio año usando el sistema sin licencia.
+      //
+      // Esta prueba antes exigía lo contrario --que el repo NO trajera clave--
+      // porque el licenciamiento venía apagado de fábrica. Ya se encendió, así
+      // que ahora lo que hay que sostener es que la clave este bien puesta.
+      expect(clavePublicaLicencias.length, 32,
+          reason: 'la clave pública quedó incompleta o le sobran bytes');
+      expect(clavePublicaLicencias.every((b) => b >= 0 && b <= 255), isTrue,
+          reason: 'un byte fuera de 0..255 no es un byte');
+      expect(servicio.activo, isTrue);
+
+      // Lo que esta prueba NO puede comprobar: que esta clave pública sea la
+      // pareja de la privada que emite las licencias. Para eso haría falta la
+      // privada, que no vive en el repositorio y no debe vivir aquí. Se
+      // comprueba una sola vez, a mano, importando un .lic real en la app
+      // compilada: si lo acepta, el par corresponde.
     });
 
     test('acepta una licencia bien firmada', () async {

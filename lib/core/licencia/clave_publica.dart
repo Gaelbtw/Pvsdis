@@ -40,7 +40,10 @@
 library;
 
 const List<int> clavePublicaLicencias = <int>[
-  // Pega aquí los 32 bytes que imprime `generar-llaves`.
+  228, 150, 201, 25, 78, 232, 15, 23, //
+  231, 8, 38, 100, 100, 6, 146, 22, //
+  189, 172, 229, 91, 171, 44, 238, 16, //
+  18, 207, 137, 126, 135, 177, 96, 169, //
 ];
 
 /// `true` cuando hay una clave pública compilada y, por lo tanto, el

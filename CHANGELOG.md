@@ -23,6 +23,25 @@ Formato: `MAYOR.MENOR.PARCHE`.
 > automático antes de tocar nada, pero el tuyo es el que no depende de que
 > todo salga bien.
 
+### Licenciamiento encendido
+
+El sistema de licencias existía desde la 1.1.0 pero venía **apagado de
+fábrica**. Esta versión trae la clave pública compilada, así que a partir de
+aquí Pv Control verifica licencias.
+
+- **No cambia nada para quien ya lo usa.** Sin archivo de licencia el estado
+  es "sin licencia registrada" y **todo funciona sin restricción**, igual que
+  antes. La verificación es local: la app no consulta ningún servidor.
+- Cuando sí hay licencia y vence, el sistema avisa 15 días antes y da 30 días
+  de gracia. Solo después se limitan reportes, exportación, alta de productos
+  y configuración. **Vender, cobrar, imprimir tickets y cerrar caja nunca se
+  bloquean**, en ninguna circunstancia.
+- El código de instalación del equipo está en Configuración → Licencia.
+
+### Ícono propio
+
+El ejecutable y el instalador dejaron de usar el ícono por omisión de Flutter.
+
 ### El corte de caja, rediseñado
 
 Cerrar caja eran demasiados clics y el resultado era un número suelto que no
