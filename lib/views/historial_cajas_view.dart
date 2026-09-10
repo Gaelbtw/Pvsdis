@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../core/utils/mensaje_error.dart';
+import '../widgets/estado_vista.dart';
+
 import '../controllers/caja_controller.dart';
 import '../core/session/session_manager.dart';
 import '../core/theme/app_colors.dart';
@@ -21,6 +24,15 @@ class _HistorialCajasViewState extends State<HistorialCajasView> {
   final _cajaController = CajaController();
 
   bool cargando = true;
+
+
+  /// Mensaje del último fallo al cargar, o `null`. Con esto la pantalla
+
+  /// puede decir qué pasó y ofrecer reintentar, en vez de dejar la rueda
+
+  /// girando para siempre.
+
+  String? _errorCarga;
   List<Caja> cajas = [];
 
   bool get esAdmin => SessionManager.isAdmin;
@@ -32,15 +44,26 @@ class _HistorialCajasViewState extends State<HistorialCajasView> {
   }
 
   Future<void> cargar() async {
-    final lista = await _cajaController.obtenerHistorial(
-      idUsuario: esAdmin ? null : SessionManager.currentUserId,
-    );
+    if (mounted) setState(() => _errorCarga = null);
+    try {
+      final lista = await _cajaController.obtenerHistorial(
+        idUsuario: esAdmin ? null : SessionManager.currentUserId,
+      );
 
-    if (!mounted) return;
-    setState(() {
-      cajas = lista;
-      cargando = false;
-    });
+      if (!mounted) return;
+      setState(() {
+        cajas = lista;
+        cargando = false;
+      });
+    } catch (e) {
+      // Sin esto la bandera nunca se apagaba y la rueda giraba para
+      // siempre: el error solo llegaba a la consola.
+      if (!mounted) return;
+      setState(() {
+        cargando = false;
+        _errorCarga = mensajeDeError(e);
+      });
+    }
   }
 
   @override
@@ -48,8 +71,8 @@ class _HistorialCajasViewState extends State<HistorialCajasView> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: const CustomHeader(titulo: "Historial de Cajas", mostrarVolver: true),
-      body: cargando
-          ? const Center(child: CircularProgressIndicator())
+      body: (cargando || _errorCarga != null)
+          ? EstadoVista(cargando: cargando, error: _errorCarga, onReintentar: cargar)
           : cajas.isEmpty
               ? const Center(
                   child: Text("Todavía no hay cajas registradas.", style: TextStyle(color: AppColors.textSecondary)),

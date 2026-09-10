@@ -1,3 +1,5 @@
+import 'conteo_denominaciones.dart';
+
 class Caja {
   final int? idCaja;
   final int idUsuario;
@@ -16,6 +18,11 @@ class Caja {
   final String? observacionesCierre;
   final String estado;
 
+  /// Desglose por denominacion del efectivo contado al cerrar. `null` en las
+  /// cajas cerradas antes de la v27 del esquema: en ellas solo se capturo el
+  /// total, y no hay nada que reconstruir.
+  final ConteoDenominaciones? conteo;
+
   const Caja({
     this.idCaja,
     required this.idUsuario,
@@ -33,6 +40,7 @@ class Caja {
     this.diferencia,
     this.observacionesCierre,
     this.estado = 'Abierta',
+    this.conteo,
   });
 
   bool get estaAbierta => estado == 'Abierta';
@@ -54,6 +62,7 @@ class Caja {
       "diferencia": diferencia,
       "observaciones_cierre": observacionesCierre,
       "estado": estado,
+      "conteo_denominaciones": conteo?.aJson(),
     };
   }
 
@@ -77,6 +86,7 @@ class Caja {
       diferencia: asDoubleOrNull(map["diferencia"]),
       observacionesCierre: map["observaciones_cierre"]?.toString(),
       estado: map["estado"]?.toString() ?? 'Abierta',
+      conteo: ConteoDenominaciones.desdeJson(map["conteo_denominaciones"]?.toString()),
     );
   }
 }

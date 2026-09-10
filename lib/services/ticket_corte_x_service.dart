@@ -1,31 +1,36 @@
+import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../core/config/app_config.dart';
 import '../controllers/caja_controller.dart';
+import 'formato_ticket.dart';
 
-/// Ticket de **Corte X (lectura)**: una foto del estado de la caja SIN
-/// cerrarla. A diferencia del cierre (Corte Z), no pide efectivo contado ni
-/// calcula diferencia — solo reporta lo vendido y el efectivo que debería
-/// haber hasta el momento, para que el cajero/supervisor haga un arqueo
-/// parcial durante el turno.
+/// Ticket de **Corte X (lectura)**: una foto del turno SIN cerrarlo. No pide
+/// efectivo contado ni calcula diferencia.
+///
+/// Lleva la misma estructura que el cierre (mismos bloques, mismos renglones,
+/// mismo orden) para que comparar un X con el Z del final del turno sea leer
+/// dos papeles iguales, y no traducir de un formato a otro.
 class TicketCorteXService {
-  /// [ocultarEfectivoEsperado] omite del ticket el total que debería haber en
-  /// el cajón.
+  /// [ocultarEfectivo] omite el bloque completo del efectivo: los sumandos y
+  /// el total.
   ///
-  /// El Corte X es una lectura parcial que el cajero puede imprimir en
-  /// cualquier momento del turno. Si trae el efectivo esperado, basta con
-  /// sacarlo antes de contar para saber el número exacto y anular el arqueo
-  /// ciego de la pantalla de cierre (ver `CajaView.arqueoCiego`). Cerrar solo
-  /// la pantalla y dejar abierta esta puerta no serviría de nada.
+  /// No basta con esconder el "efectivo esperado", que es lo que se hacia
+  /// antes. Si el ticket trae el fondo inicial, las ventas en efectivo, el
+  /// cambio y las devoluciones, el esperado se obtiene sumando: el cajero
+  /// imprime un Corte X, hace la cuenta y captura ese numero al cerrar. La
+  /// regla es la misma de la pantalla (ver `VistaCorte`): si es sumando del
+  /// esperado, quien cuenta a ciegas no lo ve antes de cerrar.
   static Future<pw.Document> generar({
     required String cajero,
     required String fechaApertura,
     required String fechaCorte,
     required ResumenCaja resumen,
-    bool ocultarEfectivoEsperado = false,
+    bool ocultarEfectivo = false,
   }) async {
     final pdf = pw.Document();
     final config = AppConfig.actual;
+    final turno = AppConfig.turnoDeIso(fechaApertura);
 
     pdf.addPage(
       pw.Page(
@@ -34,62 +39,56 @@ class TicketCorteXService {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Center(
-                child: pw.Column(
-                  children: [
-                    pw.Text(
-                      config.nombreNegocio,
-                      style: pw.TextStyle(
-                        fontSize: 16,
-                        fontWeight: pw.FontWeight.bold,
-                      ),
-                    ),
-                    pw.Text("CORTE X (LECTURA)"),
-                    pw.SizedBox(height: 5),
-                  ],
-                ),
+              FormatoTicket.encabezado(
+                negocio: config.nombreNegocio,
+                titulo: 'CORTE X (LECTURA)',
+                direccion: config.direccion,
               ),
+
               pw.Divider(),
-              pw.Text("Cajero: $cajero"),
-              pw.SizedBox(height: 5),
-              pw.Text("Apertura: $fechaApertura"),
-              pw.Text("Corte:    $fechaCorte"),
-              pw.Divider(),
-              pw.Text("VENTAS", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 5),
-              _row("Total", resumen.totalVentas),
-              _row("Efectivo", resumen.ventasEfectivo),
-              _row("Tarjeta", resumen.ventasTarjeta),
-              _row("Transferencia", resumen.ventasTransferencia),
-              if (resumen.totalAnticipos > 0) _row("Anticipos apartados", resumen.totalAnticipos),
-              if (resumen.cambioEntregado > 0) _row("Cambio entregado", -resumen.cambioEntregado),
-              if (resumen.devoluciones > 0) _row("Devoluciones", -resumen.devoluciones),
-              if (resumen.entradasEfectivo > 0 || resumen.salidasEfectivo > 0) ...[
+
+              FormatoTicket.dato('Cajero', cajero),
+              if (turno != null) FormatoTicket.dato('Turno', turno),
+              FormatoTicket.dato('Apertura', FormatoTicket.fecha(fechaApertura)),
+              FormatoTicket.dato('Corte', FormatoTicket.fecha(fechaCorte)),
+              FormatoTicket.dato('Tickets', '${resumen.ticketsCerrados}'),
+
+              if (!ocultarEfectivo) ...[
                 pw.Divider(),
-                pw.Text("MOVIMIENTOS", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                pw.SizedBox(height: 5),
-                if (resumen.entradasEfectivo > 0) _row("Entradas de efectivo", resumen.entradasEfectivo),
-                if (resumen.salidasEfectivo > 0) _row("Salidas de efectivo", -resumen.salidasEfectivo),
+                FormatoTicket.titulo('EFECTIVO - LO QUE DEBE ESTAR'),
+                for (final (i, r) in resumen.renglonesEfectivo.indexed)
+                  FormatoTicket.renglon(
+                    r.etiqueta,
+                    r.importe,
+                    signo: i == 0 ? ' ' : (r.suma ? '+' : '-'),
+                  ),
+                pw.Divider(),
+                FormatoTicket.total('= ESPERADO', resumen.efectivoEsperado),
               ],
+
               pw.Divider(),
-              pw.Text("CAJA", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 5),
-              _row("Fondo inicial", resumen.fondoInicial),
-              if (!ocultarEfectivoEsperado)
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text("Efectivo esperado",
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                    pw.Text(
-                      AppConfig.formatoMoneda(resumen.efectivoEsperado),
-                      style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                    ),
-                  ],
-                ),
-              pw.SizedBox(height: 20),
+              FormatoTicket.titulo('NO PASA POR EL CAJON'),
+              FormatoTicket.renglon('  Tarjeta', resumen.ventasTarjeta),
+              FormatoTicket.renglon('  Transferencia', resumen.ventasTransferencia),
+              if (resumen.anticiposTarjeta > 0)
+                FormatoTicket.renglon('  Anticipos c/tarjeta', resumen.anticiposTarjeta),
+              if (resumen.anticiposTransferencia > 0)
+                FormatoTicket.renglon('  Anticipos c/transf.', resumen.anticiposTransferencia),
+              FormatoTicket.renglon('  Total', resumen.totalNoEfectivo),
+
+              if (!ocultarEfectivo) ...[
+                pw.Divider(),
+                FormatoTicket.total('VENDIDO EN EL TURNO', resumen.totalVentas),
+              ],
+
+              pw.SizedBox(height: 14),
               pw.Center(
-                child: pw.Text("Lectura parcial - la caja sigue abierta"),
+                child: pw.Text(
+                  ocultarEfectivo
+                      ? 'Lectura parcial - el efectivo se revela al cerrar'
+                      : 'Lectura parcial - la caja sigue abierta',
+                  style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+                ),
               ),
               pw.SizedBox(height: 10),
             ],
@@ -99,15 +98,5 @@ class TicketCorteXService {
     );
 
     return pdf;
-  }
-
-  static pw.Widget _row(String label, double value) {
-    return pw.Row(
-      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-      children: [
-        pw.Text(label),
-        pw.Text(AppConfig.formatoMoneda(value)),
-      ],
-    );
   }
 }

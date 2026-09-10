@@ -3,16 +3,24 @@ import 'package:pdf/widgets.dart' as pw;
 
 import '../core/config/app_config.dart';
 import '../controllers/caja_controller.dart';
+import '../models/conteo_denominaciones.dart';
+import 'formato_ticket.dart';
 
-/// Ticket de **cierre de caja (Corte Z)**: cierra el turno y reporta el
-/// desglose completo del resumen ([ResumenCaja]) — ventas por método,
-/// anticipos de apartados, movimientos manuales de efectivo y pagos a
-/// proveedores — más el arqueo final (esperado vs. contado y su diferencia).
+/// Ticket de **cierre de caja (Corte Z)**.
 ///
-/// Recibe el mismo [ResumenCaja] que el Corte X para que ambos tickets muestren
-/// EXACTAMENTE los mismos rubros: antes el cierre recibía solo un subconjunto
-/// (fondo, ventas, cambio, devoluciones) y el "esperado" impreso no cuadraba
-/// con su propio desglose porque faltaban los anticipos y los movimientos.
+/// El corte impreso es el documento con el que se entrega el dinero, y hasta
+/// ahora no se podia comprobar con el papel en la mano: traia casi todos los
+/// datos correctos, pero repartidos en bloques que no sumaban entre si. El
+/// fondo inicial caia en una seccion propia DESPUES de las ventas, y el
+/// "Efectivo esperado" aparecia al final sin nada que lo respaldara.
+///
+/// Ahora el ticket tiene tres bloques y cada uno cierra solo:
+///
+/// 1. **EFECTIVO** — los sumandos con su signo y el esperado como resultado.
+/// 2. **CONTEO** — lo que el cajero declaro, denominacion por denominacion, y
+///    el contado como resultado. La diferencia sale de restar los dos.
+/// 3. **NO PASA POR EL CAJON** — tarjeta y transferencia, fuera del arqueo,
+///    porque ese dinero nunca estuvo en el cajon.
 class TicketCierreCajaService {
   static Future<pw.Document> generarCierre({
     required String fechaApertura,
@@ -21,105 +29,104 @@ class TicketCierreCajaService {
     required ResumenCaja resumen,
     required double contado,
     required double diferencia,
+    ConteoDenominaciones? conteo,
+    bool pedirFirmas = false,
     String? observacionesApertura,
     String? observacionesCierre,
   }) async {
     final pdf = pw.Document();
     final config = AppConfig.actual;
+    final turno = AppConfig.turnoDeIso(fechaApertura);
 
     pdf.addPage(
       pw.Page(
-        pageFormat: AppConfig.formatoPapel, // térmico
+        pageFormat: AppConfig.formatoPapel, // termico
         build: (context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // ENCABEZADO
-              pw.Center(
-                child: pw.Column(
-                  children: [
-                    pw.Text(
-                      config.nombreNegocio,
-                      style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
-                    ),
-                    pw.Text("CIERRE DE CAJA"),
-                    pw.SizedBox(height: 5),
-                  ],
-                ),
+              FormatoTicket.encabezado(
+                negocio: config.nombreNegocio,
+                titulo: 'CORTE DE CAJA (Z)',
+                direccion: config.direccion,
               ),
 
               pw.Divider(),
 
-              // INFO GENERAL
-              pw.Text("Cajero: $cajero"),
-              pw.SizedBox(height: 5),
-              pw.Text("Apertura: $fechaApertura"),
-              pw.Text("Cierre:   $fechaCierre"),
+              FormatoTicket.dato('Cajero', cajero),
+              if (turno != null) FormatoTicket.dato('Turno', turno),
+              FormatoTicket.dato('Apertura', FormatoTicket.fecha(fechaApertura)),
+              FormatoTicket.dato('Cierre', FormatoTicket.fecha(fechaCierre)),
+              FormatoTicket.dato('Tickets', '${resumen.ticketsCerrados}'),
               if (observacionesApertura != null && observacionesApertura.isNotEmpty)
-                pw.Text("Obs. apertura: $observacionesApertura"),
+                pw.Text('Obs. apertura: $observacionesApertura'),
               if (observacionesCierre != null && observacionesCierre.isNotEmpty)
-                pw.Text("Obs. cierre: $observacionesCierre"),
+                pw.Text('Obs. cierre: $observacionesCierre'),
 
               pw.Divider(),
 
-              // VENTAS
-              pw.Text("VENTAS", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 5),
-              _row("Total", resumen.totalVentas),
-              _row("Efectivo", resumen.ventasEfectivo),
-              _row("Tarjeta", resumen.ventasTarjeta),
-              _row("Transferencia", resumen.ventasTransferencia),
-              if (resumen.totalAnticipos > 0) _row("Anticipos apartados", resumen.totalAnticipos),
-              if (resumen.cambioEntregado > 0) _row("Cambio entregado", -resumen.cambioEntregado),
-              if (resumen.devoluciones > 0) _row("Devoluciones", -resumen.devoluciones),
+              // 1. De donde sale el efectivo esperado. Los mismos renglones
+              // que dibuja la pantalla (ver `ResumenCaja.renglonesEfectivo`):
+              // si alguna vez difirieran, el cajero tendria dos cuentas
+              // distintas del mismo turno y ninguna forma de saber cual vale.
+              FormatoTicket.titulo('EFECTIVO - LO QUE DEBE ESTAR'),
+              // El primer renglon es siempre el fondo inicial: es la base de la
+              // cuenta, no una suma, y por eso lleva un espacio donde los
+              // demas llevan su signo.
+              for (final (i, r) in resumen.renglonesEfectivo.indexed)
+                FormatoTicket.renglon(
+                  r.etiqueta,
+                  r.importe,
+                  signo: i == 0 ? ' ' : (r.suma ? '+' : '-'),
+                ),
+              pw.Divider(),
+              FormatoTicket.total('= ESPERADO', resumen.efectivoEsperado),
 
-              // MOVIMIENTOS DE EFECTIVO (entradas/salidas manuales y pagos a
-              // proveedores): afectan el efectivo esperado, así que se listan
-              // para que el arqueo cuadre a la vista.
-              if (resumen.entradasEfectivo > 0 ||
-                  resumen.salidasEfectivo > 0 ||
-                  resumen.pagosProveedoresEfectivo > 0) ...[
+              // 2. Lo que se conto. Sin el desglose, el total contado es un
+              // numero sin respaldo: si manana se discute el faltante, esto es
+              // la unica evidencia de que se conto.
+              pw.SizedBox(height: 8),
+              FormatoTicket.titulo('CONTEO DEL CAJON'),
+              if (conteo != null && !conteo.sinCapturar)
+                for (final r in conteo.renglones)
+                  FormatoTicket.renglon('  ${r.etiqueta}', r.importe)
+              else
+                pw.Text('  (sin desglose por denominacion)'),
+              pw.Divider(),
+              FormatoTicket.total('= CONTADO', contado),
+
+              pw.SizedBox(height: 10),
+              _veredicto(diferencia),
+
+              // 3. Fuera del arqueo, a proposito.
+              pw.Divider(),
+              FormatoTicket.titulo('NO PASA POR EL CAJON'),
+              FormatoTicket.renglon('  Tarjeta', resumen.ventasTarjeta),
+              FormatoTicket.renglon('  Transferencia', resumen.ventasTransferencia),
+              if (resumen.anticiposTarjeta > 0)
+                FormatoTicket.renglon('  Anticipos c/tarjeta', resumen.anticiposTarjeta),
+              if (resumen.anticiposTransferencia > 0)
+                FormatoTicket.renglon('  Anticipos c/transf.', resumen.anticiposTransferencia),
+              FormatoTicket.renglon('  Total', resumen.totalNoEfectivo),
+
+              pw.Divider(),
+              FormatoTicket.total('VENDIDO EN EL TURNO', resumen.totalVentas),
+
+              if (pedirFirmas) ...[
                 pw.Divider(),
-                pw.Text("MOVIMIENTOS DE EFECTIVO", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                pw.SizedBox(height: 5),
-                if (resumen.entradasEfectivo > 0) _row("Entradas de efectivo", resumen.entradasEfectivo),
-                if (resumen.salidasEfectivo > 0) _row("Salidas de efectivo", -resumen.salidasEfectivo),
-                if (resumen.pagosProveedoresEfectivo > 0)
-                  _row("Pagos a proveedores", -resumen.pagosProveedoresEfectivo),
+                pw.SizedBox(height: 6),
+                FormatoTicket.firma('Entrega', cajero),
+                pw.SizedBox(height: 10),
+                FormatoTicket.firma('Recibe', 'nombre y firma'),
               ],
 
-              pw.Divider(),
-
-              // CAJA
-              pw.Text("CAJA", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 5),
-              _row("Fondo inicial", resumen.fondoInicial),
-
-              pw.Divider(),
-
-              // RESULTADO (arqueo)
-              pw.Text("RESULTADO", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 5),
-              _row("Efectivo esperado", resumen.efectivoEsperado),
-              _row("Efectivo contado", contado),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text("Diferencia", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-                  pw.Text(
-                    AppConfig.formatoMoneda(diferencia),
-                    style: pw.TextStyle(
-                      fontWeight: pw.FontWeight.bold,
-                      color: diferencia >= 0 ? PdfColors.green : PdfColors.red,
-                    ),
-                  ),
-                ],
+              pw.SizedBox(height: 14),
+              pw.Center(
+                child: pw.Text(
+                  'Pv Control - ${FormatoTicket.fecha(fechaCierre)}',
+                  style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
+                ),
               ),
-
-              pw.SizedBox(height: 20),
-
-              pw.Center(child: pw.Text("Cierre generado correctamente")),
-
               pw.SizedBox(height: 10),
             ],
           );
@@ -130,14 +137,31 @@ class TicketCierreCajaService {
     return pdf;
   }
 
-  // Helper para filas
-  static pw.Widget _row(String label, double value) {
-    return pw.Row(
-      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-      children: [
-        pw.Text(label),
-        pw.Text(AppConfig.formatoMoneda(value)),
-      ],
+  /// El resultado del arqueo, centrado y grande. Es lo unico del ticket que
+  /// alguien busca de un vistazo.
+  static pw.Widget _veredicto(double diferencia) {
+    final cuadra = diferencia.abs() < 0.005;
+    final etiqueta = cuadra
+        ? 'CUADRA EXACTO'
+        : diferencia > 0
+            ? '***  SOBRANTE  ***'
+            : '***  FALTANTE  ***';
+
+    return pw.Center(
+      child: pw.Column(
+        children: [
+          pw.Text(etiqueta, style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+          if (!cuadra)
+            pw.Text(
+              AppConfig.formatoMoneda(diferencia),
+              style: pw.TextStyle(
+                fontSize: 15,
+                fontWeight: pw.FontWeight.bold,
+                color: diferencia > 0 ? PdfColors.green : PdfColors.red,
+              ),
+            ),
+        ],
+      ),
     );
   }
 }

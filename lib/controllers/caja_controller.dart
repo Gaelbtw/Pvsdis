@@ -8,6 +8,7 @@ import '../core/sync/bitacoras/movimiento_caja_logger.dart';
 import '../core/sync/outbox/sync_outbox_writer.dart';
 import '../core/utils/money.dart';
 import '../models/caja_model.dart';
+import '../models/conteo_denominaciones.dart';
 
 /// Desglose de una caja calculado en vivo a partir de `Venta_Pagos`,
 /// `Ventas` y `Devoluciones` filtrando por `id_caja`. Se usa tanto para la
@@ -46,6 +47,14 @@ class ResumenCaja {
   final double entradasEfectivo;
   final double salidasEfectivo;
 
+  /// Cuantos tickets se cerraron en esta caja, sin contar los cancelados.
+  ///
+  /// No entra en ningun calculo de dinero: esta porque es lo primero que se
+  /// pregunta al comparar dos cortes del mismo dia ("¿vendiste menos o
+  /// vendiste mas barato?") y porque un corte sin numero de operaciones no
+  /// se puede contrastar contra nada.
+  final int ticketsCerrados;
+
   const ResumenCaja({
     required this.fondoInicial,
     required this.ventasEfectivo,
@@ -61,10 +70,46 @@ class ResumenCaja {
     this.pagosProveedoresEfectivo = 0,
     this.entradasEfectivo = 0,
     this.salidasEfectivo = 0,
+    this.ticketsCerrados = 0,
   });
 
   double get totalVentas => ventasEfectivo + ventasTarjeta + ventasTransferencia;
   double get totalAnticipos => anticiposEfectivo + anticiposTarjeta + anticiposTransferencia;
+
+  /// Dinero del turno que NUNCA estuvo en el cajon: tarjeta y transferencia,
+  /// de ventas y de anticipos. Se reporta aparte porque confundirlo con el
+  /// efectivo es el error mas comun al aprender a hacer un corte -- y hasta
+  /// ahora la pantalla lo invitaba, mostrandolo en tarjetas identicas a las
+  /// del efectivo.
+  double get totalNoEfectivo =>
+      ventasTarjeta + ventasTransferencia + anticiposTarjeta + anticiposTransferencia;
+
+  /// Los sumandos de [efectivoEsperado], con su signo y en el orden en que se
+  /// leen: primero lo que estaba, luego lo que entro, luego lo que salio.
+  ///
+  /// Existe para que la pantalla, el ticket de cierre y el Corte X impriman
+  /// EXACTAMENTE los mismos renglones. Antes cada uno armaba su propia lista
+  /// y no coincidian: la pantalla omitia anticipos y pagos a proveedores, asi
+  /// que el efectivo esperado que mostraba no se podia reconstruir sumando lo
+  /// que tenia enfrente el cajero.
+  List<({String etiqueta, double importe, bool suma})> get renglonesEfectivo => [
+        (etiqueta: 'Fondo inicial', importe: fondoInicial, suma: true),
+        (etiqueta: 'Ventas en efectivo', importe: ventasEfectivo, suma: true),
+        if (anticiposEfectivo > 0)
+          (etiqueta: 'Anticipos de apartados', importe: anticiposEfectivo, suma: true),
+        if (entradasEfectivo > 0)
+          (etiqueta: 'Entradas de efectivo', importe: entradasEfectivo, suma: true),
+        if (cambioEntregado > 0)
+          (etiqueta: 'Cambio entregado', importe: cambioEntregado, suma: false),
+        if (cambioAnticipos > 0)
+          (etiqueta: 'Cambio de anticipos', importe: cambioAnticipos, suma: false),
+        if (devoluciones > 0)
+          (etiqueta: 'Devoluciones', importe: devoluciones, suma: false),
+        if (pagosProveedoresEfectivo > 0)
+          (etiqueta: 'Pagos a proveedores', importe: pagosProveedoresEfectivo, suma: false),
+        if (salidasEfectivo > 0)
+          (etiqueta: 'Salidas de efectivo', importe: salidasEfectivo, suma: false),
+      ];
 }
 
 /// Apertura, cierre e historial de sesiones de caja. Cada cajero trabaja
@@ -234,6 +279,16 @@ class CajaController {
       return 0;
     }
 
+    // Tickets del turno. Se excluyen las canceladas con el mismo criterio que
+    // usa todo `ReporteController` (`IFNULL(estado,'Activa') != 'Cancelada'`):
+    // una venta cancelada ya no es una operacion, y contarla haria que el
+    // corte no cuadrara contra el reporte del dia.
+    final ticketsRes = await executor.rawQuery(
+      "SELECT COUNT(*) as n FROM Ventas "
+      "WHERE id_caja = ? AND IFNULL(estado, 'Activa') != 'Cancelada'",
+      [idCaja],
+    );
+
     final ventasEfectivo = montoDe('Efectivo');
     final anticiposEfectivo = montoAnticipoDe('Efectivo');
     final cambioEntregado = (cambioRes.first['total'] as num).toDouble();
@@ -270,6 +325,7 @@ class CajaController {
       pagosProveedoresEfectivo: pagosProveedoresEfectivo,
       entradasEfectivo: entradasEfectivo,
       salidasEfectivo: -salidasEfectivoNeto, // positivo para mostrar
+      ticketsCerrados: (ticketsRes.first['n'] as num).toInt(),
     );
   }
 
@@ -347,10 +403,23 @@ class CajaController {
   Future<int> cerrarCaja({
     required int idCaja,
     required double efectivoContado,
+    ConteoDenominaciones? conteo,
     String? observaciones,
   }) async {
     if (efectivoContado < 0) {
       throw Exception('El efectivo contado no puede ser negativo.');
+    }
+
+    // El total capturado y el desglose no pueden discrepar: si lo hicieran, el
+    // ticket imprimiria un desglose que no suma el numero con el que se
+    // calculo la diferencia, y ese papel es justamente la evidencia que se
+    // saca cuando alguien reclama. Es un error de programacion, no del
+    // usuario, y por eso truena aqui en vez de guardarse callado.
+    if (conteo != null && (conteo.total - efectivoContado).abs() > 0.005) {
+      throw Exception(
+        'El desglose del conteo suma ${conteo.total.toStringAsFixed(2)} '
+        'pero se recibio un efectivo contado de ${efectivoContado.toStringAsFixed(2)}.',
+      );
     }
 
     final db = await dbHelper.database;
@@ -380,6 +449,7 @@ class CajaController {
           'devoluciones': resumen.devoluciones,
           'efectivo_esperado': resumen.efectivoEsperado,
           'efectivo_contado': efectivoContado,
+          'conteo_denominaciones': conteo?.aJson(),
           'diferencia': diferencia,
           'observaciones_cierre':
               (observacionesLimpias == null || observacionesLimpias.isEmpty) ? null : observacionesLimpias,
