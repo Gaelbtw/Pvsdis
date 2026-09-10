@@ -22,7 +22,13 @@ class VentasController {
 
   Future<int> insertar(Ventas venta) async {
     final db = await dbHelper.database;
-    return await _outboxWriter.crear(db, entidad: 'Venta', tabla: 'Ventas', values: venta.toMap());
+    // Insertar y encolar tienen que ocurrir juntos o no ocurrir.
+    return db.transaction((txn) => _outboxWriter.crear(
+          txn,
+          entidad: 'Venta',
+          tabla: 'Ventas',
+          values: venta.toMap(),
+        ));
   }
 
   /// Registra la venta completa (líneas, descuentos, stock y auditoría) en
@@ -203,6 +209,11 @@ class VentasController {
           "descuento_valor": linea.descuentoValor,
           "descuento_monto": linea.descuentoMonto,
           "precio_neto": linea.precioNetoUnitario,
+          // Importe TOTAL de la linea, ya con promocion, descuento de linea y
+          // su parte del global. `precio_neto` es este mismo numero dividido
+          // entre la cantidad y redondeado, asi que no permite reconstruirlo:
+          // la devolucion necesita el exacto. Ver `_ensureMontoNetoColumns`.
+          "monto_neto": linea.montoNeto,
         });
         idsDetalleVenta.add(idDetalleVenta);
 

@@ -147,6 +147,7 @@ class ApartadosController {
           'descuento_valor': linea.descuentoValor,
           'descuento_monto': linea.descuentoMonto,
           'precio_neto': linea.precioNetoUnitario,
+          'monto_neto': linea.montoNeto,
         });
         idsDetalleApartado.add(idDetalle);
 
@@ -406,6 +407,7 @@ class ApartadosController {
         'descuento_valor': detalle['descuento_valor'],
         'descuento_monto': detalle['descuento_monto'],
         'precio_neto': detalle['precio_neto'],
+        'monto_neto': detalle['monto_neto'],
       });
 
       await _productoController.confirmarReserva(

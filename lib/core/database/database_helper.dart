@@ -99,7 +99,26 @@ class DatabaseHelper {
   /// v26: columnas de mantenimiento en `configuracion` (`equipo_codigo`,
   /// `auditoria_meses_retencion`, `auditoria_purga_ultima`) e índices que
   /// faltaban para los rangos de fecha de los reportes. Ver [_crearIndices].
-  static const _databaseVersion = 26;
+  ///
+  /// v27: `conteo_denominaciones` en `Cajas`. Guarda, como texto JSON, cuantos
+  /// billetes de cada denominacion declaro el cajero al cerrar. Hasta aqui el
+  /// cierre solo conservaba el total contado, un numero que el cajero sumaba
+  /// aparte: cuando alguien discutia un faltante no habia forma de saber si el
+  /// error estuvo en el conteo, en la suma o en la captura. Nace NULL en los
+  /// cierres anteriores, y eso es honesto -- en ellos ese desglose nunca
+  /// existio. Ver `ConteoDenominaciones`.
+  ///
+  /// v28: `monto_neto` en `Detalle_Venta` y `Detalle_Apartado`. Es el importe
+  /// TOTAL cobrado por la linea, ya con promocion, descuento de linea y su
+  /// parte del descuento global. Hasta aqui solo se guardaba `precio_neto`,
+  /// que es ese mismo importe DIVIDIDO entre la cantidad y redondeado a dos
+  /// decimales: tres piezas de $10 con $1 de descuento se cobraron en $29.00
+  /// pero se reconstruian como 9.67 x 3 = $29.01. Un centavo de sobrante en
+  /// cada devolucion, y no habia forma de recuperar el importe exacto porque
+  /// el ahorro por promocion no vive en `descuento_monto`. Nace NULL en las
+  /// lineas anteriores; ahi se sigue usando `precio_neto * cantidad`, que es
+  /// lo mejor que existe para ellas.
+  static const _databaseVersion = 28;
 
   /// Versión del esquema que maneja esta compilación.
   ///
@@ -461,6 +480,7 @@ class DatabaseHelper {
         descuento_valor REAL DEFAULT 0,
         descuento_monto REAL DEFAULT 0,
         precio_neto REAL,
+        monto_neto REAL,
         FOREIGN KEY (id_venta) REFERENCES Ventas(id_venta) ON DELETE CASCADE,
         FOREIGN KEY (id_producto) REFERENCES Producto(id_producto) ON DELETE RESTRICT
       );
@@ -596,6 +616,7 @@ class DatabaseHelper {
     await _ensureComprasCreditoColumns(db);
     await _ensureAbonosTables(db);
     await _ensureCajasPagosProveedoresColumn(db);
+    await _ensureCajasConteoColumn(db);
     await _backfillAbonosComprasExistentes(db);
     await _ensureBitacoraSyncTables(db);
     await _ensureSyncConfigYPullEstadoTables(db);
@@ -709,6 +730,14 @@ class DatabaseHelper {
       await _ensureConfiguracionMantenimientoColumns(db);
     }
 
+    if (oldVersion < 27) {
+      await _ensureCajasConteoColumn(db);
+    }
+
+    if (oldVersion < 28) {
+      await _ensureMontoNetoColumns(db);
+    }
+
     // Idempotente (CREATE INDEX IF NOT EXISTS): se repite en cada upgrade
     // para que índices agregados en versiones nuevas también lleguen a
     // instalaciones que ya estaban al día en versiones anteriores.
@@ -728,6 +757,39 @@ class DatabaseHelper {
   /// anteriores a esta migración: eso es honesto —no se puede inventar un
   /// costo pasado— y permite que un reporte distinga "sin dato" de "costo
   /// cero" en vez de mostrar una utilidad falsa.
+  /// Agrega `monto_neto` a `Detalle_Venta` y `Detalle_Apartado`: el importe
+  /// total realmente cobrado por la linea.
+  ///
+  /// `precio_neto` no basta para reconstruirlo. Es unitario y redondeado, asi
+  /// que multiplicarlo por la cantidad reintroduce hasta medio centavo por
+  /// pieza; y `precio * cantidad - descuento_monto` ignora el ahorro por
+  /// promocion, que nunca se guardo en `descuento_monto`. Con la columna, la
+  /// devolucion entrega exactamente lo que se cobro.
+  ///
+  /// El backfill usa `precio_neto * cantidad` porque es la mejor aproximacion
+  /// disponible para lo ya vendido; solo se llena donde hay `precio_neto`,
+  /// para no inventar un importe en lineas que nunca lo tuvieron.
+  Future<void> _ensureMontoNetoColumns(Database db) async {
+    const tablas = ['Detalle_Venta', 'Detalle_Apartado'];
+
+    for (final tabla in tablas) {
+      final info = await db.rawQuery('PRAGMA table_info($tabla)');
+      if (info.isEmpty) continue; // la tabla aun no existe en esta instalacion
+
+      final columnas = info.map((row) => row['name']?.toString()).toSet();
+      if (!columnas.contains('monto_neto')) {
+        await db.execute('ALTER TABLE $tabla ADD COLUMN monto_neto REAL;');
+      }
+
+      if (columnas.contains('precio_neto')) {
+        await db.execute(
+          'UPDATE $tabla SET monto_neto = precio_neto * cantidad '
+          'WHERE monto_neto IS NULL AND precio_neto IS NOT NULL;',
+        );
+      }
+    }
+  }
+
   Future<void> _ensureCostoUnitarioColumns(Database db) async {
     const tablas = ['Detalle_Venta', 'Detalle_Apartado'];
 
@@ -1110,6 +1172,21 @@ class DatabaseHelper {
   /// informativa (qué intención tenía el usuario al comprar); el saldo y el
   /// estado de pago NUNCA se guardan aquí — siempre se calculan en vivo a
   /// partir de `total` y la suma de `Abonos` (ver `CuentasPorPagarController`).
+  /// Desglose por denominacion del efectivo contado al cerrar, en JSON.
+  ///
+  /// Va en una sola columna de texto y no en una tabla hija a proposito: se
+  /// escribe una vez al cerrar, se lee completo o no se lee, y nunca se
+  /// consulta por partes. Una tabla `Cajas_Conteo` seria mas normalizada y no
+  /// compraria nada -- solo un JOIN mas en cada cierre y en cada reimpresion.
+  Future<void> _ensureCajasConteoColumn(Database db) async {
+    final info = await db.rawQuery('PRAGMA table_info(Cajas)');
+    final columnNames = info.map((row) => row['name']?.toString()).toSet();
+
+    if (!columnNames.contains('conteo_denominaciones')) {
+      await db.execute('ALTER TABLE Cajas ADD COLUMN conteo_denominaciones TEXT;');
+    }
+  }
+
   Future<void> _ensureComprasCreditoColumns(Database db) async {
     final info = await db.rawQuery('PRAGMA table_info(Compras)');
     final columnNames = info.map((row) => row['name']?.toString()).toSet();
@@ -1646,6 +1723,7 @@ class DatabaseHelper {
         descuento_valor REAL DEFAULT 0,
         descuento_monto REAL DEFAULT 0,
         precio_neto REAL,
+        monto_neto REAL,
         FOREIGN KEY (id_apartado) REFERENCES Apartados(id_apartado) ON DELETE CASCADE,
         FOREIGN KEY (id_producto) REFERENCES Producto(id_producto) ON DELETE RESTRICT
       );
@@ -2045,6 +2123,7 @@ class DatabaseHelper {
           descuento_valor REAL DEFAULT 0,
           descuento_monto REAL DEFAULT 0,
           precio_neto REAL,
+          monto_neto REAL,
           FOREIGN KEY (id_venta) REFERENCES Ventas(id_venta) ON DELETE CASCADE,
           FOREIGN KEY (id_producto) REFERENCES Producto(id_producto) ON DELETE RESTRICT
         );

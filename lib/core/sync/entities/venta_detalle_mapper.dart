@@ -56,10 +56,15 @@ class VentaDetalleMapper extends EntityMapper {
     final cantidad = (filaLocal['cantidad'] as num).toDouble();
     final precioNetoUnitario = (filaLocal['precio_neto'] as num?)?.toDouble();
 
-    final subtotal = precioNetoUnitario != null
-        ? precioNetoUnitario * cantidad
-        : (cantidad * (filaLocal['precio'] as num).toDouble() -
-            ((filaLocal['descuento_monto'] as num?)?.toDouble() ?? 0));
+    // `monto_neto` (v28) es el importe exacto de la línea; se prefiere sobre
+    // reconstruirlo desde el unitario redondeado.
+    final montoNeto = (filaLocal['monto_neto'] as num?)?.toDouble();
+
+    final subtotal = montoNeto ??
+        (precioNetoUnitario != null
+            ? precioNetoUnitario * cantidad
+            : (cantidad * (filaLocal['precio'] as num).toDouble() -
+                ((filaLocal['descuento_monto'] as num?)?.toDouble() ?? 0)));
 
     final tasaDecimal = AppConfig.actual.tasaImpuestoPorcentaje / 100;
     final aplicaIva = tasaDecimal > 0;

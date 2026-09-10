@@ -3,7 +3,9 @@ import 'package:sqflite/sqflite.dart';
 import '../core/database/database_helper.dart';
 import '../core/security/autorizadores.dart';
 import '../core/session/session_manager.dart';
+import '../core/sync/auth_service.dart';
 import '../core/sync/bitacoras/movimiento_caja_logger.dart';
+import '../core/sync/outbox/sync_outbox_writer.dart';
 import '../core/utils/money.dart';
 import '../core/utils/pagos_mixtos.dart';
 import 'producto_controller.dart';
@@ -71,6 +73,7 @@ class ComprobanteDevolucion {
 class DevolucionesController {
   final _productoController = ProductoController();
   final _movimientoCajaLogger = MovimientoCajaLogger();
+  final _outboxWriter = SyncOutboxWriter(authService: AuthService.instancia);
 
   Future<VentaDetalle> obtenerDetalleVenta(int idVenta) async {
     final db = await DatabaseHelper().database;
@@ -302,12 +305,24 @@ class DevolucionesController {
       // efectivo. Cuando ese es el caso se exige autorización explícita de un
       // administrador, y el método original queda registrado en la
       // devolución para poder auditarlo después.
+      //
+      // Si el método NO se puede determinar, se exige autorización igual. Antes
+      // se dejaba pasar, y había un caso normal donde eso ocurría: las ventas
+      // que nacen de liquidar un apartado no tienen filas en `Venta_Pagos` --a
+      // propósito, para no contar ese dinero dos veces--. Un apartado de
+      // $5,000 abonado íntegramente con tarjeta se podía cancelar y sacaban
+      // $5,000 en efectivo de la caja, sin autorización y sin revertir el
+      // cargo. Justo la vía que este bloque existe para cerrar.
       final metodoOriginal = await _metodoPagoOriginal(txn, idVenta);
-      if (metodoOriginal != null && !_esSoloEfectivo(metodoOriginal)) {
+      if (metodoOriginal == null || !_esSoloEfectivo(metodoOriginal)) {
         if (!await esAdministrador(txn, autorizadoPor)) {
           throw Exception(
-            'Esta venta se pagó con $metodoOriginal. Como el reembolso se '
-            'entrega en efectivo, requiere autorización de un administrador.',
+            metodoOriginal == null
+                ? 'No se pudo determinar con qué se pagó esta venta. Como el '
+                    'reembolso se entrega en efectivo, requiere autorización '
+                    'de un administrador.'
+                : 'Esta venta se pagó con $metodoOriginal. Como el reembolso se '
+                    'entrega en efectivo, requiere autorización de un administrador.',
           );
         }
       }
@@ -319,6 +334,16 @@ class DevolucionesController {
         SELECT dv.id_producto, p.nombre,
                SUM(dv.precio * dv.cantidad) / SUM(dv.cantidad) as precio,
                SUM(COALESCE(dv.precio_neto, dv.precio) * dv.cantidad) / SUM(dv.cantidad) as precio_neto,
+               -- Lo que de verdad se cobró por esta línea, sin pasar por un
+               -- precio unitario ya redondeado. Ver `importeADevolver`.
+               --
+               -- `monto_neto` es el importe exacto de la línea, ya con
+               -- promoción, descuento de línea y su parte del global (v28).
+               -- Las líneas anteriores a esa versión caen a
+               -- `precio_neto * cantidad`, lo mejor que existe para ellas:
+               -- `precio - descuento_monto` NO sirve como respaldo porque el
+               -- ahorro por promoción nunca se guardó en `descuento_monto`.
+               SUM(COALESCE(dv.monto_neto, COALESCE(dv.precio_neto, dv.precio) * dv.cantidad)) as importe_linea,
                SUM(dv.cantidad) as cantidad_vendida
         FROM Detalle_Venta dv
         INNER JOIN Producto p ON p.id_producto = dv.id_producto
@@ -399,11 +424,41 @@ class DevolucionesController {
         return (neto ?? fila['precio'] as num).toDouble();
       }
 
+      /// Cuánto se devuelve por [cantidad] piezas de [idProducto].
+      ///
+      /// Se calcula por ACUMULADO y no pieza por pieza. Multiplicar un precio
+      /// unitario ya redondeado amplifica el redondeo en vez de compensarlo:
+      /// tres piezas de $10 con $1 de descuento se cobraron en $29.00, pero
+      /// el neto por unidad queda en $9.67 y devolver 9.67 x 3 entregaba
+      /// $29.01. Un centavo de sobrante en el corte, cada vez.
+      ///
+      /// Restar lo ya devuelto de lo que corresponde al total devuelto hace
+      /// que la suma de todas las devoluciones parciales dé exactamente el
+      /// importe cobrado, sin arrastrar diferencias.
+      double importeADevolver(int idProducto, int cantidad) {
+        final fila = vendidoPorProducto[idProducto]!;
+        final vendida = (fila['cantidad_vendida'] as num?)?.toInt() ?? 0;
+        final importeLinea = (fila['importe_linea'] as num?)?.toDouble();
+
+        if (importeLinea == null || vendida <= 0) {
+          // Ventas anteriores a que existiera el desglose: se cae al precio
+          // unitario, que es lo único que hay.
+          return redondearMoneda(precioPagadoDe(idProducto) * cantidad);
+        }
+
+        final yaDevuelto = devueltoPrevio[idProducto] ?? 0;
+        final hasta = redondearMoneda(importeLinea * (yaDevuelto + cantidad) / vendida);
+        final desde = redondearMoneda(importeLinea * yaDevuelto / vendida);
+        return redondearMoneda(hasta - desde);
+      }
+
       double importeTotal = 0;
       for (final item in itemsAProcesar) {
         final idProducto = item['id_producto'] as int;
         final cantidad = item['cantidad'] as int;
-        importeTotal = redondearMoneda(importeTotal + precioPagadoDe(idProducto) * cantidad);
+        importeTotal = redondearMoneda(
+          importeTotal + importeADevolver(idProducto, cantidad),
+        );
       }
 
       final idDevolucion = await txn.insert('Devoluciones', {
@@ -483,6 +538,26 @@ class DevolucionesController {
         whereArgs: [idVenta],
       );
 
+      // Encolar el cambio de estado para el backend, en esta misma
+      // transacción.
+      //
+      // Sin esto, una venta ya sincronizada se cancelaba solo localmente: el
+      // backend la seguía contando como completada, y si alguna vez se
+      // reiniciaba el cursor de sincronización -- reinstalación, restauración
+      // de un respaldo -- el pull la traía de vuelta como activa y REVIVÍA
+      // localmente una venta cancelada, con el stock ya reintegrado y el
+      // reembolso ya pagado.
+      //
+      // Hoy está latente porque la sincronización está apagada. Es
+      // exactamente el tipo de defecto que aparece el día que se enciende,
+      // cuando ya hay meses de datos que arrastrar.
+      await _outboxWriter.actualizar(
+        txn,
+        entidad: 'Venta',
+        tabla: 'Ventas',
+        idLocal: idVenta,
+      );
+
       // El reembolso siempre se entrega en efectivo, sin importar con qué
       // método(s) se pagó la venta original: así lo decidió el negocio para
       // no depender de terminales de tarjeta al momento de la devolución.
@@ -511,23 +586,51 @@ class DevolucionesController {
     });
   }
 
-  /// Métodos con los que se cobró realmente la venta, según `Venta_Pagos`
-  /// (que es el desglose real; `Ventas.metodo_pago` guarda solo `'Mixto'`
-  /// cuando hubo varios). `null` si no hay ninguno registrado.
+  /// Métodos con los que se cobró realmente la venta. `null` solo cuando no
+  /// hay forma de saberlo, y entonces quien llama debe tratarlo como el caso
+  /// peligroso, no como el inofensivo.
+  ///
+  /// Se buscan en tres lugares, en este orden:
+  ///
+  /// 1. `Venta_Pagos`, el desglose real de la venta.
+  /// 2. Los pagos de los abonos del apartado, cuando la venta nació de
+  ///    liquidar uno. Esas ventas NO copian sus pagos a `Venta_Pagos` --a
+  ///    propósito, para que el dinero se cuente una sola vez, en el turno en
+  ///    que de verdad entró-- así que el paso 1 no las ve.
+  /// 3. `Ventas.metodo_pago`, el resumen. Sirve para las ventas anteriores a
+  ///    que existiera `Venta_Pagos`, que si no quedarían como indeterminadas
+  ///    para siempre.
   Future<String?> _metodoPagoOriginal(DatabaseExecutor txn, int idVenta) async {
-    final filas = await txn.query(
+    String? unir(List<Map<String, Object?>> filas) {
+      final metodos = <String>{
+        for (final fila in filas) fila['metodo_pago']?.toString().trim() ?? '',
+      }..removeWhere((m) => m.isEmpty);
+      return metodos.isEmpty ? null : metodos.join(' + ');
+    }
+
+    final deLaVenta = unir(await txn.query(
       'Venta_Pagos',
       columns: ['metodo_pago'],
       where: 'id_venta = ?',
       whereArgs: [idVenta],
-    );
-    if (filas.isEmpty) return null;
+    ));
+    if (deLaVenta != null) return deLaVenta;
 
-    final metodos = <String>{
-      for (final fila in filas) fila['metodo_pago']?.toString() ?? '',
-    }..removeWhere((m) => m.isEmpty);
+    final delApartado = unir(await txn.rawQuery('''
+      SELECT DISTINCT ap.metodo_pago
+      FROM Ventas v
+      INNER JOIN Apartado_Abonos ab ON ab.id_apartado = v.id_apartado
+      INNER JOIN Apartado_Abono_Pagos ap ON ap.id_abono = ab.id_abono
+      WHERE v.id_venta = ? AND v.id_apartado IS NOT NULL
+    ''', [idVenta]));
+    if (delApartado != null) return delApartado;
 
-    return metodos.isEmpty ? null : metodos.join(' + ');
+    return unir(await txn.query(
+      'Ventas',
+      columns: ['metodo_pago'],
+      where: 'id_venta = ?',
+      whereArgs: [idVenta],
+    ));
   }
 
   /// `true` si todo lo cobrado fue efectivo (comparando sin distinguir
