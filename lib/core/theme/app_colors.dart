@@ -14,16 +14,79 @@ class AppColors {
 
   static Color _primary = const Color(0xFFF2C500);
 
+  /// Colores de marca que el negocio puede elegir en Configuracion.
+  ///
+  /// Vive aqui y no en `ConfiguracionView` porque es sistema de diseno, no de
+  /// una pantalla: la prueba que exige 4.5:1 de contraste entre cada color y
+  /// su tinta mide ESTA lista, no una copia que se desincronizaria al primer
+  /// color nuevo.
+  ///
+  /// El verde, el naranja y el verde azulado son un tono mas oscuros que los
+  /// que habia (`#16A34A`, `#EA580C`, `#0D9488`). No fue gusto: medidos contra
+  /// las dos tintas posibles llegaban a 4.28:1, 3.97:1 y 3.77:1, todos por
+  /// debajo del minimo legible de 4.5:1. Un negocio que hubiera elegido
+  /// cualquiera de los tres tenia botones que no se leen, con cualquier tinta,
+  /// y no habia forma de arreglarlo sin cambiar el color.
+  static const List<Color> paletaMarca = [
+    Color(0xFFF2C500), // dorado (por omision)
+    Color(0xFF2563EB), // azul
+    Color(0xFF15803D), // verde
+    Color(0xFFDC2626), // rojo
+    Color(0xFF9333EA), // morado
+    Color(0xFFC2410C), // naranja
+    Color(0xFF0F766E), // verde azulado
+    Color(0xFF334155), // gris azulado oscuro
+    Color(0xFF1F1D1A), // negro, calido, del mismo tono que la tinta de la app
+    Color(0xFFFFFFFF), // blanco
+  ];
+
   static void actualizar(Color nuevoPrimario) {
     _primary = nuevoPrimario;
   }
 
   static Color get primary => _primary;
 
-  /// Texto/ícono que va sobre [primary]: negro o blanco según el
-  /// contraste, para que un color de marca oscuro siga siendo legible.
-  static Color get onPrimary =>
-      _primary.computeLuminance() > 0.5 ? Colors.black87 : Colors.white;
+  /// Texto/ícono que va sobre [primary].
+  ///
+  /// Antes esto era `luminancia > 0.5 ? black87 : white`. El umbral de 0.5
+  /// suena razonable y no lo es: la luminancia no es lineal con lo que el ojo
+  /// percibe, y con colores de marca de tono medio elegia el lado equivocado.
+  /// Ahora se calcula el contraste real contra las dos tintas y gana la que
+  /// mas separa, que es la definicion que usa WCAG y la que decide si un
+  /// cajero puede leer el boton de cobrar a un metro de distancia.
+  static Color get onPrimary => tintaSobre(_primary);
+
+  /// La tinta (oscura o blanca) que mejor se lee sobre [fondo].
+  ///
+  /// Publica porque no solo los botones la necesitan: la paloma del selector
+  /// de color en Configuracion se dibujaba siempre blanca, asi que sobre una
+  /// muestra clara desaparecia y no se sabia cual estaba elegido.
+  static Color tintaSobre(Color fondo) =>
+      contraste(textPrimary, fondo) >= contraste(Colors.white, fondo)
+          ? textPrimary
+          : Colors.white;
+
+  /// Razon de contraste WCAG entre dos colores, de 1 (identicos) a 21
+  /// (negro sobre blanco). El minimo legible para texto normal es 4.5.
+  static double contraste(Color a, Color b) {
+    final la = a.computeLuminance();
+    final lb = b.computeLuminance();
+    final claro = la > lb ? la : lb;
+    final oscuro = la > lb ? lb : la;
+    return (claro + 0.05) / (oscuro + 0.05);
+  }
+
+  /// `true` cuando el color de marca casi no se distingue del fondo de las
+  /// tarjetas, como pasa si alguien elige blanco.
+  ///
+  /// Sin esto, un boton lleno de color de marca sobre una tarjeta blanca es
+  /// un rectangulo invisible con texto flotando encima. El borde no es adorno:
+  /// es lo unico que dice donde termina el boton.
+  static bool get primaryNecesitaBorde => contraste(_primary, background) < 1.5;
+
+  /// Borde para ese caso. Se deriva del propio color de marca (no es un gris
+  /// fijo) para que el boton siga viendose de la marca y no de la plantilla.
+  static Color get bordePrimario => _sombrear(_primary, -0.22);
 
   static Color get primaryDark => _sombrear(_primary, -0.18);
   static Color get primaryDarker => _sombrear(_primary, -0.32);
