@@ -16,6 +16,94 @@ Formato: `MAYOR.MENOR.PARCHE`.
 
 ---
 
+## 1.4.0 — sin publicar
+
+> **Esta versión modifica la información guardada.** Respalda antes de
+> actualizar y hazlo con la caja cerrada. El sistema hace su propio respaldo
+> automático antes de tocar nada, pero el tuyo es el que no depende de que
+> todo salga bien.
+
+### El corte de caja, rediseñado
+
+Cerrar caja eran demasiados clics y el resultado era un número suelto que no
+explicaba nada. Ahora el cajero **cuenta como cuenta en la vida real**:
+billetes por denominación y las monedas al bulto.
+
+- **Contador de billetes**: un renglón por denominación (1000, 500, 200, 100,
+  50, 20) y un solo campo para todas las monedas. El total se suma solo. Nadie
+  vuelve a sumar aparte y capturar el resultado.
+- **El desglose queda guardado.** Antes solo se conservaba el total contado. El
+  día que alguien discuta un faltante, ahora se puede ver si el error estuvo en
+  el conteo, en la suma o en la captura.
+- **El conteo sigue siendo a ciegas**: mientras el cajero cuenta no ve el
+  efectivo esperado ni la diferencia. Eso no cambió, y está protegido por una
+  prueba automática que revisa que ningún número que forme parte del esperado
+  se asome antes de cerrar.
+- **El reporte de cierre se lee de corrido**: qué entró, qué salió, qué debería
+  haber, qué hay y la diferencia — en ese orden, sin ir y venir entre
+  pantallas.
+
+### Colores y legibilidad
+
+- **Negro y blanco entraron a la paleta de marca.** Antes no se podían elegir.
+- **Se acabó el texto negro sobre botones oscuros.** El color del texto ya no
+  está escrito a mano: se calcula del color del botón, así que cualquier color
+  de marca que elijas queda legible. Verde, naranja y turquesa se oscurecieron
+  un poco porque en su tono anterior ningún color de texto alcanzaba el
+  contraste mínimo.
+- Los botones de color claro llevan borde, para que no se pierdan contra el
+  fondo blanco.
+
+### Devoluciones: se devuelve exactamente lo cobrado
+
+- **Una venta con promoción se devolvía al precio de lista.** Un producto de
+  $100 vendido en $80 por un 2x1 se reembolsaba en $100. El sistema ahora
+  guarda el importe exacto de cada línea y devuelve ese, no el de la etiqueta.
+- **Las devoluciones parciales ya no dejan centavos sueltos.** Tres piezas de
+  $10 con $1 de descuento se cobraron en $29.00 y se devolvían en $29.01,
+  cada vez.
+- **El método de pago original se busca donde de verdad está** (pagos de la
+  venta, abonos del apartado, y al final la venta) en vez de asumirlo.
+- Si el sistema no puede confirmar quién autorizó un reembolso en efectivo,
+  **no lo autoriza**. Antes, ante un error, seguía adelante.
+
+### Reportes
+
+- **El reporte de un cajero ya no carga las devoluciones de toda la tienda.**
+  Uno con $800 vendidos podía salir en ceros por una cancelación de $2,000 que
+  hizo otro en la caja de al lado.
+- **El desglose por método de pago ya no se aplasta a cero.** Si salieron $100
+  del cajón y no entró efectivo ese día, dice −$100. Ponerlo en cero borraba
+  del reporte una salida de dinero real.
+- El costo de compra del producto se actualiza con la última compra, así la
+  utilidad se mide contra lo que costó de verdad.
+
+### Impresión
+
+Una impresora apagada hacía que el sistema dijera que falló una operación que
+**sí se había guardado**. Tres casos, los tres corregidos:
+
+- En **compras**, el carrito no se limpiaba: se volvía a capturar la misma
+  compra y el inventario y la deuda al proveedor quedaban al doble.
+- En **apartados**, el abono quedaba registrado pero la pantalla decía "no se
+  pudo procesar el pago". El cliente podía terminar pagando dos veces.
+- En el **ticket de venta**, la falla no se veía por ningún lado: no pasaba
+  absolutamente nada al presionar imprimir.
+
+### En todas las pantallas
+
+- **Cargando, error y "reintentar"** en 16 pantallas. Antes, si algo fallaba al
+  abrir, la pantalla se quedaba vacía sin decir por qué y sin forma de
+  reintentar más que cerrar el sistema.
+- **Botones que decían que borraban y no borraban**: cinco pantallas confirmaban
+  la eliminación aunque la base la hubiera rechazado.
+- El ajuste manual de existencias trabaja sobre la diferencia, no sobre el
+  número que el usuario tenía en pantalla: si alguien vendió mientras la
+  ventana estaba abierta, ya no se pisa esa venta. Tampoco deja bajar el stock
+  por debajo de lo apartado.
+
+---
+
 ## 1.3.0 — sin publicar
 
 ### La pantalla de venta, rediseñada
