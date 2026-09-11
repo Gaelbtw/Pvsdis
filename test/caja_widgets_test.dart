@@ -10,7 +10,6 @@
 // Lo que NO se prueba aquí y sigue dependiendo de revisión manual: el flujo
 // completo de abrir turno, cerrar y volver a la pantalla de resultado.
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:pvapp/controllers/caja_controller.dart';

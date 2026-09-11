@@ -4,6 +4,9 @@
 // Administrador NO veía Apartados, Promociones ni Pedidos, cuando
 // `HomeView._modulos` lleva tiempo incluyendo los tres (más Cuentas por
 // pagar). Se ajusta a lo que la pantalla hace hoy.
+//
+// Vender ya no es una tarjeta más de la parrilla: es la banda de acción de
+// arriba, junto a Corte de caja. Por eso se busca 'Vender' y no 'Ventas'.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -50,16 +53,19 @@ void main() {
     SessionManager.clear();
   });
 
-  testWidgets('Inicio de Administrador muestra únicamente los 7 módulos permitidos', (tester) async {
+  testWidgets('Inicio de Administrador muestra sus módulos y ninguno de más', (tester) async {
     await binding.setSurfaceSize(const Size(1400, 900));
     addTearDown(() => binding.setSurfaceSize(null));
     SessionManager.setUser(id: 1, nombre: 'Admin', rol: 'Admin');
 
     await pumpIgnorandoOverflow(tester, const MaterialApp(home: HomeView()));
 
+    // La banda de acción, antes de la parrilla.
+    expect(find.text('Vender'), findsOneWidget);
+    expect(find.text('Corte de caja'), findsOneWidget);
+
     for (final visible in [
       'Productos',
-      'Ventas',
       'Inventario',
       'Clientes',
       'Proveedores',
@@ -89,15 +95,17 @@ void main() {
         reason: 'Un Admin debe poder abrir Configuración desde el menú de cuenta');
   });
 
-  testWidgets('Inicio de Cajero conserva sus mismas tarjetas de siempre', (tester) async {
+  testWidgets('Inicio de Cajero conserva sus mismos módulos de siempre', (tester) async {
     await binding.setSurfaceSize(const Size(1400, 900));
     addTearDown(() => binding.setSurfaceSize(null));
     SessionManager.setUser(id: 2, nombre: 'Cajero Uno', rol: 'Cajero');
 
     await pumpIgnorandoOverflow(tester, const MaterialApp(home: HomeView()));
 
+    expect(find.text('Vender'), findsOneWidget);
+    expect(find.text('Corte de caja'), findsOneWidget);
+
     for (final visible in [
-      'Ventas',
       'Apartados',
       'Clientes',
       'Inventario',
